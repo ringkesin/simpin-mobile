@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../theme.dart';
 
 // Widget: Header
 class HeaderWidget extends StatelessWidget {
@@ -59,6 +60,11 @@ class CategoriesWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final brightness = Theme.of(context).brightness;
+    final textTheme = Theme.of(context).textTheme;
+
+    final isDarkMode = brightness == Brightness.dark;
+
     final List<Map<String, dynamic>> categories = [
       {"icon": Icons.calculate, "label": "Simulasi Pinjaman"},
       {"icon": Icons.assignment, "label": "Pengajuan Pinjaman"},
@@ -66,8 +72,6 @@ class CategoriesWidget extends StatelessWidget {
       {"icon": Icons.person, "label": "Info Profile"},
       {"icon": Icons.savings, "label": "Info Tabungan"},
       {"icon": Icons.monetization_on, "label": "Pencairan Tabungan"},
-      // {"icon": Icons.monetization_on, "label": "Pencairan Tabungan"},
-      // {"icon": Icons.monetization_on, "label": "Pencairan Tabungan"},
     ];
 
     return GridView.builder(
@@ -77,23 +81,37 @@ class CategoriesWidget extends StatelessWidget {
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: screenWidth > 600 ? 4 : 3,
         childAspectRatio: 1,
-        crossAxisSpacing: 5,
-        mainAxisSpacing: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
       ),
       itemBuilder: (context, index) {
         final category = categories[index];
+
         return Column(
           children: [
             CircleAvatar(
               radius: 30,
-              backgroundColor: Colors.blueAccent.withOpacity(0.1),
-              child: Icon(category['icon'], color: Colors.blueAccent, size: 30),
+              backgroundColor:
+                  isDarkMode
+                      ? AppColors.primaryDark.withOpacity(0.1)
+                      : AppColors.primaryLight.withOpacity(0.1),
+              child: Icon(
+                category['icon'],
+                color:
+                    isDarkMode ? AppColors.primaryDark : AppColors.primaryLight,
+                size: 30,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               category['label'],
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, color: Colors.black87),
+              style: textTheme.labelSmall?.copyWith(
+                color:
+                    isDarkMode
+                        ? AppColors.primaryTextDark
+                        : AppColors.primaryTextLight,
+              ),
             ),
           ],
         );

@@ -1,0 +1,144 @@
+import 'package:flutter/material.dart';
+import '../../../theme.dart'; // Import AppTheme
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  bool _isDarkMode = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme =
+        _isDarkMode ? AppTheme.textThemeDark : AppTheme.textThemeLight;
+    final backgroundColor =
+        _isDarkMode
+            ? AppColors.primaryBackgroundDark
+            : AppColors.primaryBackgroundLight;
+    final primaryColor =
+        _isDarkMode ? AppColors.primaryDark : AppColors.primaryLight;
+    final textColor =
+        _isDarkMode ? AppColors.primaryTextDark : AppColors.primaryTextLight;
+
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo
+              Image.asset(
+                'assets/images/logokkba.png',
+                height: 120,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 16),
+
+              // Headline Text
+              Text(
+                "Welcome Back!",
+                style: theme.headlineMedium?.copyWith(color: textColor),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+
+              // Username Field
+              TextField(
+                style: theme.bodyMedium?.copyWith(color: textColor),
+                decoration: InputDecoration(
+                  labelText: "Username",
+                  labelStyle: theme.bodyMedium?.copyWith(color: textColor),
+                  prefixIcon: Icon(Icons.person, color: primaryColor),
+                  filled: true,
+                  fillColor:
+                      _isDarkMode
+                          ? AppColors.secondaryBackgroundDark
+                          : AppColors.secondaryBackgroundLight,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Password Field
+              TextField(
+                obscureText: true,
+                style: theme.bodyMedium?.copyWith(color: textColor),
+                decoration: InputDecoration(
+                  labelText: "Password",
+                  labelStyle: theme.bodyMedium?.copyWith(color: textColor),
+                  prefixIcon: Icon(Icons.lock, color: primaryColor),
+                  filled: true,
+                  fillColor:
+                      _isDarkMode
+                          ? AppColors.secondaryBackgroundDark
+                          : AppColors.secondaryBackgroundLight,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Forgot Password
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {},
+                  child: Text(
+                    "Forgot Password?",
+                    style: theme.bodyMedium?.copyWith(color: primaryColor),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Login Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    "Login",
+                    style: theme.titleLarge?.copyWith(color: Colors.white),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Create Account
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text("Don't have an account?", style: theme.bodyMedium),
+                  TextButton(
+                    onPressed: () {},
+                    child: Text(
+                      "Create Account",
+                      style: theme.bodyMedium?.copyWith(color: primaryColor),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
