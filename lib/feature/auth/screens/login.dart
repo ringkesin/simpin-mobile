@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../theme.dart'; // Import AppTheme
+import '../../../service/api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'registrasi.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -10,6 +13,48 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _isDarkMode = false;
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final ApiService _apiService = ApiService();
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  Future<void> _handleLogin() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final response = await _apiService.login(
+      _usernameController.text,
+      _passwordController.text,
+    );
+
+    if (response.containsKey("error")) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = response["error"];
+      });
+    } else if (response["success"] == true) {
+      // Simpan token ke SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString("token", response["data"]["token"]);
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Navigasi ke halaman utama
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, "/home");
+      }
+    } else {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = "Login failed. Please try again.";
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +95,7 @@ class _LoginPageState extends State<LoginPage> {
 
               // Username Field
               TextField(
+                controller: _usernameController,
                 style: theme.bodyMedium?.copyWith(color: textColor),
                 decoration: InputDecoration(
                   labelText: "Username",
@@ -69,6 +115,7 @@ class _LoginPageState extends State<LoginPage> {
 
               // Password Field
               TextField(
+                controller: _passwordController,
                 obscureText: true,
                 style: theme.bodyMedium?.copyWith(color: textColor),
                 decoration: InputDecoration(
@@ -104,7 +151,7 @@ class _LoginPageState extends State<LoginPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -112,12 +159,26 @@ class _LoginPageState extends State<LoginPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(
-                    "Login",
-                    style: theme.titleLarge?.copyWith(color: Colors.white),
-                  ),
+                  child:
+                      _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                            "Login",
+                            style: theme.titleLarge?.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
                 ),
               ),
+              const SizedBox(height: 16),
+
+              // Error Message
+              if (_errorMessage != null)
+                Text(
+                  _errorMessage!,
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
               const SizedBox(height: 16),
 
               // Create Account
@@ -126,7 +187,14 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   Text("Don't have an account?", style: theme.bodyMedium),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RegisterScreen(),
+                        ), // Ganti dengan halaman registrasi kamu
+                      );
+                    },
                     child: Text(
                       "Create Account",
                       style: theme.bodyMedium?.copyWith(color: primaryColor),
