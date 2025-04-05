@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
-  final Dio _dio = Dio(
+  static Dio _dio = Dio(
     BaseOptions(
       baseUrl:
           dotenv.env['baseUrl'] ??
@@ -27,5 +27,25 @@ class ApiService {
     } catch (e) {
       return {"error": "Terjadi kesalahan saat login: $e"};
     }
+  }
+
+  static Future<List<Map<String, dynamic>>> getUnit() async {
+    try {
+      String url = '/api/unit'; // Pastikan endpoint ini benar
+      Response response = await _dio.get(url);
+
+      // print("Requesting URL: ${_dio.options.baseUrl}$url");
+      // print("Response Status Code: ${response.statusCode}");
+      print("Response Data: ${response.data}");
+
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .map((e) => e as Map<String, dynamic>)
+            .toList();
+      }
+    } catch (e) {
+      print("Error fetching units: $e");
+    }
+    return [];
   }
 }

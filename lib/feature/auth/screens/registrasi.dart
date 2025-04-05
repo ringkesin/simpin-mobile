@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:step_progress_indicator/step_progress_indicator.dart';
+import '../../../service/api_service.dart';
 
 void main() {
   runApp(
@@ -21,6 +22,14 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final PageController _pageController = PageController();
   int _currentStep = 1;
+  List<Map<String, dynamic>> _units = [];
+  String? _selectedUnit;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUnits();
+  }
 
   void _nextStep() {
     if (_currentStep < 3) {
@@ -42,6 +51,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } else {
       Navigator.pop(context); // Kembali ke halaman sebelumnya
     }
+  }
+
+  Future<void> _fetchUnits() async {
+    List<Map<String, dynamic>> units = await ApiService.getUnit();
+    print("Fetched units: $units"); // Debugging
+    setState(() {
+      _units = units;
+    });
   }
 
   @override
@@ -119,12 +136,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _buildTextField("Employee ID"),
         DropdownButtonFormField(
           decoration: _inputDecoration("Select Department"),
-          items: [
-            DropdownMenuItem(child: Text("IT"), value: "IT"),
-            DropdownMenuItem(child: Text("HR"), value: "HR"),
-            DropdownMenuItem(child: Text("Finance"), value: "Finance"),
-          ],
-          onChanged: (value) {},
+          items:
+              _units.map((unit) {
+                return DropdownMenuItem(
+                  child: Text(unit['name']),
+                  value: unit['id'].toString(),
+                );
+              }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedUnit = value.toString();
+            });
+          },
+          value: _selectedUnit,
         ),
         SizedBox(height: 24),
         _buildNavigationButtons(),
