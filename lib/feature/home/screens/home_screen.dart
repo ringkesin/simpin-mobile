@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kkba_mobile/page_wrapper.dart';
 import '../widgets/home_widget.dart';
-import '../../../theme.dart';
+// import '../../../theme.dart';
 
 class HomeScreen extends StatelessWidget {
   @override

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:step_progress_indicator/step_progress_indicator.dart';
 import '../../../service/api_service.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
 
 void main() {
   runApp(
@@ -26,8 +26,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   int _currentStep = 1;
   List<Map<String, dynamic>> _units = [];
   String? _selectedUnit;
-  PlatformFile? _documentStepOne;
-  PlatformFile? _documentStepTwo;
 
   @override
   void initState() {
@@ -35,13 +33,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _fetchUnits();
   }
 
-  Future<void> _pickDocument(Function(PlatformFile) onPicked) async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.any);
+  void _pickDocument(Function(XFile?) callback) async {
+    final typeGroup = XTypeGroup(
+      label: 'documents',
+      extensions: ['pdf', 'doc', 'docx'],
+      uniformTypeIdentifiers: [
+        'com.adobe.pdf',
+        'org.openxmlformats.wordprocessingml.document',
+        'com.microsoft.word.doc',
+      ],
+    );
 
-    if (result != null && result.files.isNotEmpty) {
-      onPicked(result.files.first);
+    final XFile? file = await openFile(acceptedTypeGroups: [typeGroup]);
+    if (file != null) {
+      callback(file);
     }
-    return null;
   }
 
   String _getUnitNameById(String? id) {
@@ -128,39 +134,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildFilePicker({
-    // required String label,
-    required PlatformFile? file,
+    required XFile? file,
     required VoidCallback onPick,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Text(label, style: TextStyle(fontWeight: FontWeight.w600)),
-        // SizedBox(height: 8),
-        InkWell(
-          onTap: onPick,
-          child: InputDecorator(
-            decoration: InputDecoration(
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 14,
-              ),
-              suffixIcon: Icon(Icons.upload_file),
-            ),
-            child: Text(
-              file?.name ?? 'Pilih dokumen',
-              style: TextStyle(
-                color: file == null ? Colors.grey : Colors.black87,
-              ),
-            ),
-          ),
+        Text("Upload Document"),
+        SizedBox(height: 8),
+        ElevatedButton.icon(
+          onPressed: onPick,
+          icon: Icon(Icons.upload_file),
+          label: Text(file != null ? 'File: ${file.name}' : 'Choose File'),
         ),
       ],
     );
   }
+
+  XFile? _documentStepOne; // Pastikan ini ada di state
 
   Widget _stepOne() {
     return Column(
@@ -179,7 +170,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _buildTextField("Phone Number", keyboardType: TextInputType.phone),
 
         _buildFilePicker(
-          // label: "Upload Dokumen Step One",
           file: _documentStepOne,
           onPick: () {
             _pickDocument((file) {
@@ -190,7 +180,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           },
         ),
         SizedBox(height: 24),
-
         _buildNextButton(),
       ],
     );
