@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:step_progress_indicator/step_progress_indicator.dart';
 import '../../../service/api_service.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:file_picker/file_picker.dart';
 
 void main() {
   runApp(
@@ -24,11 +26,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
   int _currentStep = 1;
   List<Map<String, dynamic>> _units = [];
   String? _selectedUnit;
+  PlatformFile? _documentStepOne;
+  PlatformFile? _documentStepTwo;
 
   @override
   void initState() {
     super.initState();
     _fetchUnits();
+  }
+
+  Future<void> _pickDocument(Function(PlatformFile) onPicked) async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.any);
+
+    if (result != null && result.files.isNotEmpty) {
+      onPicked(result.files.first);
+    }
+    return null;
+  }
+
+  String _getUnitNameById(String? id) {
+    if (id == null || id.isEmpty) return "";
+
+    final unit = _units.firstWhere(
+      (unit) => unit['id'].toString() == id,
+      orElse: () => {'unit_name': ''},
+    );
+
+    return unit['unit_name'].toString();
   }
 
   void _nextStep() {
@@ -103,6 +127,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  Widget _buildFilePicker({
+    // required String label,
+    required PlatformFile? file,
+    required VoidCallback onPick,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Text(label, style: TextStyle(fontWeight: FontWeight.w600)),
+        // SizedBox(height: 8),
+        InkWell(
+          onTap: onPick,
+          child: InputDecorator(
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 14,
+              ),
+              suffixIcon: Icon(Icons.upload_file),
+            ),
+            child: Text(
+              file?.name ?? 'Pilih dokumen',
+              style: TextStyle(
+                color: file == null ? Colors.grey : Colors.black87,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _stepOne() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,7 +177,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
           keyboardType: TextInputType.emailAddress,
         ),
         _buildTextField("Phone Number", keyboardType: TextInputType.phone),
+
+        _buildFilePicker(
+          // label: "Upload Dokumen Step One",
+          file: _documentStepOne,
+          onPick: () {
+            _pickDocument((file) {
+              setState(() {
+                _documentStepOne = file;
+              });
+            });
+          },
+        ),
         SizedBox(height: 24),
+
         _buildNextButton(),
       ],
     );
@@ -134,22 +206,101 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         SizedBox(height: 16),
         _buildTextField("Employee ID"),
-        DropdownButtonFormField(
-          decoration: _inputDecoration("Select Department"),
-          items:
-              _units.map((unit) {
-                return DropdownMenuItem(
-                  child: Text(unit['name']),
-                  value: unit['id'].toString(),
-                );
-              }).toList(),
-          onChanged: (value) {
+
+        SizedBox(height: 8),
+        // Enhanced TypeAhead dropdown
+        TypeAheadFormField<Map<String, dynamic>>(
+          textFieldConfiguration: TextFieldConfiguration(
+            decoration: InputDecoration(
+              labelText: 'Select Department',
+              hintText: 'Search or select department',
+              prefixIcon: Icon(Icons.business),
+              suffixIcon: Icon(Icons.arrow_drop_down),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(
+                  12,
+                ), // Match your other fields
+              ),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14, // Match your other fields
+              ),
+            ),
+            controller: TextEditingController(
+              text: _getUnitNameById(_selectedUnit),
+            ),
+          ),
+          suggestionsCallback: (pattern) {
+            return _units
+                .where(
+                  (unit) => unit['unit_name'].toString().toLowerCase().contains(
+                    pattern.toLowerCase(),
+                  ),
+                )
+                .toList();
+          },
+          itemBuilder: (context, suggestion) {
+            return ListTile(
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              title: Text(
+                suggestion['unit_name'].toString(),
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+              leading: CircleAvatar(
+                backgroundColor: Colors.green.withOpacity(0.1),
+                child: Icon(Icons.domain, color: Colors.green),
+              ),
+            );
+          },
+          onSuggestionSelected: (suggestion) {
             setState(() {
-              _selectedUnit = value.toString();
+              _selectedUnit = suggestion['id'].toString();
             });
           },
-          value: _selectedUnit,
+          suggestionsBoxDecoration: SuggestionsBoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            elevation: 8.0,
+            shadowColor: Colors.black26,
+            constraints: BoxConstraints(maxHeight: 300),
+          ),
+          hideSuggestionsOnKeyboardHide: false,
+          noItemsFoundBuilder:
+              (context) => Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16.0,
+                  horizontal: 16.0,
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.grey),
+                    SizedBox(width: 12),
+                    Text(
+                      'No departments found',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+          loadingBuilder:
+              (context) => Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16.0,
+                  horizontal: 16.0,
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 12),
+                    Text('Loading departments...'),
+                  ],
+                ),
+              ),
         ),
+
         SizedBox(height: 24),
         _buildNavigationButtons(),
       ],
@@ -178,7 +329,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: Text("Finish", style: TextStyle(fontSize: 18)),
+          child: Text(
+            "Finish",
+            style: TextStyle(fontSize: 18, color: Colors.white),
+          ),
         ),
       ],
     );
@@ -217,7 +371,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: Text("Next", style: TextStyle(fontSize: 18)),
+        child: Text(
+          "Next",
+          style: TextStyle(fontSize: 18, color: Colors.white),
+        ),
       ),
     );
   }
@@ -242,7 +399,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: Text("Next", style: TextStyle(fontSize: 18)),
+          child: Text(
+            "Next",
+            style: TextStyle(fontSize: 18, color: Colors.white),
+          ),
         ),
       ],
     );

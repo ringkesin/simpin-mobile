@@ -31,17 +31,19 @@ class ApiService {
 
   static Future<List<Map<String, dynamic>>> getUnit() async {
     try {
-      String url = '/api/unit'; // Pastikan endpoint ini benar
+      String url = '/api/master/unit';
       Response response = await _dio.get(url);
 
-      // print("Requesting URL: ${_dio.options.baseUrl}$url");
-      // print("Response Status Code: ${response.statusCode}");
-      print("Response Data: ${response.data}");
+      print("Full API Response: ${response.data}"); // Debugging
 
-      if (response.statusCode == 200 && response.data is List) {
-        return (response.data as List)
-            .map((e) => e as Map<String, dynamic>)
-            .toList();
+      if (response.statusCode == 200 &&
+          response.data is Map &&
+          response.data['data'] != null &&
+          response.data['data']['unit'] is List) {
+        List<dynamic> rawUnits = response.data['data']['unit'];
+        return rawUnits.map((e) => e as Map<String, dynamic>).toList();
+      } else {
+        print("Unexpected response structure: ${response.data}");
       }
     } catch (e) {
       print("Error fetching units: $e");

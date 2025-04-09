@@ -39,6 +39,12 @@ dependencies:
   dio: ^5.8.0+1
   shared_preferences: ^2.5.2
   step_progress_indicator: ^1.0.2
+  dropdown_search: ^6.0.2
+  flutter_typeahead: ^4.6.2
+  flutter_keyboard_visibility: ^5.3.0
+  file_picker: ^5.2.2
+
+
 
 dev_dependencies:
   flutter_test:
@@ -67,8 +73,7 @@ flutter:
     - .env
     - assets/images/logokkba.png
 
-    
-
+ 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

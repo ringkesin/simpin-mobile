@@ -1,4 +1,4 @@
-package com.example.kkba_mobile
+package com.brantas_abipraya.kkba_mobile
 
 import io.flutter.embedding.android.FlutterActivity
 
