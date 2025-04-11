@@ -71,140 +71,166 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Logo
-              Image.asset(
-                'assets/images/logokkba.png',
-                height: 120,
-                fit: BoxFit.contain,
-              ),
-              const SizedBox(height: 16),
-
-              // Headline Text
-              Text(
-                "Welcome Back!",
-                style: theme.headlineMedium?.copyWith(color: textColor),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-
-              // Username Field
-              TextField(
-                controller: _usernameController,
-                style: theme.bodyMedium?.copyWith(color: textColor),
-                decoration: InputDecoration(
-                  labelText: "Username",
-                  labelStyle: theme.bodyMedium?.copyWith(color: textColor),
-                  prefixIcon: Icon(Icons.person, color: primaryColor),
-                  filled: true,
-                  fillColor:
-                      _isDarkMode
-                          ? AppColors.secondaryBackgroundDark
-                          : AppColors.secondaryBackgroundLight,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 32,
                 ),
-              ),
-              const SizedBox(height: 16),
-
-              // Password Field
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                style: theme.bodyMedium?.copyWith(color: textColor),
-                decoration: InputDecoration(
-                  labelText: "Password",
-                  labelStyle: theme.bodyMedium?.copyWith(color: textColor),
-                  prefixIcon: Icon(Icons.lock, color: primaryColor),
-                  filled: true,
-                  fillColor:
-                      _isDarkMode
-                          ? AppColors.secondaryBackgroundDark
-                          : AppColors.secondaryBackgroundLight,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth:
+                        500, // Supaya tidak terlalu lebar di tablet/desktop
                   ),
-                ),
-              ),
-              const SizedBox(height: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Logo
+                      Image.asset(
+                        'assets/images/logokkba.png',
+                        height: 120,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: 16),
 
-              // Forgot Password
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    "Forgot Password?",
-                    style: theme.bodyMedium?.copyWith(color: primaryColor),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
+                      // Headline Text
+                      Text(
+                        "Welcome Back!",
+                        style: theme.headlineMedium?.copyWith(color: textColor),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 32),
 
-              // Login Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child:
-                      _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : Text(
-                            "Login",
-                            style: theme.titleLarge?.copyWith(
-                              color: Colors.white,
+                      // Username Field
+                      TextField(
+                        controller: _usernameController,
+                        style: theme.bodyMedium?.copyWith(color: textColor),
+                        decoration: InputDecoration(
+                          labelText: "Username",
+                          labelStyle: theme.bodyMedium?.copyWith(
+                            color: textColor,
+                          ),
+                          prefixIcon: Icon(Icons.person, color: primaryColor),
+                          filled: true,
+                          fillColor:
+                              _isDarkMode
+                                  ? AppColors.secondaryBackgroundDark
+                                  : AppColors.secondaryBackgroundLight,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Password Field
+                      TextField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        style: theme.bodyMedium?.copyWith(color: textColor),
+                        decoration: InputDecoration(
+                          labelText: "Password",
+                          labelStyle: theme.bodyMedium?.copyWith(
+                            color: textColor,
+                          ),
+                          prefixIcon: Icon(Icons.lock, color: primaryColor),
+                          filled: true,
+                          fillColor:
+                              _isDarkMode
+                                  ? AppColors.secondaryBackgroundDark
+                                  : AppColors.secondaryBackgroundLight,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Forgot Password
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {},
+                          child: Text(
+                            "Forgot Password?",
+                            style: theme.bodyMedium?.copyWith(
+                              color: primaryColor,
                             ),
                           ),
-                ),
-              ),
-              const SizedBox(height: 16),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
-              // Error Message
-              if (_errorMessage != null)
-                Text(
-                  _errorMessage!,
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
-                ),
-              const SizedBox(height: 16),
+                      // Login Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _handleLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child:
+                              _isLoading
+                                  ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                  : Text(
+                                    "Login",
+                                    style: theme.titleLarge?.copyWith(
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
 
-              // Create Account
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text("Don't have an account?", style: theme.bodyMedium),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => RegisterScreen(),
-                        ), // Ganti dengan halaman registrasi kamu
-                      );
-                    },
-                    child: Text(
-                      "Create Account",
-                      style: theme.bodyMedium?.copyWith(color: primaryColor),
-                    ),
+                      // Error Message
+                      if (_errorMessage != null)
+                        Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+
+                      // const SizedBox(height: 15),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "Don't have an account?",
+                            style: theme.bodySmall?.copyWith(color: textColor),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => RegisterScreen(),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              "Create Account",
+                              style: theme.bodySmall?.copyWith(
+                                color: primaryColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-              const SizedBox(height: 24),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

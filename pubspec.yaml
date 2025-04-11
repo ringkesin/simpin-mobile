@@ -43,6 +43,7 @@ dependencies:
   flutter_typeahead: ^4.6.2
   flutter_keyboard_visibility: ^5.3.0
   file_selector: ^1.0.3
+  intl: ^0.18.0
 
 
 
