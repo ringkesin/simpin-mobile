@@ -3,9 +3,11 @@ import './feature/home/screens/home_screen.dart';
 import './feature/auth/screens/login.dart';
 import './theme.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/rendering.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // debugPaintSizeEnabled = true; // Tambahkan di main() saat debug
   await dotenv.load(); // Memuat file .env
   runApp(const MyApp());
 }
@@ -17,6 +19,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+
       theme: ThemeData(
         textTheme: AppTheme.textThemeLight, // Gunakan tema terang
         primaryColor:
