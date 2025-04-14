@@ -24,6 +24,7 @@ class HeaderWidget extends StatelessWidget {
 }
 
 // Widget: Banner
+// Widget: Banner (OVO Cash Style)
 class BannerWidget extends StatelessWidget {
   const BannerWidget({Key? key}) : super(key: key);
 
@@ -31,24 +32,121 @@ class BannerWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: 150,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        image: const DecorationImage(
-          image: AssetImage('assets/images/banner.png'),
-          fit: BoxFit.cover,
+        gradient: LinearGradient(
+          colors: [AppColors.primaryDark, AppColors.primaryLight],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            colors: [Colors.black.withOpacity(0.3), Colors.transparent],
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // OVO Cash & Total Balance
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'OVO Cash',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Icon(Icons.visibility, color: Colors.white, size: 18),
+                  ],
+                ),
+                SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Rp 42.743',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.circle,
+                            color: Colors.purple[800],
+                            size: 18,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            '1.473 Points',
+                            style: TextStyle(
+                              color: Colors.purple[800],
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(
+                            Icons.chevron_right,
+                            color: Colors.purple[800],
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
+
+          // Action Buttons
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildActionButton(Icons.add, 'Top Up'),
+                _buildActionButton(Icons.swap_horiz, 'Transfer'),
+                _buildActionButton(Icons.arrow_downward, 'Tarik Tunai'),
+                _buildActionButton(Icons.history, 'History'),
+              ],
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildActionButton(IconData icon, String label) {
+    return Column(
+      children: [
+        Container(
+          padding: EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white, size: 24),
+        ),
+        SizedBox(height: 4),
+        Text(label, style: TextStyle(color: Colors.white, fontSize: 12)),
+      ],
     );
   }
 }
@@ -78,6 +176,7 @@ class CategoriesWidget extends StatelessWidget {
       itemCount: categories.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: screenWidth > 600 ? 4 : 3,
         childAspectRatio: 1,
@@ -191,11 +290,11 @@ class BottomNavigationBarWidget extends StatelessWidget {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       currentIndex: 0,
-      selectedItemColor: Colors.blueAccent,
+      selectedItemColor: AppColors.primaryLight,
       unselectedItemColor: Colors.grey,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-        BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
+        // BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
         BottomNavigationBarItem(
           icon: Icon(Icons.credit_card),
           label: "Transactions",
