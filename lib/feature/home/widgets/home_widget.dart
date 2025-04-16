@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../form_pinjaman/screens/form_pinjaman.dart';
 import '../../../theme.dart';
 
 // Widget: Header
@@ -186,33 +187,79 @@ class CategoriesWidget extends StatelessWidget {
       itemBuilder: (context, index) {
         final category = categories[index];
 
-        return Column(
-          children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor:
-                  isDarkMode
-                      ? AppColors.primaryDark.withOpacity(0.1)
-                      : AppColors.primaryLight.withOpacity(0.1),
-              child: Icon(
-                category['icon'],
-                color:
-                    isDarkMode ? AppColors.primaryDark : AppColors.primaryLight,
-                size: 30,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              category['label'],
-              textAlign: TextAlign.center,
-              style: textTheme.labelSmall?.copyWith(
-                color:
+        void _navigateToPage() {
+          switch (index) {
+            case 0:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => FormWizardScreen()),
+              );
+              break;
+            case 1:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => FormWizardScreen()),
+              );
+              break;
+            case 2:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => FormWizardScreen()),
+              );
+              break;
+            case 3:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => FormWizardScreen()),
+              );
+              break;
+            case 4:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => FormWizardScreen()),
+              );
+              break;
+            case 5:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => FormWizardScreen()),
+              );
+              break;
+          }
+        }
+
+        return GestureDetector(
+          onTap: _navigateToPage,
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 30,
+                backgroundColor:
                     isDarkMode
-                        ? AppColors.primaryTextDark
-                        : AppColors.primaryTextLight,
+                        ? AppColors.primaryDark.withOpacity(0.1)
+                        : AppColors.primaryLight.withOpacity(0.1),
+                child: Icon(
+                  category['icon'],
+                  color:
+                      isDarkMode
+                          ? AppColors.primaryDark
+                          : AppColors.primaryLight,
+                  size: 30,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                category['label'],
+                textAlign: TextAlign.center,
+                style: textTheme.labelSmall?.copyWith(
+                  color:
+                      isDarkMode
+                          ? AppColors.primaryTextDark
+                          : AppColors.primaryTextLight,
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

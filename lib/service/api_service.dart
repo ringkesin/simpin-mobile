@@ -1,12 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../model/jenis_pinjaman.dart';
+import '../model/keperluan_pinjaman.dart';
 
 class ApiService {
   static Dio _dio = Dio(
     BaseOptions(
-      baseUrl:
-          dotenv.env['baseUrl'] ??
-          'https://web-simpin-dev-akbar-lgpepu.laravel.cloud',
+      baseUrl: dotenv.env['baseUrl'] ?? 'https://kkba-simpin.laravel.cloud',
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
     ),
@@ -20,7 +21,18 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        return response.data; // Mengembalikan data response API
+        final data = response.data;
+
+        // Ambil token dan nama dari response
+        final token = data['data']['token'];
+        final name = data['data']['user']['name'];
+
+        // Simpan ke SharedPreferences
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('token', token);
+        await prefs.setString('name', name);
+
+        return data;
       } else {
         return {"error": "Login gagal, periksa kembali kredensial Anda"};
       }
@@ -49,5 +61,57 @@ class ApiService {
       print("Error fetching units: $e");
     }
     return [];
+  }
+
+  Future<List<JenisPinjamanModel>> getMasterJenisPinjaman() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('token');
+
+      if (token == null) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      Response response = await _dio.get(
+        '/api/master/jenis-pinjaman',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200 && response.data['success']) {
+        List<dynamic> list = response.data['data']['jenis_pinjaman'];
+        return list.map((e) => JenisPinjamanModel.fromJson(e)).toList();
+      } else {
+        throw Exception('Gagal memuat data jenis pinjaman.');
+      }
+    } catch (e) {
+      print('Error getMasterJenisPinjaman: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<KeperluanPinjamanModel>> getMasterKeperluanPinjaman() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('token');
+
+      if (token == null) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      Response response = await _dio.get(
+        '/api/master/keperluan-pinjaman',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200 && response.data['success']) {
+        List<dynamic> list = response.data['data']['keperluan_pinjaman'];
+        return list.map((e) => KeperluanPinjamanModel.fromJson(e)).toList();
+      } else {
+        throw Exception('Gagal memuat data keperluan pinjaman.');
+      }
+    } catch (e) {
+      print('Error getMasterKeperluanPinjaman: $e');
+      rethrow;
+    }
   }
 }
