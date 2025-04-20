@@ -3,6 +3,7 @@ import '../../../theme.dart'; // Import AppTheme
 import '../../../service/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'registrasi.dart';
+import '../../../model/login_response.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -25,33 +26,55 @@ class _LoginPageState extends State<LoginPage> {
       _errorMessage = null;
     });
 
-    final response = await _apiService.login(
-      _usernameController.text,
-      _passwordController.text,
-    );
+    try {
+      final response = await _apiService.login(
+        _usernameController.text,
+        _passwordController.text,
+      );
 
-    if (response.containsKey("error")) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = response["error"];
-      });
-    } else if (response["success"] == true) {
-      // Simpan token ke SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString("token", response["data"]["token"]);
+      // Parse the response using the model
+      final loginResponse = LoginResponse.fromJson(response);
 
-      setState(() {
-        _isLoading = false;
-      });
+      if (loginResponse.error != null) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = loginResponse.error;
+        });
+      } else if (loginResponse.success && loginResponse.data != null) {
+        // Save important data to SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString("token", loginResponse.data!.token);
+        await prefs.setInt(
+          "p_anggota_id",
+          loginResponse.data!.anggota.pAnggotaId,
+        );
+        await prefs.setString("nama", loginResponse.data!.anggota.nama);
+        await prefs.setString(
+          "nomor_anggota",
+          loginResponse.data!.anggota.nomorAnggota,
+        );
+        await prefs.setString("email", loginResponse.data!.anggota.email);
+        await prefs.setString("nik", loginResponse.data!.anggota.nik);
 
-      // Navigasi ke halaman utama
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, "/home");
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Navigate to home page
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, "/home");
+        }
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage =
+              loginResponse.message ?? "Login failed. Please try again.";
+        });
       }
-    } else {
+    } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = "Login failed. Please try again.";
+        _errorMessage = "An error occurred: ${e.toString()}";
       });
     }
   }

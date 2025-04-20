@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../model/jenis_pinjaman.dart';
 import '../model/keperluan_pinjaman.dart';
+import '../model/tabungan.dart';
 
 class ApiService {
   static Dio _dio = Dio(
@@ -111,6 +112,46 @@ class ApiService {
       }
     } catch (e) {
       print('Error getMasterKeperluanPinjaman: $e');
+      rethrow;
+    }
+  }
+
+  Future<TabunganData> getTabungan({
+    required String bulan,
+    required String tahun,
+    int? pAnggotaId,
+  }) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('token');
+
+      if (token == null) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      // Prepare the payload
+      Map<String, dynamic> payload = {"bulan": bulan, "tahun": tahun};
+
+      // Add p_anggota_id if provided
+      if (pAnggotaId != null) {
+        payload["p_anggota_id"] = pAnggotaId;
+      }
+
+      Response response = await _dio.post(
+        '/api/tabungan',
+        data: payload,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200) {
+        return TabunganData.fromJson(response.data);
+      } else {
+        throw Exception(
+          response.data['message'] ?? 'Gagal memuat data tabungan.',
+        );
+      }
+    } catch (e) {
+      print('Error getTabungan: $e');
       rethrow;
     }
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kkba_mobile/feature/tabungan/screens/tabungan.dart';
 import '../../form_pinjaman/screens/form_pinjaman.dart';
 import '../../../theme.dart';
 
@@ -192,7 +193,7 @@ class CategoriesWidget extends StatelessWidget {
             case 0:
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => FormWizardScreen()),
+                MaterialPageRoute(builder: (_) => TabunganPage()),
               );
               break;
             case 1:
