@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../model/jenis_pinjaman.dart';
 import '../model/keperluan_pinjaman.dart';
 import '../model/tabungan.dart';
+import '../model/shu.dart';
 
 class ApiService {
   static Dio _dio = Dio(
@@ -152,6 +153,45 @@ class ApiService {
       }
     } catch (e) {
       print('Error getTabungan: $e');
+      rethrow;
+    }
+  }
+
+  Future<InfoSHU> getShu({
+    // Ubah nama fungsi dan return type
+    required String tahun,
+    int? pAnggotaId,
+  }) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('token');
+
+      if (token == null) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      // Prepare the payload
+      Map<String, dynamic> payload = {"tahun": tahun};
+
+      // Add p_anggota_id if provided
+      if (pAnggotaId != null) {
+        payload["p_anggota_id"] = pAnggotaId;
+      }
+
+      Response response = await _dio.post(
+        '/api/shu', // Ubah endpoint ke /api/shu
+        data: payload,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200) {
+        //  print("Response Data: ${response.data}"); //for debugging
+        return InfoSHU.fromJson(response.data); // Gunakan InfoSHU.fromJson
+      } else {
+        throw Exception(response.data['message'] ?? 'Gagal memuat data SHU.');
+      }
+    } catch (e) {
+      print('Error getShu: $e');
       rethrow;
     }
   }
