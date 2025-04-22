@@ -42,7 +42,19 @@ class _HomeScreenState extends State<HomeScreen> {
         slivers: [
           SliverToBoxAdapter(
             child: Container(
-              color: AppColors.alternateLight,
+              decoration: BoxDecoration(
+                // Gunakan warna yang Anda sebut "hijau" di sini
+                color: AppColors.alternateLight,
+                // Menambahkan BorderRadius hanya di sudut bawah
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(
+                    30.0,
+                  ), // Atur radius sesuai keinginan
+                  bottomRight: Radius.circular(
+                    30.0,
+                  ), // Atur radius sesuai keinginan
+                ),
+              ),
               child: SafeArea(
                 bottom: false,
                 child: Column(
