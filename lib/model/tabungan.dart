@@ -45,15 +45,18 @@ class Data {
 
   factory Data.fromJson(Map<String, dynamic> json) {
     return Data(
-      pAnggotaId: json['p_anggota_id'],
-      bulan: json['bulan'],
-      tahun: json['tahun'],
-      totalTabungan: json['total_tabungan'],
-      simpananPokok: json['simpanan_pokok'],
-      simpananWajib: json['simpanan_wajib'],
-      tabunganSukarela: json['tabungan_sukarela'],
-      tabunganIndir: json['tabungan_indir'],
-      kompensasiMasaKerja: json['kompensasi_masa_kerja'],
+      // Asumsikan p_anggota_id dan field nominal memang angka (num/int)
+      pAnggotaId: (json['p_anggota_id'] as int?) ?? 0,
+      // Konversi bulan dan tahun ke String menggunakan .toString() atau interpolasi
+      bulan: (json['bulan'] as dynamic)?.toString() ?? '', // <-- Perbaikan
+      tahun: (json['tahun'] as dynamic)?.toString() ?? '', // <-- Perbaikan
+      // Untuk field num, pastikan di-cast ke num dan beri default jika perlu
+      totalTabungan: (json['total_tabungan'] as num?) ?? 0,
+      simpananPokok: (json['simpanan_pokok'] as num?) ?? 0,
+      simpananWajib: (json['simpanan_wajib'] as num?) ?? 0,
+      tabunganSukarela: (json['tabungan_sukarela'] as num?) ?? 0,
+      tabunganIndir: (json['tabungan_indir'] as num?) ?? 0,
+      kompensasiMasaKerja: (json['kompensasi_masa_kerja'] as num?) ?? 0,
     );
   }
 

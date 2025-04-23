@@ -35,12 +35,14 @@ class ShuData {
 
   factory ShuData.fromJson(Map<String, dynamic> json) {
     return ShuData(
-      pAnggotaId: json['p_anggota_id'],
-      tahun: json['tahun'],
-      shuDiterima: json['shu_diterima'],
-      shuDibagi: json['shu_dibagi'],
-      shuDitabung: json['shu_ditabung'],
-      shuTahunLalu: json['shu_tahun_lalu'],
+      pAnggotaId: (json['p_anggota_id'] as int?) ?? 0,
+      // Konversi 'tahun' ke String dengan aman
+      tahun: (json['tahun'] as dynamic)?.toString() ?? '', // <-- PERBAIKAN
+      // Pastikan field num juga aman dari null
+      shuDiterima: (json['shu_diterima'] as num?) ?? 0,
+      shuDibagi: (json['shu_dibagi'] as num?) ?? 0,
+      shuDitabung: (json['shu_ditabung'] as num?) ?? 0,
+      shuTahunLalu: (json['shu_tahun_lalu'] as num?) ?? 0,
     );
   }
 

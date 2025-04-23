@@ -18,28 +18,43 @@ class ApiService {
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
       Response response = await _dio.post(
-        '/api/login',
+        '/api/login', // Pastikan endpoint benar
         data: {"username": username, "password": password},
+        // Optional: Tambahkan header jika diperlukan (misal, Content-Type)
+        // options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
-      if (response.statusCode == 200) {
-        final data = response.data;
+      // statusCode == 200 sudah ditangani oleh Dio jika validateStatus true (default)
+      // Jika sampai sini, berarti sukses (2xx)
+      final data =
+          response.data as Map<String, dynamic>; // Pastikan di-cast ke Map
 
-        // Ambil token dan nama dari response
-        final token = data['data']['token'];
-        final name = data['data']['user']['name'];
+      // ----- Sebaiknya Hapus Penyimpanan SharedPreferences di Sini -----
+      // Penyimpanan lebih baik dilakukan di _handleLogin setelah parsing berhasil
+      // final token = data['data']['token'];
+      // final name = data['data']['user']['name'];
+      // SharedPreferences prefs = await SharedPreferences.getInstance();
+      // await prefs.setString('token', token);
+      // await prefs.setString('name', name);
+      // -------------------------------------------------------------
 
-        // Simpan ke SharedPreferences
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString('token', token);
-        await prefs.setString('name', name);
-
-        return data;
-      } else {
-        return {"error": "Login gagal, periksa kembali kredensial Anda"};
-      }
+      return data;
+    } on DioException catch (e) {
+      // Lempar kembali DioException agar bisa ditangkap di UI
+      // Anda bisa menambahkan logging di sini jika perlu
+      print('ApiService Error: ${e.message}');
+      print(
+        'ApiService Response Data: ${e.response?.data}',
+      ); // Lihat body response error jika ada
+      rethrow; // <-- Lempar kembali errornya
     } catch (e) {
-      return {"error": "Terjadi kesalahan saat login: $e"};
+      // Tangkap error lain yang mungkin terjadi (selain DioException)
+      print('ApiService Generic Error: $e');
+      // Kembalikan Map error generik atau lempar custom exception
+      // return {"error": "Terjadi kesalahan tidak terduga: $e"};
+      throw Exception(
+        "Terjadi kesalahan tidak terduga: $e",
+      ); // Lempar error generik
     }
   }
 

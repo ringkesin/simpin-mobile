@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kkba_mobile/navbar.dart';
 import './feature/home/screens/home_screen.dart';
 import './feature/auth/screens/login.dart';
 import './theme.dart';
@@ -35,7 +36,7 @@ class MyApp extends StatelessWidget {
       initialRoute: '/', // Rute awal
       routes: {
         '/': (context) => const LoginPage(), // Halaman login sebagai default
-        '/home': (context) => HomeScreen(), // Definisi rute home
+        '/home': (context) => MainWrapper(), // Definisi rute home
       },
     );
   }

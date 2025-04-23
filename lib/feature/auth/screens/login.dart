@@ -31,9 +31,9 @@ class _LoginPageState extends State<LoginPage> {
         _usernameController.text,
         _passwordController.text,
       );
-
       // Parse the response using the model
       final loginResponse = LoginResponse.fromJson(response);
+      print(' ini respon ${loginResponse.error}');
 
       if (loginResponse.error != null) {
         setState(() {
@@ -46,15 +46,15 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setString("token", loginResponse.data!.token);
         await prefs.setInt(
           "p_anggota_id",
-          loginResponse.data!.anggota.pAnggotaId,
+          loginResponse.data!.anggota.pAnggotaId ?? 0,
         );
-        await prefs.setString("nama", loginResponse.data!.anggota.nama);
+        await prefs.setString("nama", loginResponse.data!.anggota.nama ?? '');
         await prefs.setString(
           "nomor_anggota",
-          loginResponse.data!.anggota.nomorAnggota,
+          loginResponse.data!.anggota.nomorAnggota ?? '',
         );
-        await prefs.setString("email", loginResponse.data!.anggota.email);
-        await prefs.setString("nik", loginResponse.data!.anggota.nik);
+        await prefs.setString("email", loginResponse.data!.anggota.email ?? '');
+        await prefs.setString("nik", loginResponse.data!.anggota.nik ?? '');
 
         setState(() {
           _isLoading = false;

@@ -42,77 +42,123 @@ class LoginData {
 }
 
 class Anggota {
-  final int pAnggotaId;
-  final String nomorAnggota;
-  final String tanggalMasuk;
-  final String nama;
-  final String nik;
-  final String alamat;
-  final String ktp;
-  final String tempatLahir;
-  final String tglLahir;
-  final String email;
-  final String mobile;
+  // Jadikan semua field nullable (?)
+  final int? pAnggotaId;
+  final String? nomorAnggota;
+  final String? tanggalMasuk;
+  final String? nama;
+  final String? nik;
+  final String? alamat;
+  final String? ktp;
+  final String? tempatLahir;
+  final String? tglLahir;
+  final String? email; // Tambahkan ?
+  final String? mobile; // Tambahkan ?
 
+  // Tambahkan nilai default di constructor
   Anggota({
-    required this.pAnggotaId,
-    required this.nomorAnggota,
-    required this.tanggalMasuk,
-    required this.nama,
-    required this.nik,
-    required this.alamat,
-    required this.ktp,
-    required this.tempatLahir,
-    required this.tglLahir,
-    required this.email,
-    required this.mobile,
+    this.pAnggotaId = 0, // Default int
+    this.nomorAnggota = '', // Default String
+    this.tanggalMasuk = '',
+    this.nama = '',
+    this.nik = '',
+    this.alamat = '',
+    this.ktp = '',
+    this.tempatLahir = '',
+    this.tglLahir = '',
+    this.email = '', // Default String
+    this.mobile = '', // Default String
   });
 
   factory Anggota.fromJson(Map<String, dynamic> json) {
     return Anggota(
-      pAnggotaId: json['p_anggota_id'],
-      nomorAnggota: json['nomor_anggota'],
-      tanggalMasuk: json['tanggal_masuk'],
-      nama: json['nama'],
-      nik: json['nik'],
-      alamat: json['alamat'],
-      ktp: json['ktp'],
-      tempatLahir: json['tempat_lahir'],
-      tglLahir: json['tgl_lahir'],
-      email: json['email'],
-      mobile: json['mobile'],
+      // Tambahkan cast (as T?) dan null coalescing (??) untuk SEMUA field
+      pAnggotaId: (json['p_anggota_id'] as int?) ?? 0,
+      nomorAnggota: (json['nomor_anggota'] as String?) ?? '',
+      tanggalMasuk: (json['tanggal_masuk'] as String?) ?? '',
+      nama: (json['nama'] as String?) ?? '',
+      nik: (json['nik'] as String?) ?? '',
+      alamat: (json['alamat'] as String?) ?? '',
+      ktp: (json['ktp'] as String?) ?? '',
+      tempatLahir: (json['tempat_lahir'] as String?) ?? '',
+      tglLahir: (json['tgl_lahir'] as String?) ?? '',
+      email: (json['email'] as String?) ?? '', // Handle null email
+      mobile: (json['mobile'] as String?) ?? '', // Handle null mobile
     );
+  }
+
+  // Opsional: Tambahkan toString dan toJson jika perlu
+  @override
+  String toString() {
+    return 'Anggota(pAnggotaId: $pAnggotaId, nomorAnggota: $nomorAnggota, nama: $nama, email: $email, mobile: $mobile, ...)';
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'p_anggota_id': pAnggotaId,
+      'nomor_anggota': nomorAnggota,
+      'tanggal_masuk': tanggalMasuk,
+      'nama': nama,
+      'nik': nik,
+      'alamat': alamat,
+      'ktp': ktp,
+      'tempat_lahir': tempatLahir,
+      'tgl_lahir': tglLahir,
+      'email': email,
+      'mobile': mobile,
+    };
   }
 }
 
 class User {
-  final int id;
-  final String name;
-  final String username;
-  final String email;
-  final String mobile;
-  final String profilePhotoPath;
-  final String profilePhotoUrl;
+  final int? id;
+  final String? name;
+  final String? username;
+  final String? email;
+  final String? mobile;
+  final String? profilePhotoPath;
+  final String? profilePhotoUrl;
 
+  // Constructor dengan nilai default untuk parameter opsional
   User({
-    required this.id,
-    required this.name,
-    required this.username,
-    required this.email,
-    required this.mobile,
-    required this.profilePhotoPath,
-    required this.profilePhotoUrl,
+    this.id = 0, // Default int
+    this.name = '', // Default String kosong
+    this.username = '', // Default String kosong
+    this.email = '', // Default String kosong
+    this.mobile = '', // Default String kosong
+    this.profilePhotoPath = '', // Default String kosong
+    this.profilePhotoUrl = '', // Default String kosong
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'],
-      name: json['name'],
-      username: json['username'],
-      email: json['email'],
-      mobile: json['mobile'],
-      profilePhotoPath: json['profile_photo_path'],
-      profilePhotoUrl: json['profile_photo_url'],
+      // Gunakan '??' untuk memberikan default jika hasil cast null
+      id: (json['id'] as int?) ?? 0, // Default 0 jika null
+      name: (json['name'] as String?) ?? '', // Default '' jika null
+      username: (json['username'] as String?) ?? '', // Default '' jika null
+      email: (json['email'] as String?) ?? '', // Default '' jika null
+      mobile: (json['mobile'] as String?) ?? '', // Default '' jika null
+      profilePhotoPath:
+          (json['profile_photo_path'] as String?) ?? '', // Default '' jika null
+      profilePhotoUrl:
+          (json['profile_photo_url'] as String?) ?? '', // Default '' jika null
     );
+  }
+
+  @override
+  String toString() {
+    return 'User(id: $id, name: $name, username: $username, email: $email, mobile: $mobile, profilePhotoPath: $profilePhotoPath, profilePhotoUrl: $profilePhotoUrl)';
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'username': username,
+      'email': email,
+      'mobile': mobile,
+      'profile_photo_path': profilePhotoPath,
+      'profile_photo_url': profilePhotoUrl,
+    };
   }
 }
