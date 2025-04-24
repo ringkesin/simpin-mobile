@@ -47,7 +47,9 @@ dependencies:
   file_picker: ^10.1.2
   camera: ^0.11.0+1
   path_provider: ^2.1.3         # Tambahkan ini (cek versi terbaru)
-  path: ^1.9.0               
+  path: ^1.9.0
+  flutter_native_splash: ^2.3.0
+  flutter_launcher_icons: ^0.13.1               
 
 
 
@@ -77,8 +79,38 @@ flutter:
   assets:
     - .env
     - assets/images/logokkba.png
+    - assets/images/logosplash.png
 
  
+flutter_native_splash:
+  # Warna background splash screen (gunakan kode hex)
+  color: "#FFFFFF" # Contoh: Putih
+  # Logo yang ingin ditampilkan (opsional)
+  image: assets/images/logosplash.png # Ganti dengan path logo Anda
+  # Jika logo Anda sudah termasuk background, set color_dark dan image_dark juga jika perlu
+  # color_dark: "#333333" # Contoh: Warna background untuk dark mode
+  # image_dark: assets/images/logo_splash_dark.png # Contoh: Logo untuk dark mode
+
+  # Pengaturan spesifik Android 12+ (opsional)
+  android_12:
+    image: assets/images/logosplash.png # Logo untuk Android 12+
+    # icon_background_color: "#FFFFFF" # Warna background di belakang ikon (jika ikon kecil)
+    # image_dark: assets/images/logo_splash_dark.png
+    # icon_background_color_dark: "#333333"
+
+  # Pengaturan lain (cek dokumentasi package untuk lebih detail)
+  android: true
+  ios: true  # web: false
+
+
+flutter_launcher_icons:
+  android: true # Generate untuk Android
+  ios: true # Generate untuk iOS
+  image_path: "assets/images/logosplash.png" # Path ke file ikon utama Anda
+  # Pengaturan tambahan (opsional):
+  # adaptive_icon_background: "#FFFFFF" # Warna background untuk adaptive icon Android
+  # adaptive_icon_foreground: "assets/icon/app_icon_foreground.png" # Layer depan adaptive icon
+  # remove_alpha_ios: true # Hapus alpha channel untuk iOS
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

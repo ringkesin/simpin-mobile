@@ -27,12 +27,12 @@ class MyApp extends StatelessWidget {
             AppColors.primaryLight, // Sesuaikan dengan warna utama aplikasi
         scaffoldBackgroundColor: Colors.white,
       ),
-      darkTheme: ThemeData(
-        textTheme: AppTheme.textThemeDark, // Gunakan tema gelap
-        primaryColor: AppColors.primaryDark,
-        scaffoldBackgroundColor: Colors.black,
-      ),
-      themeMode: ThemeMode.system, // Gunakan mode tema berdasarkan sistem
+      // darkTheme: ThemeData(
+      //   textTheme: AppTheme.textThemeDark, // Gunakan tema gelap
+      //   primaryColor: AppColors.primaryDark,
+      //   scaffoldBackgroundColor: Colors.black,
+      // ),
+      // themeMode: ThemeMode.system, // Gunakan mode tema berdasarkan sistem
       initialRoute: '/', // Rute awal
       routes: {
         '/': (context) => const LoginPage(), // Halaman login sebagai default
