@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kkba_mobile/feature/shu/screens/shu.dart';
+import 'package:kkba_mobile/feature/simulasi_pinjaman/screens/simulasi_pinjaman.dart';
 import 'package:kkba_mobile/feature/tabungan/screens/tabungan.dart';
 import '../../form_pinjaman/screens/form_pinjaman.dart';
 import '../../../theme.dart';
@@ -57,7 +58,7 @@ class BannerWidget extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'OVO Cash',
+                      'Total Tabungan',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -213,7 +214,7 @@ class CategoriesWidget extends StatelessWidget {
       case 0:
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TabunganPage()),
+          MaterialPageRoute(builder: (_) => SimulasiPinjamanScreen()),
         );
         break;
       case 1:
@@ -234,7 +235,7 @@ class CategoriesWidget extends StatelessWidget {
       case 4:
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => FormWizardScreen()),
+          MaterialPageRoute(builder: (_) => TabunganPage()),
         ); // Seharusnya ke Info Tabungan? -> TabunganPage()
         break;
       case 5:

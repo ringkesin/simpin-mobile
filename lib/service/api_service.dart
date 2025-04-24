@@ -6,6 +6,8 @@ import '../model/jenis_pinjaman.dart';
 import '../model/keperluan_pinjaman.dart';
 import '../model/tabungan.dart';
 import '../model/shu.dart';
+import '../model/tenor_response.dart';
+import '../model/simulasi_pinjaman_response.dart';
 
 class ApiService {
   static Dio _dio = Dio(
@@ -267,6 +269,162 @@ class ApiService {
         print('DioError Response: ${e.response?.data}');
       }
       rethrow; // Lempar ulang error asli agar bisa ditangani oleh pemanggil (UI)
+    }
+  }
+
+  // --- METHOD UNTUK GET TENOR ---
+  Future<List<TenorItem>> getAvailableTenors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString("token");
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      // 1. Dapatkan tahun saat ini secara otomatis
+      final int currentYear = DateTime.now().year;
+
+      // 2. Buat payload
+      final Map<String, dynamic> payload = {"tahun": currentYear};
+
+      final String path = '/api/simulasi/tenor';
+      print("Fetching tenors from path: $path with payload: $payload");
+
+      // 3. Ganti _dio.get menjadi _dio.post dan tambahkan 'data'
+      final response = await _dio.post(
+        // <-- Ubah ke POST
+        path,
+        data: payload, // <-- Kirim payload di sini
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type':
+                'application/json', // <-- Penting untuk POST dengan JSON
+          },
+        ),
+      );
+
+      print("Tenor Response Status (Dio POST): ${response.statusCode}");
+
+      // Logika parsing response tetap sama
+      if (response.statusCode == 200 && response.data != null) {
+        final tenorResponse = TenorResponse.fromJson(response.data);
+        if (tenorResponse.success && tenorResponse.data != null) {
+          tenorResponse.data!.sort(
+            (a, b) => (a.tenor ?? 0).compareTo(b.tenor ?? 0),
+          );
+          return tenorResponse.data!;
+        } else {
+          throw Exception(
+            tenorResponse.message ?? "Gagal mengambil daftar tenor.",
+          );
+        }
+      } else {
+        // Coba ekstrak pesan error jika status code bukan 200
+        String serverError = 'Format respons tenor tidak valid.';
+        if (response.data is Map && response.data['message'] != null) {
+          serverError = response.data['message'];
+        } else if (response.data is Map && response.data['error'] != null) {
+          serverError = response.data['error'];
+        }
+        throw Exception(serverError);
+      }
+    } catch (e) {
+      // Penanganan error tetap sama
+      print('Error getAvailableTenors: $e');
+      if (e is DioException) {
+        print('DioError Response (Tenor): ${e.response?.data}');
+        // Melempar ulang dengan pesan error yang lebih spesifik jika memungkinkan
+        String serverError = 'Gagal mengambil data tenor.';
+        if (e.response?.data is Map && e.response!.data['message'] != null) {
+          serverError = e.response!.data['message'];
+        } else if (e.response?.data is Map &&
+            e.response!.data['error'] != null) {
+          serverError = e.response!.data['error'];
+        } else if (e.message != null) {
+          serverError = e.message!;
+        }
+        throw Exception(serverError);
+      }
+      rethrow;
+    }
+  }
+  // --- AKHIR METHOD GET TENOR ---
+
+  // --- METHOD UNTUK POST SIMULASI PINJAMAN ---
+  Future<SimulasiResult> postSimulasiPinjaman({
+    required int jumlahPinjaman,
+    required int tenor,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString("token");
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      // Ambil tahun saat ini secara otomatis
+      final int currentYear = DateTime.now().year;
+
+      // Siapkan payload
+      final Map<String, dynamic> payload = {
+        "tahun": currentYear,
+        "jumlah_pinjaman": jumlahPinjaman,
+        "tenor": tenor,
+      };
+
+      print("Posting simulation with payload: $payload");
+      final String path = '/api/simulasi/pinjaman';
+
+      final response = await _dio.post(
+        path,
+        data: payload, // Kirim payload sebagai data
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json', // Pastikan content type benar
+          },
+        ),
+      );
+
+      print("Simulation Response Status (Dio): ${response.statusCode}");
+
+      if (response.statusCode == 200 && response.data != null) {
+        final simulasiResponse = SimulasiPinjamanResponse.fromJson(
+          response.data,
+        );
+        if (simulasiResponse.success && simulasiResponse.data != null) {
+          return simulasiResponse.data!;
+        } else {
+          throw Exception(
+            simulasiResponse.message ?? "Gagal menghitung simulasi.",
+          );
+        }
+      } else {
+        // Coba ekstrak pesan error dari body jika status code bukan 200
+        String serverError = 'Gagal menghitung simulasi.';
+        if (response.data is Map && response.data['message'] != null) {
+          serverError = response.data['message'];
+        }
+        throw Exception(serverError);
+      }
+    } catch (e) {
+      print('Error postSimulasiPinjaman: $e');
+      if (e is DioException && e.response != null) {
+        print('DioError Response (Simulasi): ${e.response?.data}');
+        // Coba ambil pesan error spesifik dari DioException response
+        String serverError = 'Gagal menghitung simulasi.';
+        if (e.response?.data is Map && e.response!.data['message'] != null) {
+          serverError = e.response!.data['message'];
+        } else if (e.response?.data is Map &&
+            e.response!.data['error'] != null) {
+          serverError = e.response!.data['error'];
+        }
+        throw Exception(serverError); // Lempar pesan error dari server jika ada
+      }
+      rethrow; // Lempar ulang error asli jika bukan DioException dengan response
     }
   }
 }

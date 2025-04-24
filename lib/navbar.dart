@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kkba_mobile/feature/profile/screens/profile.dart';
+import 'package:kkba_mobile/feature/simulasi_pinjaman/screens/simulasi_pinjaman.dart';
 import '../theme.dart'; // <-- Import AppTheme Anda
 
 // Import halaman-halaman Anda
@@ -21,8 +22,8 @@ class _MainWrapperState extends State<MainWrapper> {
   // Daftar halaman yang akan dinavigasi (pastikan nama class benar)
   static final List<Widget> _widgetOptions = <Widget>[
     HomeScreen(), // Halaman Beranda Anda
-    TabunganPage(), // Halaman Tabungan Anda
-    ShuPage(), // Halaman SHU Anda
+    SimulasiPinjamanScreen(), // Halaman Tabungan Anda
+    TabunganPage(), // Halaman SHU Anda
     ProfileScreen(), // Halaman Pinjaman/Formulir Anda
     // Tambahkan halaman lain jika perlu
   ];
@@ -94,21 +95,21 @@ class _MainWrapperState extends State<MainWrapper> {
               label: 'Beranda',
             ),
             NavigationDestination(
+              selectedIcon: Icon(Icons.calculate, color: selectedItemColor),
+              icon: Icon(Icons.calculate_outlined, color: unselectedItemColor),
+              label: 'Simulasi',
+            ),
+            NavigationDestination(
               selectedIcon: Icon(Icons.savings, color: selectedItemColor),
-              icon: Icon(Icons.savings_outlined, color: unselectedItemColor),
+              icon: Icon(
+                Icons.savings_outlined,
+                color: unselectedItemColor,
+              ), // pastikan icon benar
               label: 'Tabungan',
             ),
             NavigationDestination(
-              selectedIcon: Icon(Icons.pie_chart, color: selectedItemColor),
-              icon: Icon(
-                Icons.pie_chart_outline_outlined,
-                color: unselectedItemColor,
-              ), // pastikan icon benar
-              label: 'SHU',
-            ),
-            NavigationDestination(
               selectedIcon: Icon(Icons.person, color: selectedItemColor),
-              icon: Icon(Icons.person, color: unselectedItemColor),
+              icon: Icon(Icons.person_outline, color: unselectedItemColor),
               label: 'Profile',
             ),
           ],
