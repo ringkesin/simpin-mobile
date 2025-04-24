@@ -8,6 +8,7 @@ import '../model/tabungan.dart';
 import '../model/shu.dart';
 import '../model/tenor_response.dart';
 import '../model/simulasi_pinjaman_response.dart';
+import '../model/tabungan_tahunan_response.dart';
 
 class ApiService {
   static Dio _dio = Dio(
@@ -135,7 +136,7 @@ class ApiService {
     }
   }
 
-  Future<TabunganData> getTabungan({
+  Future<TabunganBulananResponse> getTabungan({
     required String bulan,
     required String tahun,
     int? pAnggotaId,
@@ -148,22 +149,34 @@ class ApiService {
         throw Exception('Token tidak ditemukan. Silakan login ulang.');
       }
 
-      // Prepare the payload
-      Map<String, dynamic> payload = {"bulan": bulan, "tahun": tahun};
+      // ---- Konversi ke Integer ----
+      final int? tahunInt = int.tryParse(tahun);
+      final int? bulanInt = int.tryParse(
+        bulan,
+      ); // int.tryParse("01") akan menghasilkan 1
 
-      // Add p_anggota_id if provided
+      if (tahunInt == null || bulanInt == null) {
+        // Atau jika bulanInt di luar 1-12
+        throw Exception("Format tahun atau bulan tidak valid untuk payload.");
+      }
+      // -----------------------------
+
+      Map<String, dynamic> payload = {
+        "tahun": tahunInt,
+        "bulan": bulanInt,
+      }; // <-- Kirim integer
       if (pAnggotaId != null) {
         payload["p_anggota_id"] = pAnggotaId;
       }
 
       Response response = await _dio.post(
-        '/api/tabungan',
+        '/api/tabungan/saldo/bulanan',
         data: payload,
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
 
       if (response.statusCode == 200) {
-        return TabunganData.fromJson(response.data);
+        return TabunganBulananResponse.fromJson(response.data);
       } else {
         throw Exception(
           response.data['message'] ?? 'Gagal memuat data tabungan.',
@@ -425,6 +438,95 @@ class ApiService {
         throw Exception(serverError); // Lempar pesan error dari server jika ada
       }
       rethrow; // Lempar ulang error asli jika bukan DioException dengan response
+    }
+  }
+
+  Future<TabunganTahunanResponse> getTabunganTahunan({
+    required String tahun, // Terima tahun sebagai String dari UI
+    int? pAnggotaId, // pAnggotaId opsional di parameter
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString("token");
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      // Tentukan p_anggota_id yang akan digunakan: dari parameter atau prefs
+      int? targetPAnggotaId = pAnggotaId ?? prefs.getInt('p_anggota_id');
+
+      if (targetPAnggotaId == null || targetPAnggotaId == 0) {
+        throw Exception(
+          'ID Anggota (p_anggota_id) tidak valid atau tidak ditemukan.',
+        );
+      }
+
+      // Konversi tahun dari String ke Integer untuk payload
+      final int? tahunInt = int.tryParse(tahun);
+      if (tahunInt == null) {
+        throw Exception("Format tahun tidak valid untuk payload.");
+      }
+
+      // Siapkan payload
+      final Map<String, dynamic> payload = {
+        "tahun": 2024,
+        "p_anggota_id": targetPAnggotaId,
+      };
+
+      final String path = '/api/tabungan/saldo/tahunan';
+      print(
+        "Fetching tabungan tahunan from path: $path with payload: $payload",
+      );
+
+      // Lakukan POST request
+      final response = await _dio.post(
+        path,
+        data: payload, // Kirim payload
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json', // Pastikan content type
+          },
+        ),
+      );
+
+      print("Tabungan Tahunan Response Status (Dio): ${response.statusCode}");
+
+      // Parsing response (Dio otomatis handle status non-200 dengan exception)
+      if (response.data != null && response.data is Map<String, dynamic>) {
+        final tabunganResponse = TabunganTahunanResponse.fromJson(
+          response.data,
+        );
+        // Kembalikan seluruh response object
+        return tabunganResponse;
+      } else {
+        // Jika status 200 tapi data null atau bukan map
+        throw Exception(
+          "Format respons tabungan tahunan tidak valid dari server.",
+        );
+      }
+    } catch (e) {
+      // Tangkap semua error (DioException, parsing, dll.)
+      print('Error getTabunganTahunan: $e');
+      if (e is DioException) {
+        // Beri detail jika DioException
+        print('DioError Response (Tabungan Tahunan): ${e.response?.data}');
+        // Coba ekstrak pesan error dari response Dio
+        String serverErrorMsg = 'Gagal mengambil data tabungan tahunan.';
+        if (e.response?.data is Map) {
+          serverErrorMsg =
+              e.response!.data['message'] ??
+              e.response!.data['error'] ??
+              serverErrorMsg;
+        } else if (e.message != null) {
+          serverErrorMsg = e.message!;
+        }
+        throw Exception(
+          serverErrorMsg,
+        ); // Lempar ulang dengan pesan yg lebih baik jika ada
+      }
+      rethrow; // Lempar ulang error asli jika bukan DioException atau tidak ada detail
     }
   }
 }

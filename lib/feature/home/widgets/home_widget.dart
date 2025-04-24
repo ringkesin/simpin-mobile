@@ -5,6 +5,7 @@ import 'package:kkba_mobile/feature/tabungan/screens/tabungan.dart';
 import '../../form_pinjaman/screens/form_pinjaman.dart';
 import '../../../theme.dart';
 import '../../../page_wrapper.dart';
+import 'package:intl/intl.dart';
 
 // Widget: Header
 class HeaderWidget extends StatelessWidget {
@@ -31,87 +32,214 @@ class HeaderWidget extends StatelessWidget {
 // Widget: Banner
 // Widget: Banner (OVO Cash Style)
 class BannerWidget extends StatelessWidget {
-  const BannerWidget({Key? key}) : super(key: key);
+  // --- TAMBAHKAN PARAMETER CONSTRUCTOR ---
+  final bool isLoading; // Status loading dari parent
+  final String? error; // Pesan error dari parent (jika ada)
+  final num? totalSaldo; // Nilai total saldo (nullable)
+  final bool isBalanceVisible; // Status visibilitas dari parent
+  final VoidCallback? onToggleVisibility; // Callback untuk tombol visibility
+  // Anda mungkin juga ingin menambahkan data Points dari parent jika dinamis
+  // final String? points;
+
+  const BannerWidget({
+    Key? key,
+    this.isLoading = false, // Default tidak loading
+    this.error,
+    this.totalSaldo,
+    this.isBalanceVisible = true, // Default terlihat
+    this.onToggleVisibility,
+    // this.points,
+  }) : super(key: key);
+  // --- AKHIR TAMBAHAN PARAMETER ---
+
+  // Formatter Mata Uang
+  static final NumberFormat _currencyFormatter = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = AppTheme.textThemeLight; // Asumsi light theme
+
+    // --- Logika Tampilan Saldo ---
+    String displayBalance;
+    Widget balanceWidget;
+
+    if (isLoading) {
+      displayBalance = 'Memuat...'; // Teks saat loading
+      balanceWidget = Text(
+        displayBalance,
+        style: textTheme.headlineSmall?.copyWith(
+          // Sesuaikan style loading
+          color: Colors.white.withOpacity(0.8),
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    } else if (error != null) {
+      displayBalance = 'Gagal Memuat'; // Teks saat error
+      balanceWidget = Row(
+        // Tampilkan ikon error
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline, color: Colors.yellow[300], size: 20),
+          SizedBox(width: 8),
+          Text(
+            displayBalance,
+            style: textTheme.bodyLarge?.copyWith(
+              color: Colors.yellow[300],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      );
+    } else if (!isBalanceVisible) {
+      displayBalance = 'Rp ••••••••'; // Teks saat disembunyikan
+      balanceWidget = Text(
+        displayBalance,
+        style: textTheme.headlineSmall?.copyWith(
+          // Gunakan style yang sama dengan saldo asli
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5, // Beri spasi agar titik lebih jelas
+        ),
+      );
+    } else {
+      // Format saldo jika visible dan tidak loading/error
+      displayBalance = _currencyFormatter.format(totalSaldo ?? 0);
+      balanceWidget = Text(
+        displayBalance,
+        style: textTheme.headlineSmall?.copyWith(
+          // Style utama saldo
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    }
+    // --- Akhir Logika Tampilan Saldo ---
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: LinearGradient(
-          colors: [AppColors.primaryDark, AppColors.primaryLight],
+          colors: [
+            AppColors.primaryDark,
+            AppColors.primaryLight,
+          ], // Gradient dari theme
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        boxShadow: [
+          // Tambahkan sedikit shadow (opsional)
+          BoxShadow(
+            color: AppColors.primaryDark.withOpacity(0.3),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // OVO Cash & Total Balance
+          // --- Bagian Atas (Total Saldo & Points) ---
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              12,
+            ), // Sesuaikan padding
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      'Total Tabungan',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                      'Total Tabungan Anda', // Ubah label jika perlu
+                      style: textTheme.bodyLarge?.copyWith(
+                        // Style dari theme
+                        color: Colors.white.withOpacity(0.9),
+                        // fontWeight: FontWeight.w500, // Sudah di theme?
                       ),
                     ),
-                    const Icon(Icons.visibility, color: Colors.white, size: 18),
+                    // Tombol Show/Hide Saldo
+                    InkWell(
+                      // Buat ikon bisa ditekan
+                      onTap: onToggleVisibility, // Panggil callback dari parent
+                      child: Icon(
+                        isBalanceVisible
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined, // Ganti ikon
+                        color: Colors.white.withOpacity(0.9),
+                        size: 22,
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.end, // Agar points align bawah
                   children: [
-                    Text(
-                      'Rp 42.743',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    // Tampilkan Widget Saldo yang sudah diproses
+                    AnimatedSwitcher(
+                      // Animasi halus saat ganti teks saldo (opsional)
+                      duration: Duration(milliseconds: 300),
+                      child:
+                          balanceWidget, // Gunakan widget saldo yang sudah dibuat
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(opacity: animation, child: child);
+                      },
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.circle,
-                            color: Colors.purple[800],
-                            size: 18,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '1.473 Points',
-                            style: TextStyle(
-                              color: Colors.purple[800],
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+
+                    // Points (Biarkan hardcoded atau terima dari parameter)
+                    GestureDetector(
+                      // Buat Points bisa di-tap (jika ada halaman detail points)
+                      onTap: () {
+                        // TODO: Navigasi ke halaman detail points jika ada
+                        print("Points Tapped");
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(
+                            0.2,
+                          ), // Background lebih subtle
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.star_border_purple500_outlined,
+                              color: AppColors.accent1Light,
+                              size: 16,
+                            ), // Ganti ikon?
+                            const SizedBox(width: 6),
+                            Text(
+                              '1.473 Points', // Ganti dengan variabel jika dinamis (misal: points ?? '0 Points')
+                              style: textTheme.labelMedium?.copyWith(
+                                // Style dari theme
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.chevron_right,
-                            color: Colors.purple[800],
-                            size: 16,
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.chevron_right,
+                              color: Colors.white.withOpacity(0.7),
+                              size: 16,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -120,19 +248,20 @@ class BannerWidget extends StatelessWidget {
             ),
           ),
 
-          // Action Buttons
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildActionButton(Icons.add, 'Top Up'),
-                _buildActionButton(Icons.swap_horiz, 'Transfer'),
-                _buildActionButton(Icons.arrow_downward, 'Tarik Tunai'),
-                _buildActionButton(Icons.history, 'History'),
-              ],
-            ),
-          ),
+          // --- Action Buttons (Kode Asli Anda - pastikan _buildActionButton ada) ---
+          // Padding(
+          //   padding: const EdgeInsets.fromLTRB(8, 12, 8, 16), // Sesuaikan padding
+          //   child: Row(
+          //     mainAxisAlignment: MainAxisAlignment.spaceAround, // spaceAround lebih baik?
+          //     children: [
+          //       // Pastikan Anda punya implementasi _buildActionButton
+          //       // _buildActionButton(context, Icons.add, 'Top Up'),
+          //       // _buildActionButton(context, Icons.swap_horiz, 'Transfer'),
+          //       // _buildActionButton(context, Icons.arrow_downward, 'Tarik Tunai'),
+          //       // _buildActionButton(context, Icons.history, 'History'),
+          //     ],
+          //   ),
+          // ),
         ],
       ),
     );

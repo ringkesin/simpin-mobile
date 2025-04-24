@@ -1,72 +1,122 @@
-import 'package:intl/intl.dart';
+// --- Model Utama untuk Response Keseluruhan ---
+class TabunganBulananResponse {
+  final bool success;
+  final TabunganBulananData? data; // Ubah tipe Data dan buat nullable
+  final String? message; // Buat nullable
 
-class TabunganData {
-  bool success;
-  Data data;
-  String message;
-
-  TabunganData({
+  TabunganBulananResponse({
     required this.success,
-    required this.data,
-    required this.message,
+    this.data, // Tidak required lagi
+    this.message, // Tidak required lagi
   });
 
-  factory TabunganData.fromJson(Map<String, dynamic> json) {
-    return TabunganData(
-      success: json['success'],
-      data: Data.fromJson(json['data']),
+  factory TabunganBulananResponse.fromJson(Map<String, dynamic> json) {
+    return TabunganBulananResponse(
+      // Beri default false jika success null
+      success: json['success'] ?? false,
+      // Cek jika data null atau bukan Map sebelum parsing
+      data:
+          json['data'] == null || !(json['data'] is Map<String, dynamic>)
+              ? null
+              : TabunganBulananData.fromJson(json['data']),
       message: json['message'],
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    "success": success,
+    "data": data?.toJson(),
+    "message": message,
+  };
 }
 
-class Data {
-  int pAnggotaId;
-  String bulan;
-  String tahun;
-  num totalTabungan;
-  num simpananPokok;
-  num simpananWajib;
-  num tabunganSukarela;
-  num tabunganIndir;
-  num kompensasiMasaKerja;
+// --- Model untuk Object 'data' ---
+class TabunganBulananData {
+  final int? bulan; // Tipe data int? sesuai JSON
+  final int? tahun; // Tipe data int? sesuai JSON
+  final TotalTabungan? total; // Objek baru untuk total
+  final List<DetailTabunganItem>? detail; // List objek baru untuk detail
 
-  Data({
-    required this.pAnggotaId,
-    required this.bulan,
-    required this.tahun,
-    required this.totalTabungan,
-    required this.simpananPokok,
-    required this.simpananWajib,
-    required this.tabunganSukarela,
-    required this.tabunganIndir,
-    required this.kompensasiMasaKerja,
+  TabunganBulananData({this.bulan, this.tahun, this.total, this.detail});
+
+  factory TabunganBulananData.fromJson(Map<String, dynamic> json) {
+    // Parsing list detail dengan aman
+    List<DetailTabunganItem> detailList = [];
+    if (json['detail'] != null && json['detail'] is List) {
+      detailList = List<DetailTabunganItem>.from(
+        json["detail"].map((x) => DetailTabunganItem.fromJson(x)),
+      );
+    }
+
+    return TabunganBulananData(
+      bulan: (json['bulan'] as int?) ?? 0, // Default 0 jika null
+      tahun: (json['tahun'] as int?) ?? 0, // Default 0 jika null
+      // Parsing objek total, beri default jika null
+      total:
+          json['total'] == null || !(json['total'] is Map<String, dynamic>)
+              ? TotalTabungan() // Default object kosong
+              : TotalTabungan.fromJson(json['total']),
+      detail: detailList, // Gunakan list yang sudah diparsing
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    "bulan": bulan,
+    "tahun": tahun,
+    "total": total?.toJson(),
+    "detail":
+        detail == null
+            ? []
+            : List<dynamic>.from(detail!.map((x) => x.toJson())),
+  };
+}
+
+// --- Model untuk Object 'total' (BARU) ---
+class TotalTabungan {
+  final num? totalBulanIni; // Gunakan num? untuk fleksibilitas int/double
+  final num? totalBulanIniSd;
+
+  TotalTabungan({
+    this.totalBulanIni = 0, // Default 0
+    this.totalBulanIniSd = 0, // Default 0
   });
 
-  factory Data.fromJson(Map<String, dynamic> json) {
-    return Data(
-      // Asumsikan p_anggota_id dan field nominal memang angka (num/int)
-      pAnggotaId: (json['p_anggota_id'] as int?) ?? 0,
-      // Konversi bulan dan tahun ke String menggunakan .toString() atau interpolasi
-      bulan: (json['bulan'] as dynamic)?.toString() ?? '', // <-- Perbaikan
-      tahun: (json['tahun'] as dynamic)?.toString() ?? '', // <-- Perbaikan
-      // Untuk field num, pastikan di-cast ke num dan beri default jika perlu
-      totalTabungan: (json['total_tabungan'] as num?) ?? 0,
-      simpananPokok: (json['simpanan_pokok'] as num?) ?? 0,
-      simpananWajib: (json['simpanan_wajib'] as num?) ?? 0,
-      tabunganSukarela: (json['tabungan_sukarela'] as num?) ?? 0,
-      tabunganIndir: (json['tabungan_indir'] as num?) ?? 0,
-      kompensasiMasaKerja: (json['kompensasi_masa_kerja'] as num?) ?? 0,
-    );
-  }
+  factory TotalTabungan.fromJson(Map<String, dynamic> json) => TotalTabungan(
+    totalBulanIni: (json["total_bulan_ini"] as num?) ?? 0,
+    totalBulanIniSd: (json["total_bulan_ini_sd"] as num?) ?? 0,
+  );
 
-  // Fungsi untuk memformat angka ke mata uang Rupiah.
-  String formatRupiah() {
-    final formatter = NumberFormat.currency(
-      locale: 'id_ID',
-      symbol: 'Rp',
-      decimalDigits: 0,
-    );
-    return formatter.format(totalTabungan);
-  }
+  Map<String, dynamic> toJson() => {
+    "total_bulan_ini": totalBulanIni,
+    "total_bulan_ini_sd": totalBulanIniSd,
+  };
 }
+
+// --- Model untuk item dalam list 'detail' (BARU) ---
+class DetailTabunganItem {
+  final String? jenisTabungan; // String?
+  final num? nilaiBulanIni; // num?
+  final num? nilaiBulanIniSd; // num?
+
+  DetailTabunganItem({
+    this.jenisTabungan = '', // Default string kosong
+    this.nilaiBulanIni = 0,
+    this.nilaiBulanIniSd = 0,
+  });
+
+  factory DetailTabunganItem.fromJson(Map<String, dynamic> json) =>
+      DetailTabunganItem(
+        jenisTabungan: (json["jenis_tabungan"] as String?) ?? '',
+        nilaiBulanIni: (json["nilai_bulan_ini"] as num?) ?? 0,
+        nilaiBulanIniSd: (json["nilai_bulan_ini_sd"] as num?) ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+    "jenis_tabungan": jenisTabungan,
+    "nilai_bulan_ini": nilaiBulanIni,
+    "nilai_bulan_ini_sd": nilaiBulanIniSd,
+  };
+}
+
+// Hapus class Data yang lama jika tidak terpakai lagi
+// Hapus fungsi formatRupiah dari model, lakukan formatting di UI
