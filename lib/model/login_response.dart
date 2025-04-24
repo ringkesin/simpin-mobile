@@ -21,21 +21,36 @@ class LoginResponse {
 class LoginData {
   final String token;
   final String role;
-  final Anggota anggota;
-  final User user;
+  // --- PERUBAHAN 1: Jadikan anggota nullable ---
+  final Anggota? anggota;
+  final User user; // User sepertinya selalu ada, biarkan required
 
   LoginData({
     required this.token,
     required this.role,
-    required this.anggota,
+    // --- PERUBAHAN 2: Hapus 'required' ---
+    this.anggota,
     required this.user,
   });
 
   factory LoginData.fromJson(Map<String, dynamic> json) {
+    // --- PERUBAHAN 3: Logika parsing untuk anggota ---
+    Anggota? parsedAnggota; // Variabel sementara
+    // Cek jika 'anggota' ada, merupakan Map, dan tidak kosong
+    if (json['anggota'] != null &&
+        json['anggota'] is Map<String, dynamic> &&
+        (json['anggota'] as Map).isNotEmpty) {
+      // Hanya parse jika itu adalah Map non-kosong
+      parsedAnggota = Anggota.fromJson(json['anggota']);
+    }
+    // Jika 'anggota' adalah null, list kosong [], atau map kosong {},
+    // maka parsedAnggota akan tetap null.
+
     return LoginData(
-      token: json['token'],
-      role: json['role'],
-      anggota: Anggota.fromJson(json['anggota']),
+      token: json['token'] ?? '', // Tambahkan fallback jika token bisa null
+      role: json['role'] ?? '', // Tambahkan fallback jika role bisa null
+      anggota: parsedAnggota, // Gunakan hasil parsing
+      // Pastikan user selalu ada atau tambahkan penanganan null jika perlu
       user: User.fromJson(json['user']),
     );
   }

@@ -4,7 +4,9 @@ import '../../../service/api_service.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:file_selector/file_selector.dart';
 import '../../../theme.dart';
-import 'package:intl/intl.dart'; // Import for date formatting
+import 'package:intl/intl.dart';
+import 'package:camera/camera.dart'; // Tambahkan ini
+import 'camera_screen.dart'; // Tambahkan ini (sesuaikan path jika perlu)
 
 class RegisterScreen extends StatefulWidget {
   @override
@@ -15,6 +17,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final PageController _pageController = PageController();
   int _currentStep = 1;
   List<Map<String, dynamic>> _units = [];
+  List<CameraDescription> _cameras = []; // Untuk menyimpan list kamera
   String? _selectedUnit;
 
   // Controller for date of birth text field
@@ -27,6 +30,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void initState() {
     super.initState();
     _fetchUnits();
+    _initializeCameras(); // Panggil fungsi inisialisasi kamera
+  }
+
+  // Fungsi baru untuk inisialisasi kamera
+  Future<void> _initializeCameras() async {
+    try {
+      WidgetsFlutterBinding.ensureInitialized(); // Pastikan binding siap
+      _cameras = await availableCameras();
+    } on CameraException catch (e) {
+      print('Error initializing cameras: ${e.code}, ${e.description}');
+      // Handle error, mungkin tampilkan pesan ke user
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Tidak dapat mengakses kamera: ${e.description}'),
+        ),
+      );
+    }
   }
 
   @override
@@ -278,8 +298,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  XFile? _documentStepOne; // KTP
-  XFile? _documentStepOneSecond; // Dokumen tambahan
+  XFile? _ktpImageFile; // Ganti dengan ini
+  XFile? _idCardImageFile; // Ganti nama variabel kedua juga agar konsisten
 
   Widget _stepOne() {
     return SingleChildScrollView(
@@ -323,38 +343,71 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           SizedBox(height: 16),
           _buildTextField("Employee ID"),
-
           SizedBox(height: 8),
-          // Styled department selection
           _buildDepartmentSelect(),
           SizedBox(height: 8),
-
-          _buildTextField("Nomor KTP", keyboardType: TextInputType.phone),
-
+          _buildTextField(
+            "Nomor KTP",
+            keyboardType: TextInputType.number,
+          ), // Gunakan number
           SizedBox(height: 8),
-          _buildFilePicker(
-            label: "Upload Foto KTP",
-            file: _documentStepOne,
-            onPick: () {
-              _pickDocument((file) {
+
+          // --- Ganti File Picker KTP dengan Camera Input ---
+          _buildCameraInput(
+            label: "Ambil Foto KTP",
+            iconData: Icons.camera_alt, // Icon kamera
+            file: _ktpImageFile,
+            onPick: () async {
+              if (_cameras.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Kamera tidak tersedia atau izin ditolak.'),
+                  ),
+                );
+                return;
+              }
+              // Navigasi ke CameraScreen dan tunggu hasilnya (XFile)
+              final result = await Navigator.push<XFile?>(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CameraScreen(cameras: _cameras),
+                ),
+              );
+
+              // Jika user mengambil gambar (result tidak null)
+              if (result != null) {
                 setState(() {
-                  _documentStepOne = file;
+                  _ktpImageFile = result;
                 });
-              }, maxSizeInMB: 2); // Anda bisa menentukan batasan ukuran di sini
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Foto KTP berhasil diambil: ${result.name}'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
             },
           ),
+
+          // --- Akhir Ganti File Picker KTP ---
           SizedBox(height: 8),
+
+          // --- Tetap Gunakan File Picker untuk ID Card ---
+          // (Atau ubah menjadi _buildCameraInput jika ID Card juga pakai kamera)
           _buildFilePicker(
             label: "Upload Foto ID Card",
-            file: _documentStepOneSecond,
+            file: _idCardImageFile, // Pastikan nama variabel ini benar
             onPick: () {
               _pickDocument((file) {
                 setState(() {
-                  _documentStepOne = file;
+                  _idCardImageFile = file; // Update state untuk ID Card
                 });
-              }, maxSizeInMB: 2); // Anda bisa menentukan batasan ukuran di sini
+              }, maxSizeInMB: 2);
             },
           ),
+
+          // --- Akhir File Picker ID Card ---
+          SizedBox(height: 24), // Beri jarak sebelum tombol navigasi
           _buildNavigationButtons(),
         ],
       ),
@@ -638,6 +691,74 @@ class _RegisterScreenState extends State<RegisterScreen> {
             style: textTheme.titleMedium?.copyWith(color: Colors.white),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildCameraInput({
+    required XFile? file,
+    required VoidCallback onPick,
+    required String label,
+    required IconData iconData,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        SizedBox(height: 10),
+        InkWell(
+          onTap: onPick,
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Row(
+              children: [
+                Icon(iconData, color: Colors.green, size: 22), // Icon Kamera
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    file != null ? file.name : 'Ambil Foto', // Teks tombol
+                    style: TextStyle(
+                      color: file != null ? Colors.black87 : Colors.grey[600],
+                      fontSize: 15,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (file != null)
+                  Icon(
+                    // Ganti IconButton dengan Icon saja
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        // Hapus info ukuran file, karena kamera biasanya mengompres
+        // Padding( ... ),
+        if (file != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 2),
+            child: Text(
+              "Foto berhasil diambil",
+              style: TextStyle(fontSize: 12, color: Colors.green),
+            ),
+          ),
+        SizedBox(height: 16),
       ],
     );
   }

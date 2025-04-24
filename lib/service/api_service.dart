@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:kkba_mobile/model/anggota_profile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../model/jenis_pinjaman.dart';
 import '../model/keperluan_pinjaman.dart';
@@ -208,6 +209,64 @@ class ApiService {
     } catch (e) {
       print('Error getShu: $e');
       rethrow;
+    }
+  }
+
+  Future<AnggotaProfileResponse> getAnggotaProfile() async {
+    // Return type tetap AnggotaProfile
+    try {
+      // Mulai blok try
+      final prefs = await SharedPreferences.getInstance();
+      final int? anggotaId = prefs.getInt("p_anggota_id");
+      final String? token = prefs.getString("token");
+
+      // Validasi token dan ID di awal (ini praktik yang baik)
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+      if (anggotaId == null || anggotaId == 0) {
+        throw Exception('ID Anggota tidak ditemukan di SharedPreferences.');
+      }
+
+      final String path = '/api/anggota/$anggotaId';
+      print("Fetching profile from path: $path (using Dio)");
+
+      // Lakukan GET request menggunakan _dio
+      // Dio secara default akan throw DioException untuk status code non-2xx
+      final response = await _dio.get(
+        path,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      // Jika kode sampai sini, berarti response.statusCode adalah 2xx (sukses)
+      print("Profile Response Status (Dio): ${response.statusCode}");
+
+      // Langsung parse data karena diasumsikan sukses
+      // Tambahkan pengecekan tipe data jika perlu, meskipun Dio biasanya handle
+      if (response.data != null && response.data is Map<String, dynamic>) {
+        final profileResponse = AnggotaProfileResponse.fromJson(response.data);
+
+        if (profileResponse.success && profileResponse.data?.anggota != null) {
+          return profileResponse; // Kembalikan data anggota
+        } else {
+          // Jika success false atau data anggota null dari response API yg sukses (status 200)
+          throw Exception(
+            profileResponse.message ??
+                "Gagal mengambil data profil anggota dari response.",
+          );
+        }
+      } else {
+        // Kasus aneh: status 200 tapi data null atau bukan map
+        throw Exception("Format respons tidak valid dari server.");
+      }
+    } catch (e) {
+      // Tangkap semua jenis error (DioException, Exception, parsing error, dll)
+      print('Error getAnggotaProfile: $e'); // Cetak error ke konsol
+      // Jika error adalah DioException dan memiliki response, cetak detailnya (opsional)
+      if (e is DioException && e.response != null) {
+        print('DioError Response: ${e.response?.data}');
+      }
+      rethrow; // Lempar ulang error asli agar bisa ditangani oleh pemanggil (UI)
     }
   }
 }
