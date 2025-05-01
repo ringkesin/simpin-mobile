@@ -7,6 +7,7 @@ import '../../../theme.dart';
 import '../../../page_wrapper.dart';
 import 'package:intl/intl.dart';
 import 'package:kkba_mobile/model/berita.dart';
+import 'package:kkba_mobile/feature/pencairan/screens/pencairan.dart';
 
 // Widget: Header
 class HeaderWidget extends StatelessWidget {
@@ -317,7 +318,7 @@ class CategoriesWidget extends StatelessWidget {
       case 5:
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => FormWizardScreen()),
+          MaterialPageRoute(builder: (_) => PencairanTabunganScreen()),
         ); // Seharusnya ke Pencairan?
         break;
     }

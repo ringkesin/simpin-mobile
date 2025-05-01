@@ -218,13 +218,11 @@ class AppTheme {
       // Definisikan colorScheme
       primary: AppColors.primaryLight,
       secondary: AppColors.alternateLight, // Atau warna sekunder lain
-      surface: AppColors.primaryBackgroundLight, // Warna permukaan utama
-      background: AppColors.primaryBackgroundLight, // Warna background
+      surface: AppColors.primaryBackgroundLight, // Warna background
       error: AppColors.errorLight,
       onPrimary: Colors.white, // Teks di atas primary
       onSecondary: Colors.white, // Teks di atas secondary
-      onSurface: AppColors.primaryTextLight, // Teks di atas surface
-      onBackground: AppColors.primaryTextLight, // Teks di atas background
+      onSurface: AppColors.primaryTextLight, // Teks di atas background
       onError: Colors.white, // Teks di atas error
       primaryContainer: AppColors.primaryLight.withOpacity(
         0.1,
@@ -253,9 +251,9 @@ class AppTheme {
       ), // Warna indicator
       surfaceTintColor: Colors.transparent, // Hilangkan efek tint
       elevation: 0, // Elevation dihandle container pembungkus
-      iconTheme: MaterialStateProperty.resolveWith((states) {
+      iconTheme: WidgetStateProperty.resolveWith((states) {
         // Atur warna ikon default dan terpilih
-        if (states.contains(MaterialState.selected)) {
+        if (states.contains(WidgetState.selected)) {
           return const IconThemeData(color: AppColors.primaryLight, size: 26);
         }
         return const IconThemeData(
@@ -263,11 +261,11 @@ class AppTheme {
           size: 24,
         );
       }),
-      labelTextStyle: MaterialStateProperty.resolveWith((states) {
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
         // Atur style label default dan terpilih
         final style =
             textThemeLight.labelSmall ?? const TextStyle(fontSize: 12);
-        if (states.contains(MaterialState.selected)) {
+        if (states.contains(WidgetState.selected)) {
           return style.copyWith(
             color: AppColors.primaryLight,
             fontWeight: FontWeight.bold,
@@ -330,13 +328,11 @@ class AppTheme {
       secondary: AppColors.alternateDark,
       surface:
           AppColors
-              .secondaryBackgroundDark, // Ganti surface ke warna yg lebih cocok
-      background: AppColors.primaryBackgroundDark,
+              .secondaryBackgroundDark,
       error: AppColors.errorDark,
       onPrimary: Colors.white,
       onSecondary: Colors.white,
       onSurface: AppColors.primaryTextDark,
-      onBackground: AppColors.primaryTextDark,
       onError: Colors.white,
       primaryContainer: AppColors.primaryDark.withOpacity(0.15),
       secondaryContainer: AppColors.alternateDark.withOpacity(0.1),
@@ -359,8 +355,8 @@ class AppTheme {
       ), // Indikator lebih gelap
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      iconTheme: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) {
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
           return const IconThemeData(
             color: AppColors.primaryDark,
             size: 26,
@@ -371,9 +367,9 @@ class AppTheme {
           size: 24,
         ); // Warna teks sekunder dark
       }),
-      labelTextStyle: MaterialStateProperty.resolveWith((states) {
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final style = textThemeDark.labelSmall ?? const TextStyle(fontSize: 12);
-        if (states.contains(MaterialState.selected)) {
+        if (states.contains(WidgetState.selected)) {
           return style.copyWith(
             color: AppColors.primaryDark,
             fontWeight: FontWeight.bold,

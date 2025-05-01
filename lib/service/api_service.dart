@@ -1,3 +1,5 @@
+import 'dart:ffi';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:kkba_mobile/model/anggota_profile.dart';
@@ -12,9 +14,11 @@ import '../model/tabungan_tahunan_response.dart';
 import '../model/berita.dart';
 import '../model/jenis_tabungan.dart';
 import '../model/pengajuan_pencairan.dart';
+import '../model/list_pengajuan.dart';
+import '../model/base_response.dart';
 
 class ApiService {
-  static Dio _dio = Dio(
+  static final Dio _dio = Dio(
     BaseOptions(
       baseUrl: dotenv.env['baseUrl'] ?? 'https://kkba-simpin.laravel.cloud',
       connectTimeout: const Duration(seconds: 10),
@@ -445,9 +449,10 @@ class ApiService {
   }
 
   Future<TabunganTahunanResponse> getTabunganTahunan({
-    required String tahun, // Terima tahun sebagai String dari UI
+    required int tahun, // Terima tahun sebagai int
     int? pAnggotaId, // pAnggotaId opsional di parameter
   }) async {
+    // --- Bagian ini sudah benar ---
     try {
       final prefs = await SharedPreferences.getInstance();
       final String? token = prefs.getString("token");
@@ -464,28 +469,32 @@ class ApiService {
           'ID Anggota (p_anggota_id) tidak valid atau tidak ditemukan.',
         );
       }
+      // --- Akhir bagian yang sudah benar ---
 
-      // Konversi tahun dari String ke Integer untuk payload
-      final int? tahunInt = int.tryParse(tahun);
-      if (tahunInt == null) {
-        throw Exception("Format tahun tidak valid untuk payload.");
-      }
+      // --- PERUBAHAN DI SINI ---
+      // Tidak perlu lagi parsing 'tahun', karena sudah bertipe int
+      // Hapus blok kode ini:
+      // final int? tahunInt = int.tryParse(tahun);
+      // if (tahunInt == null) {
+      //   throw Exception("Format tahun tidak valid untuk payload.");
+      // }
 
-      // Siapkan payload
+      // Siapkan payload dengan 'tahun' dari parameter
       final Map<String, dynamic> payload = {
-        "tahun": 2024,
+        "tahun": tahun, // Gunakan parameter 'tahun' langsung
         "p_anggota_id": targetPAnggotaId,
       };
+      // --- Akhir Perubahan ---
 
       final String path = '/api/tabungan/saldo/tahunan';
       print(
         "Fetching tabungan tahunan from path: $path with payload: $payload",
       );
 
-      // Lakukan POST request
+      // Lakukan POST request (bagian ini sudah benar)
       final response = await _dio.post(
         path,
-        data: payload, // Kirim payload
+        data: payload, // Kirim payload yang sudah benar
         options: Options(
           headers: {
             'Authorization': 'Bearer $token',
@@ -496,26 +505,22 @@ class ApiService {
 
       print("Tabungan Tahunan Response Status (Dio): ${response.statusCode}");
 
-      // Parsing response (Dio otomatis handle status non-200 dengan exception)
+      // Parsing response (bagian ini sudah benar)
       if (response.data != null && response.data is Map<String, dynamic>) {
         final tabunganResponse = TabunganTahunanResponse.fromJson(
           response.data,
         );
-        // Kembalikan seluruh response object
         return tabunganResponse;
       } else {
-        // Jika status 200 tapi data null atau bukan map
         throw Exception(
           "Format respons tabungan tahunan tidak valid dari server.",
         );
       }
     } catch (e) {
-      // Tangkap semua error (DioException, parsing, dll.)
+      // Error handling (bagian ini sudah cukup baik)
       print('Error getTabunganTahunan: $e');
       if (e is DioException) {
-        // Beri detail jika DioException
         print('DioError Response (Tabungan Tahunan): ${e.response?.data}');
-        // Coba ekstrak pesan error dari response Dio
         String serverErrorMsg = 'Gagal mengambil data tabungan tahunan.';
         if (e.response?.data is Map) {
           serverErrorMsg =
@@ -525,11 +530,9 @@ class ApiService {
         } else if (e.message != null) {
           serverErrorMsg = e.message!;
         }
-        throw Exception(
-          serverErrorMsg,
-        ); // Lempar ulang dengan pesan yg lebih baik jika ada
+        throw Exception(serverErrorMsg);
       }
-      rethrow; // Lempar ulang error asli jika bukan DioException atau tidak ada detail
+      rethrow; // Lempar ulang error asli jika bukan DioException
     }
   }
 
@@ -911,5 +914,192 @@ class ApiService {
       );
     }
   }
-  // --- Akhir Metode submitPengajuanPencairan ---
+
+  Future<ListPengajuanResponse> getListPengajuanPencairan({
+    int page = 1,
+    int perPage = 10, // Default per page
+  }) async {
+    const String endpoint = '/api/tabungan/pencairan/pengajuan/list';
+    Options? requestOptions;
+    String? token;
+
+    try {
+      // 1. Ambil token
+      token = await _getAuthToken();
+      if (token == null || token.isEmpty) {
+        print("[ApiService.getListPengajuan] ERROR: Auth Token required.");
+        throw Exception("Token otentikasi diperlukan.");
+      }
+
+      // 2. Siapkan header
+      print("[ApiService.getListPengajuan] Using Auth Token.");
+      requestOptions = Options(
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      // 3. Siapkan query parameters untuk pagination
+      final Map<String, dynamic> queryParameters = {
+        'page': page,
+        'per_page': perPage,
+      };
+
+      print("ApiService: Fetching List Pengajuan from $endpoint");
+      print("ApiService: Query Params: $queryParameters");
+
+      // 4. Kirim request GET
+      final response = await _dio.get(
+        endpoint,
+        queryParameters: queryParameters,
+        options: requestOptions,
+      );
+
+      print(
+        "[ApiService.getListPengajuan] Response status: ${response.statusCode}",
+      );
+      // print("[ApiService.getListPengajuan] Response data: ${response.data}"); // Hati-hati jika data besar
+
+      // 5. Handle response
+      if (response.statusCode == 200) {
+        if (response.data is Map<String, dynamic>) {
+          // Parse JSON ke model
+          return ListPengajuanResponse.fromJson(response.data);
+        } else {
+          print(
+            "[ApiService.getListPengajuan] ERROR: Unexpected response format.",
+          );
+          throw Exception("Format respons tidak valid dari server.");
+        }
+      } else {
+        // Handle status code lain jika diperlukan (meskipun Dio biasanya throw error)
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          error:
+              'Gagal mengambil daftar pengajuan: Status code ${response.statusCode}',
+          type: DioExceptionType.badResponse,
+        );
+      }
+    } on DioException catch (e) {
+      print("[ApiService.getListPengajuan] DioException caught!");
+      print("  -> Request URL: ${e.requestOptions.uri}");
+      // ... (logging error DioException lainnya seperti di submitPengajuanPencairan) ...
+
+      String errorMessage = "Gagal mengambil daftar pengajuan.";
+      if (e.response?.statusCode == 401) {
+        errorMessage = "Akses ditolak (401). Sesi Anda mungkin telah berakhir.";
+      } else if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message'] ?? errorMessage;
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = "Koneksi timeout.";
+      } else if (e.type == DioExceptionType.unknown) {
+        errorMessage = "Koneksi internet bermasalah.";
+      }
+      throw Exception(
+        errorMessage,
+      ); // Re-throw pesan error yang lebih user-friendly
+    } catch (e) {
+      print("[ApiService.getListPengajuan] Non-Dio Exception caught: $e");
+      throw Exception("Terjadi kesalahan tidak diketahui: $e");
+    }
+  }
+
+  Future<BaseResponse> cancelPengajuanPencairan(String pengambilanId) async {
+    // Endpoint dinamis berdasarkan ID
+    final String endpoint = '/api/tabungan/pencairan/pembatalan/$pengambilanId';
+    Options? requestOptions;
+    String? token;
+
+    try {
+      // 1. Ambil token
+      token = await _getAuthToken();
+      if (token == null || token.isEmpty) {
+        print("[ApiService.cancelPengajuan] ERROR: Auth Token required.");
+        throw Exception("Token otentikasi diperlukan.");
+      }
+
+      // 2. Siapkan header
+      print(
+        "[ApiService.cancelPengajuan] Using Auth Token for $pengambilanId.",
+      );
+      requestOptions = Options(
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+        // Penting: Tentukan metode DELETE
+        method: 'DELETE',
+      );
+
+      print(
+        "ApiService: Cancelling Pengajuan $pengambilanId via DELETE $endpoint",
+      );
+
+      // 4. Kirim request DELETE
+      // Dio.delete() adalah shortcut untuk request(method: 'DELETE')
+      final response = await _dio.delete(endpoint, options: requestOptions);
+
+      print(
+        "[ApiService.cancelPengajuan] Response status: ${response.statusCode}",
+      );
+      print("[ApiService.cancelPengajuan] Response data: ${response.data}");
+
+      // 5. Handle response
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        // 204 No Content juga umum untuk DELETE
+        // Jika backend mengembalikan body JSON (seperti success: true), parse.
+        // Jika tidak (status 204), anggap sukses.
+        if (response.data is Map<String, dynamic>) {
+          return BaseResponse.fromJson(response.data);
+        } else if (response.data == null || response.data == '') {
+          // Anggap sukses jika tidak ada body tapi status OK/No Content
+          return BaseResponse(
+            success: true,
+            message: "Pengajuan berhasil dibatalkan.",
+          );
+        } else {
+          print(
+            "[ApiService.cancelPengajuan] WARNING: Unexpected success response format.",
+          );
+          // Tetap anggap sukses berdasarkan status code
+          return BaseResponse(
+            success: true,
+            message: "Pembatalan berhasil (status: ${response.statusCode}).",
+          );
+        }
+      } else {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          error:
+              'Gagal membatalkan pengajuan: Status code ${response.statusCode}',
+          type: DioExceptionType.badResponse,
+        );
+      }
+    } on DioException catch (e) {
+      print(
+        "[ApiService.cancelPengajuan] DioException caught for ID $pengambilanId!",
+      );
+      // ... (logging error DioException serupa dengan metode lain) ...
+
+      String errorMessage = "Gagal membatalkan pengajuan.";
+      if (e.response?.statusCode == 401) {
+        errorMessage = "Akses ditolak (401). Sesi Anda mungkin telah berakhir.";
+      } else if (e.response?.statusCode == 404) {
+        errorMessage = "Pengajuan tidak ditemukan.";
+      } else if (e.response?.statusCode == 403) {
+        errorMessage = "Anda tidak diizinkan membatalkan pengajuan ini.";
+      } else if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message'] ?? errorMessage;
+      } // ... (handle error koneksi/timeout lainnya) ...
+      throw Exception(errorMessage);
+    } catch (e) {
+      print("[ApiService.cancelPengajuan] Non-Dio Exception caught: $e");
+      throw Exception("Terjadi kesalahan tidak diketahui: $e");
+    }
+  }
 }

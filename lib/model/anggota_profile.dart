@@ -1,18 +1,25 @@
-// models/anggota_profile_response.dart
+// lib/model/anggota_profile_response.dart
 
-import 'dart:convert'; // For jsonEncode if needed
+import 'dart:convert'; // Opsional, hanya jika perlu jsonEncode/Decode di tempat lain
 
+// -----------------------------------
+// Root Response Model
+// -----------------------------------
 class AnggotaProfileResponse {
   final bool success;
-  final ProfileData? data;
+  final ProfileData? data; // Nullable jika success = false atau data tidak ada
   final String? message;
 
   AnggotaProfileResponse({required this.success, this.data, this.message});
 
   factory AnggotaProfileResponse.fromJson(Map<String, dynamic> json) =>
       AnggotaProfileResponse(
-        success: json["success"] ?? false,
-        data: json["data"] == null ? null : ProfileData.fromJson(json["data"]),
+        success: json["success"] ?? false, // Default ke false jika null
+        // Parse data hanya jika success=true dan data tidak null
+        data:
+            json["success"] == true && json["data"] != null
+                ? ProfileData.fromJson(json["data"])
+                : null,
         message: json["message"],
       );
 
@@ -23,13 +30,16 @@ class AnggotaProfileResponse {
   };
 }
 
+// -----------------------------------
+// Wrapper Data Model
+// -----------------------------------
 class ProfileData {
-  final AnggotaProfile? anggota;
+  final AnggotaProfile? anggota; // Bisa null
 
   ProfileData({this.anggota});
 
   factory ProfileData.fromJson(Map<String, dynamic> json) => ProfileData(
-    // Handle cases where 'anggota' might be null or not a map
+    // Handle jika 'anggota' null atau bukan map
     anggota:
         (json["anggota"] != null && json["anggota"] is Map<String, dynamic>)
             ? AnggotaProfile.fromJson(json["anggota"])
@@ -39,6 +49,9 @@ class ProfileData {
   Map<String, dynamic> toJson() => {"anggota": anggota?.toJson()};
 }
 
+// -----------------------------------
+// Anggota Profile Model (isRegistered = bool?)
+// -----------------------------------
 class AnggotaProfile {
   final int? pAnggotaId;
   final String? nomorAnggota;
@@ -51,10 +64,10 @@ class AnggotaProfile {
   final String? tglLahir;
   final String? email;
   final String? mobile;
-  final int? isRegistered; // Keep as int? to match JSON
+  final bool? isRegistered; // <-- Tipe diubah menjadi bool?
   final int? userId;
-  final List<dynamic>? atribut; // Use List<dynamic> for safety
-  final dynamic unit; // Use dynamic if type is unknown/variable
+  final List<dynamic>? atribut; // Gunakan List<dynamic>
+  final dynamic unit; // Gunakan dynamic jika tipe bervariasi atau tidak pasti
 
   AnggotaProfile({
     this.pAnggotaId = 0,
@@ -66,12 +79,12 @@ class AnggotaProfile {
     this.ktp = '',
     this.tempatLahir = '',
     this.tglLahir = '',
-    this.email = '',
-    this.mobile = '',
-    this.isRegistered = 0,
+    this.email, // Default null untuk String?
+    this.mobile, // Default null untuk String?
+    this.isRegistered = false, // Default ke false untuk bool?
     this.userId = 0,
-    this.atribut = const [], // Default to empty list
-    this.unit,
+    this.atribut = const [], // Default list kosong
+    this.unit, // Default null untuk dynamic
   });
 
   factory AnggotaProfile.fromJson(Map<String, dynamic> json) => AnggotaProfile(
@@ -84,16 +97,18 @@ class AnggotaProfile {
     ktp: (json["ktp"] as String?) ?? '',
     tempatLahir: (json["tempat_lahir"] as String?) ?? '',
     tglLahir: (json["tgl_lahir"] as String?) ?? '',
-    email: (json["email"] as String?) ?? '', // Handle null email
-    mobile: (json["mobile"] as String?) ?? '', // Handle null mobile
-    isRegistered: (json["is_registered"] as int?) ?? 0,
+    email: json["email"] as String?, // Ambil langsung sebagai String?
+    mobile: json["mobile"] as String?, // Ambil langsung sebagai String?
+    // Parsing is_registered sebagai bool?, default false jika null
+    isRegistered: (json["is_registered"] as bool?) ?? false,
+
     userId: (json["user_id"] as int?) ?? 0,
-    // Safely handle 'atribut' which is a list
+    // Parsing list 'atribut' dengan aman
     atribut:
         (json["atribut"] != null && json["atribut"] is List)
             ? List<dynamic>.from(json["atribut"].map((x) => x))
-            : [], // Default to empty list if null or not a list
-    unit: json["unit"], // Assign directly as dynamic
+            : [], // Default list kosong jika null atau bukan list
+    unit: json["unit"], // Ambil langsung sebagai dynamic
   );
 
   Map<String, dynamic> toJson() => {
@@ -108,13 +123,15 @@ class AnggotaProfile {
     "tgl_lahir": tglLahir,
     "email": email,
     "mobile": mobile,
+    // Serialisasi isRegistered sebagai boolean
     "is_registered": isRegistered,
     "user_id": userId,
+    // Serialisasi list 'atribut' dengan aman
     "atribut":
         atribut == null ? [] : List<dynamic>.from(atribut!.map((x) => x)),
     "unit": unit,
   };
 
-  // Helper to determine registration status maybe?
-  bool get isActuallyRegistered => isRegistered == 1;
+  // Getter helper (jika diperlukan)
+  bool get isActuallyRegistered => isRegistered == true;
 }

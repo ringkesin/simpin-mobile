@@ -1,95 +1,128 @@
-// models/tabungan_tahunan_response.dart
+// Lokasi file: lib/model/tabungan_tahunan.dart (atau sesuaikan path Anda)
 
-import 'dart:convert';
+import 'package:flutter/foundation.dart'; // for listEquals
 
-// Fungsi helper (opsional)
-TabunganTahunanResponse tabunganTahunanResponseFromJson(String str) =>
-    TabunganTahunanResponse.fromJson(json.decode(str));
-String tabunganTahunanResponseToJson(TabunganTahunanResponse data) =>
-    json.encode(data.toJson());
-
-// --- Model Utama ---
 class TabunganTahunanResponse {
   final bool success;
-  final TabunganTahunanData? data;
   final String? message;
+  final TabunganTahunanData? data;
 
-  TabunganTahunanResponse({required this.success, this.data, this.message});
+  TabunganTahunanResponse({required this.success, this.message, this.data});
 
-  factory TabunganTahunanResponse.fromJson(Map<String, dynamic> json) =>
-      TabunganTahunanResponse(
-        success: json["success"] ?? false,
-        data:
-            json["data"] == null || !(json["data"] is Map<String, dynamic>)
-                ? null
-                : TabunganTahunanData.fromJson(json["data"]),
-        message: json["message"],
-      );
+  factory TabunganTahunanResponse.fromJson(Map<String, dynamic> json) {
+    return TabunganTahunanResponse(
+      success: json['success'] ?? false,
+      message: json['message'] as String?,
+      // Lakukan pengecekan tipe sebelum parsing data
+      data:
+          json['data'] != null && json['data'] is Map<String, dynamic>
+              ? TabunganTahunanData.fromJson(json['data'])
+              : null,
+    );
+  }
 
-  Map<String, dynamic> toJson() => {
-    "success": success,
-    "data": data?.toJson(),
-    "message": message,
-  };
+  // Optional: For debugging or comparing objects
+  @override
+  String toString() {
+    return 'TabunganTahunanResponse(success: $success, message: $message, data: $data)';
+  }
 }
 
-// --- Model untuk Object 'data' ---
 class TabunganTahunanData {
-  final int? tahun;
-  final num? totalSaldoSd; // Saldo s/d akhir tahun
-  final DetailSaldoTahunan? detail; // Objek detail saldo
+  final int tahun;
+  final num totalSaldoSd; // Tambahkan field ini sesuai JSON
+  final List<SaldoItemTahunan> detail; // Nama field sesuai JSON key 'detail'
 
-  TabunganTahunanData({this.tahun, this.totalSaldoSd, this.detail});
-
-  factory TabunganTahunanData.fromJson(Map<String, dynamic> json) =>
-      TabunganTahunanData(
-        tahun: (json["tahun"] as int?) ?? 0,
-        totalSaldoSd: (json["total_saldo_sd"] as num?) ?? 0,
-        detail:
-            json["detail"] == null || !(json["detail"] is Map<String, dynamic>)
-                ? null // Atau DetailSaldoTahunan() jika ingin default kosong
-                : DetailSaldoTahunan.fromJson(json["detail"]),
-      );
-
-  Map<String, dynamic> toJson() => {
-    "tahun": tahun,
-    "total_saldo_sd": totalSaldoSd,
-    "detail": detail?.toJson(),
-  };
-}
-
-// --- Model untuk Object 'detail' (Saldo s/d Akhir Tahun per Jenis) ---
-class DetailSaldoTahunan {
-  final num? saldoSdSimpananPokok;
-  final num? saldoSdSimpananWajib;
-  final num? saldoSdTabunganSukarela;
-  final num? saldoSdTabunganIndir;
-  final num? saldoSdKompensasiMasaKerja;
-
-  DetailSaldoTahunan({
-    this.saldoSdSimpananPokok = 0,
-    this.saldoSdSimpananWajib = 0,
-    this.saldoSdTabunganSukarela = 0,
-    this.saldoSdTabunganIndir = 0,
-    this.saldoSdKompensasiMasaKerja = 0,
+  TabunganTahunanData({
+    required this.tahun,
+    required this.totalSaldoSd,
+    required this.detail,
   });
 
-  factory DetailSaldoTahunan.fromJson(Map<String, dynamic> json) =>
-      DetailSaldoTahunan(
-        saldoSdSimpananPokok: (json["saldo_sd_simpanan_pokok"] as num?) ?? 0,
-        saldoSdSimpananWajib: (json["saldo_sd_simpanan_wajib"] as num?) ?? 0,
-        saldoSdTabunganSukarela:
-            (json["saldo_sd_tabungan_sukarela"] as num?) ?? 0,
-        saldoSdTabunganIndir: (json["saldo_sd_tabungan_indir"] as num?) ?? 0,
-        saldoSdKompensasiMasaKerja:
-            (json["saldo_sd_kompensasi_masa_kerja"] as num?) ?? 0,
-      );
+  factory TabunganTahunanData.fromJson(Map<String, dynamic> json) {
+    // Parsing list 'detail' dari JSON
+    var detailListFromJson = json['detail'] as List?;
+    List<SaldoItemTahunan> detailList =
+        detailListFromJson
+            ?.map(
+              (item) => SaldoItemTahunan.fromJson(item as Map<String, dynamic>),
+            )
+            .toList() ??
+        []; // Default list kosong jika null
 
-  Map<String, dynamic> toJson() => {
-    "saldo_sd_simpanan_pokok": saldoSdSimpananPokok,
-    "saldo_sd_simpanan_wajib": saldoSdSimpananWajib,
-    "saldo_sd_tabungan_sukarela": saldoSdTabunganSukarela,
-    "saldo_sd_tabungan_indir": saldoSdTabunganIndir,
-    "saldo_sd_kompensasi_masa_kerja": saldoSdKompensasiMasaKerja,
-  };
+    return TabunganTahunanData(
+      tahun:
+          json['tahun'] as int? ??
+          DateTime.now().year, // Default ke tahun ini jika null
+      totalSaldoSd: json['total_saldo_sd'] as num? ?? 0, // Ambil total saldo
+      detail: detailList, // Gunakan list yang sudah diparsing
+    );
+  }
+
+  // Optional: For debugging or comparing objects
+  @override
+  String toString() {
+    return 'TabunganTahunanData(tahun: $tahun, totalSaldoSd: $totalSaldoSd, detail: $detail)';
+  }
+
+  // Optional: Override equality operator if needed for state management comparisons
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is TabunganTahunanData &&
+        other.tahun == tahun &&
+        other.totalSaldoSd == totalSaldoSd &&
+        listEquals(other.detail, detail); // Use listEquals for comparing lists
+  }
+
+  @override
+  int get hashCode => tahun.hashCode ^ totalSaldoSd.hashCode ^ detail.hashCode;
+}
+
+class SaldoItemTahunan {
+  final int pJenisTabunganId;
+  final String namaJenisTabungan; // Gunakan nama deskriptif untuk field Dart
+  final num saldoAkhir; // Gunakan nama konsisten dengan logika sebelumnya
+
+  SaldoItemTahunan({
+    required this.pJenisTabunganId,
+    required this.namaJenisTabungan,
+    required this.saldoAkhir,
+  });
+
+  factory SaldoItemTahunan.fromJson(Map<String, dynamic> json) {
+    return SaldoItemTahunan(
+      // Mapping dari key JSON ke field Dart
+      pJenisTabunganId:
+          json['p_jenis_tabungan_id'] as int? ?? 0, // Ambil dari JSON
+      namaJenisTabungan:
+          json['jenis_tabungan'] as String? ??
+          'Tidak Diketahui', // Ambil dari JSON
+      saldoAkhir: json['saldo_sd_bulan_ini'] as num? ?? 0, // Ambil dari JSON
+    );
+  }
+
+  // Optional: For debugging or comparing objects
+  @override
+  String toString() {
+    return 'SaldoItemTahunan(pJenisTabunganId: $pJenisTabunganId, namaJenisTabungan: $namaJenisTabungan, saldoAkhir: $saldoAkhir)';
+  }
+
+  // Optional: Override equality operator if needed
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is SaldoItemTahunan &&
+        other.pJenisTabunganId == pJenisTabunganId &&
+        other.namaJenisTabungan == namaJenisTabungan &&
+        other.saldoAkhir == saldoAkhir;
+  }
+
+  @override
+  int get hashCode =>
+      pJenisTabunganId.hashCode ^
+      namaJenisTabungan.hashCode ^
+      saldoAkhir.hashCode;
 }

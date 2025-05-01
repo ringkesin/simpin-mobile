@@ -34,7 +34,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
   final _hargaController = TextEditingController();
   final _tenorCicilanController = TextEditingController();
   // Gunakan Set ini untuk menyimpan ID keperluan yang dipilih
-  Set<int> _selectedKeperluanIds = {};
+  final Set<int> _selectedKeperluanIds = {};
 
   // Form data - Step 2
   final _jenisJaminanController = TextEditingController();
@@ -103,8 +103,9 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     } catch (e) {
       _showErrorSnackBar('Gagal memuat keperluan pinjaman: $e');
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() => _isLoading = false); // Cek mounted sebelum setState
+      }
     }
   }
 
@@ -386,11 +387,13 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                 keyboardType: TextInputType.number,
                 icon: Icons.monetization_on_outlined, // Ganti ikon
                 validator: (value) {
-                  if (value == null || value.isEmpty)
+                  if (value == null || value.isEmpty) {
                     return 'Masukkan jumlah pengajuan';
+                  }
                   if (int.tryParse(value.replaceAll(RegExp(r'[^\d]'), '')) ==
-                      null)
+                      null) {
                     return 'Masukkan angka yang valid';
+                  }
                   return null;
                 },
               ),
@@ -403,10 +406,12 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                 keyboardType: TextInputType.number,
                 icon: Icons.calendar_today_outlined, // Ganti ikon
                 validator: (value) {
-                  if (value == null || value.isEmpty)
+                  if (value == null || value.isEmpty) {
                     return 'Masukkan tenor cicilan';
-                  if (int.tryParse(value) == null)
+                  }
+                  if (int.tryParse(value) == null) {
                     return 'Masukkan angka yang valid';
+                  }
                   if (int.parse(value) <= 0) return 'Tenor harus lebih dari 0';
                   return null;
                 },
@@ -432,8 +437,9 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
         _selectedJenisPinjaman != null) {
       return const Text("Tidak ada data keperluan untuk jenis pinjaman ini.");
     }
-    if (_keperluanPinjamanList.isEmpty)
+    if (_keperluanPinjamanList.isEmpty) {
       return const SizedBox.shrink(); // Jangan tampilkan apa-apa jika list kosong
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -560,8 +566,9 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
               hintText: 'Contoh: Sertifikat Rumah, BPKB, dll',
               icon: Icons.security_outlined, // Ganti ikon
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Masukkan jenis jaminan';
+                }
                 return null;
               },
             ),
@@ -575,8 +582,9 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
               icon: Icons.description_outlined, // Ganti ikon
               maxLines: 3,
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Masukkan keterangan jaminan';
+                }
                 return null;
               },
             ),
@@ -591,13 +599,16 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
               keyboardType: TextInputType.number,
               icon: Icons.monetization_on_outlined, // Ganti ikon
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Masukkan perkiraan nilai';
+                }
                 if (int.tryParse(value.replaceAll(RegExp(r'[^\d]'), '')) ==
-                    null)
+                    null) {
                   return 'Masukkan angka yang valid';
-                if (int.parse(value.replaceAll(RegExp(r'[^\d]'), '')) <= 0)
+                }
+                if (int.parse(value.replaceAll(RegExp(r'[^\d]'), '')) <= 0) {
                   return 'Nilai harus lebih dari 0';
+                }
                 return null;
               },
             ),

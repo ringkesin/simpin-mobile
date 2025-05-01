@@ -13,7 +13,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  bool _isDarkMode = false; // Sesuaikan logika dark mode Anda
+  final bool _isDarkMode = false; // Sesuaikan logika dark mode Anda
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final ApiService _apiService = ApiService();
@@ -66,19 +66,12 @@ class _LoginPageState extends State<LoginPage> {
         if (userRole == 'mobile_admin') {
           print("Login sebagai Admin: Menyimpan data user.");
           // Pastikan userData tidak null sebelum mengakses fieldnya
-          if (userData != null) {
-            await prefs.setString("nama", userData.name ?? '');
-            await prefs.setString("email", userData.email ?? '');
-            print(
-              "Data admin disimpan: Nama=${userData.name}, Email=${userData.email}",
-            );
-          } else {
-            print("WARNING: Data user null untuk admin.");
-            // Mungkin set nama/email default atau biarkan kosong
-            await prefs.setString("nama", 'Admin'); // Contoh default
-            await prefs.setString("email", '');
-          }
-          // Hapus data anggota dari SharedPreferences jika login sebagai admin
+          await prefs.setString("nama", userData.name ?? '');
+          await prefs.setString("email", userData.email ?? '');
+          print(
+            "Data admin disimpan: Nama=${userData.name}, Email=${userData.email}",
+          );
+                  // Hapus data anggota dari SharedPreferences jika login sebagai admin
           await prefs.remove("p_anggota_id");
           await prefs.remove("nomor_anggota");
           await prefs.remove("nik");
@@ -93,7 +86,7 @@ class _LoginPageState extends State<LoginPage> {
               anggotaData.nomorAnggota ?? '',
             );
             // Cek email anggota dulu, fallback ke email user jika ada, baru default
-            String finalEmail = anggotaData.email ?? userData?.email ?? '';
+            String finalEmail = anggotaData.email ?? userData.email ?? '';
             await prefs.setString("email", finalEmail);
             await prefs.setString("nik", anggotaData.nik ?? '');
             print(
@@ -104,15 +97,9 @@ class _LoginPageState extends State<LoginPage> {
             print(
               "WARNING: Data anggota null untuk user non-admin. Menyimpan data user jika ada.",
             );
-            if (userData != null) {
-              await prefs.setString("nama", userData.name ?? '');
-              await prefs.setString("email", userData.email ?? '');
-            } else {
-              print("WARNING: Data user juga null untuk non-admin.");
-              await prefs.setString("nama", 'Anggota'); // Contoh default
-              await prefs.setString("email", '');
-            }
-            // Hapus data anggota lainnya untuk konsistensi
+            await prefs.setString("nama", userData.name ?? '');
+            await prefs.setString("email", userData.email ?? '');
+                      // Hapus data anggota lainnya untuk konsistensi
             await prefs.remove("p_anggota_id");
             await prefs.remove("nomor_anggota");
             await prefs.remove("nik");
@@ -137,7 +124,7 @@ class _LoginPageState extends State<LoginPage> {
                   ? loginResponse.message
                   : "Login failed. Please check credentials or response format.";
           print(
-            "Login Gagal atau Response Tidak Valid: Pesan = ${_errorMessage}",
+            "Login Gagal atau Response Tidak Valid: Pesan = $_errorMessage",
           );
         });
       }
@@ -212,7 +199,7 @@ class _LoginPageState extends State<LoginPage> {
                         decoration: InputDecoration(
                           labelText: "Username",
                           labelStyle: theme.bodyMedium?.copyWith(
-                            color: textColor?.withOpacity(
+                            color: textColor.withOpacity(
                               0.7,
                             ), // Sedikit redupkan label
                           ),
@@ -259,7 +246,7 @@ class _LoginPageState extends State<LoginPage> {
                         decoration: InputDecoration(
                           labelText: "Password",
                           labelStyle: theme.bodyMedium?.copyWith(
-                            color: textColor?.withOpacity(0.7),
+                            color: textColor.withOpacity(0.7),
                           ),
                           prefixIcon: Icon(
                             Icons.lock_outline,
@@ -370,7 +357,7 @@ class _LoginPageState extends State<LoginPage> {
                           Text(
                             "Don't have an account?",
                             style: theme.bodySmall?.copyWith(
-                              color: textColor?.withOpacity(0.8),
+                              color: textColor.withOpacity(0.8),
                             ),
                           ),
                           TextButton(

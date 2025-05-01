@@ -18,7 +18,7 @@ class TenorResponse {
     success: json["success"] ?? false,
     // Handle jika data null atau bukan list
     data:
-        json["data"] == null || !(json["data"] is List)
+        json["data"] == null || json["data"] is! List
             ? [] // Default ke list kosong jika tidak valid
             : List<TenorItem>.from(
               json["data"].map((x) => TenorItem.fromJson(x)),

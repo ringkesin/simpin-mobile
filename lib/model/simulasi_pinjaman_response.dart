@@ -20,7 +20,7 @@ class SimulasiPinjamanResponse {
         success: json["success"] ?? false,
         // Handle jika data null atau bukan map
         data:
-            json["data"] == null || !(json["data"] is Map<String, dynamic>)
+            json["data"] == null || json["data"] is! Map<String, dynamic>
                 ? null
                 : SimulasiResult.fromJson(json["data"]),
         message: json["message"],

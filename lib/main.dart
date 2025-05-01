@@ -5,11 +5,13 @@ import './feature/auth/screens/login.dart';
 import './theme.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/rendering.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // debugPaintSizeEnabled = true; // Tambahkan di main() saat debug
   await dotenv.load(); // Memuat file .env
+  await initializeDateFormatting('id_ID', null);
   runApp(const MyApp());
 }
 

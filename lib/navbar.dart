@@ -114,8 +114,8 @@ class _MainWrapperState extends State<MainWrapper> {
             ),
           ],
           // Terapkan style label dari theme
-          labelTextStyle: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.selected)) {
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
               return labelStyle?.copyWith(
                 color: selectedItemColor,
                 fontWeight: FontWeight.bold,

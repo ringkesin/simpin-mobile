@@ -16,7 +16,7 @@ class TabunganBulananResponse {
       success: json['success'] ?? false,
       // Cek jika data null atau bukan Map sebelum parsing
       data:
-          json['data'] == null || !(json['data'] is Map<String, dynamic>)
+          json['data'] == null || json['data'] is! Map<String, dynamic>
               ? null
               : TabunganBulananData.fromJson(json['data']),
       message: json['message'],
@@ -53,7 +53,7 @@ class TabunganBulananData {
       tahun: (json['tahun'] as int?) ?? 0, // Default 0 jika null
       // Parsing objek total, beri default jika null
       total:
-          json['total'] == null || !(json['total'] is Map<String, dynamic>)
+          json['total'] == null || json['total'] is! Map<String, dynamic>
               ? TotalTabungan() // Default object kosong
               : TotalTabungan.fromJson(json['total']),
       detail: detailList, // Gunakan list yang sudah diparsing
