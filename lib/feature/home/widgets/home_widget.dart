@@ -6,6 +6,7 @@ import '../../form_pinjaman/screens/form_pinjaman.dart';
 import '../../../theme.dart';
 import '../../../page_wrapper.dart';
 import 'package:intl/intl.dart';
+import 'package:kkba_mobile/model/berita.dart';
 
 // Widget: Header
 class HeaderWidget extends StatelessWidget {
@@ -29,260 +30,206 @@ class HeaderWidget extends StatelessWidget {
   }
 }
 
-// Widget: Banner
-// Widget: Banner (OVO Cash Style)
 class BannerWidget extends StatelessWidget {
-  // --- TAMBAHKAN PARAMETER CONSTRUCTOR ---
-  final bool isLoading; // Status loading dari parent
-  final String? error; // Pesan error dari parent (jika ada)
-  final num? totalSaldo; // Nilai total saldo (nullable)
-  final bool isBalanceVisible; // Status visibilitas dari parent
-  final VoidCallback? onToggleVisibility; // Callback untuk tombol visibility
-  // Anda mungkin juga ingin menambahkan data Points dari parent jika dinamis
-  // final String? points;
+  // --- Parameter Constructor (Tetap sama) ---
+  final bool isLoading;
+  final String? error;
+  final String? username;
+  final String? nomorAnggota;
+  final VoidCallback? onGenerateQr;
 
   const BannerWidget({
     Key? key,
-    this.isLoading = false, // Default tidak loading
+    this.isLoading = false,
     this.error,
-    this.totalSaldo,
-    this.isBalanceVisible = true, // Default terlihat
-    this.onToggleVisibility,
-    // this.points,
+    this.username,
+    this.nomorAnggota,
+    this.onGenerateQr,
   }) : super(key: key);
-  // --- AKHIR TAMBAHAN PARAMETER ---
-
-  // Formatter Mata Uang
-  static final NumberFormat _currencyFormatter = NumberFormat.currency(
-    locale: 'id_ID',
-    symbol: 'Rp ',
-    decimalDigits: 0,
-  );
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = AppTheme.textThemeLight; // Asumsi light theme
+    // Gunakan Theme yang aktif dari context
+    final ThemeData theme = Theme.of(context);
+    final TextTheme textTheme = theme.textTheme;
+    final ColorScheme colorScheme = theme.colorScheme;
 
-    // --- Logika Tampilan Saldo ---
-    String displayBalance;
-    Widget balanceWidget;
+    // --- Logika Tampilan Username (Tetap sama) ---
+    String displayUsername;
+    TextStyle usernameStyle =
+        textTheme.bodyLarge?.copyWith(color: Colors.white.withOpacity(0.9)) ??
+        const TextStyle(color: Colors.white70, fontSize: 16);
 
     if (isLoading) {
-      displayBalance = 'Memuat...'; // Teks saat loading
-      balanceWidget = Text(
-        displayBalance,
-        style: textTheme.headlineSmall?.copyWith(
-          // Sesuaikan style loading
-          color: Colors.white.withOpacity(0.8),
+      displayUsername = 'Memuat Nama...';
+      usernameStyle = usernameStyle.copyWith(
+        color: Colors.white.withOpacity(0.7),
+      );
+    } else if (error != null) {
+      displayUsername = 'Gagal Memuat Nama';
+      usernameStyle = usernameStyle.copyWith(color: AppColors.warningLight);
+    } else {
+      displayUsername = username?.isNotEmpty ?? false ? username! : 'Pengguna';
+    }
+
+    // --- Logika Tampilan nomorAnggota (Tetap sama) ---
+    Widget nomorAnggotaWidget;
+    final nomorAnggotaTextStyle =
+        textTheme.headlineSmall?.copyWith(
+          color: Colors.white,
           fontWeight: FontWeight.bold,
+        ) ??
+        const TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+        );
+
+    if (isLoading) {
+      nomorAnggotaWidget = Text(
+        'Memuat No. Anggota...',
+        style: nomorAnggotaTextStyle.copyWith(
+          color: Colors.white.withOpacity(0.8),
+          fontWeight: FontWeight.normal,
+          fontSize: 18,
         ),
       );
     } else if (error != null) {
-      displayBalance = 'Gagal Memuat'; // Teks saat error
-      balanceWidget = Row(
-        // Tampilkan ikon error
+      nomorAnggotaWidget = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline, color: Colors.yellow[300], size: 20),
-          SizedBox(width: 8),
+          Icon(Icons.error_outline, color: AppColors.warningLight, size: 20),
+          const SizedBox(width: 8),
           Text(
-            displayBalance,
-            style: textTheme.bodyLarge?.copyWith(
-              color: Colors.yellow[300],
-              fontWeight: FontWeight.w500,
-            ),
+            'Gagal Memuat No. Anggota',
+            style:
+                textTheme.bodyLarge?.copyWith(
+                  color: AppColors.warningLight,
+                  fontWeight: FontWeight.w500,
+                ) ??
+                TextStyle(color: AppColors.warningLight, fontSize: 16),
           ),
         ],
       );
-    } else if (!isBalanceVisible) {
-      displayBalance = 'Rp ••••••••'; // Teks saat disembunyikan
-      balanceWidget = Text(
-        displayBalance,
-        style: textTheme.headlineSmall?.copyWith(
-          // Gunakan style yang sama dengan saldo asli
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.5, // Beri spasi agar titik lebih jelas
+    } else if (nomorAnggota == null || nomorAnggota!.isEmpty) {
+      nomorAnggotaWidget = Text(
+        'No. Anggota Tidak Tersedia',
+        style: nomorAnggotaTextStyle.copyWith(
+          fontSize: 18,
+          fontWeight: FontWeight.normal,
+          color: Colors.white.withOpacity(0.7),
         ),
       );
     } else {
-      // Format saldo jika visible dan tidak loading/error
-      displayBalance = _currencyFormatter.format(totalSaldo ?? 0);
-      balanceWidget = Text(
-        displayBalance,
-        style: textTheme.headlineSmall?.copyWith(
-          // Style utama saldo
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
-      );
+      nomorAnggotaWidget = Text(nomorAnggota!, style: nomorAnggotaTextStyle);
     }
-    // --- Akhir Logika Tampilan Saldo ---
+    // --- Akhir Logika Tampilan nomorAnggota ---
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primaryDark,
-            AppColors.primaryLight,
-          ], // Gradient dari theme
+        gradient: const LinearGradient(
+          colors: [AppColors.primaryDark, AppColors.primaryLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
-          // Tambahkan sedikit shadow (opsional)
           BoxShadow(
             color: AppColors.primaryDark.withOpacity(0.3),
             blurRadius: 8,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // --- Bagian Atas (Total Saldo & Points) ---
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              20,
-              20,
-              12,
-            ), // Sesuaikan padding
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Total Tabungan Anda', // Ubah label jika perlu
-                      style: textTheme.bodyLarge?.copyWith(
-                        // Style dari theme
-                        color: Colors.white.withOpacity(0.9),
-                        // fontWeight: FontWeight.w500, // Sudah di theme?
+      // Padding utama card
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 20,
+        ), // Padding simetris
+        // Gunakan Row utama untuk layout Kiri (Teks) dan Kanan (QR)
+        child: Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.center, // Tengahkan item secara vertikal
+          children: [
+            // Bagian Kiri: Kolom untuk teks username dan nomor anggota
+            Expanded(
+              // Ambil semua ruang tersisa di kiri
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, // Teks rata kiri
+                mainAxisSize: MainAxisSize.min, // Column sekecil kontennya
+                children: [
+                  // Tampilkan Nama Pengguna
+                  Text(
+                    displayUsername,
+                    style: usernameStyle,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1, // Batasi 1 baris jika terlalu panjang
+                  ),
+                  const SizedBox(
+                    height: 10,
+                  ), // Jarak antara username & no anggota
+                  // Tampilkan Widget nomorAnggota
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Align(
+                      // Pastikan widget rata kiri
+                      key: ValueKey<String>(
+                        nomorAnggotaWidget.toString() +
+                            (isLoading ? 'loading' : error ?? 'ok'),
                       ),
+                      alignment: Alignment.centerLeft,
+                      child: nomorAnggotaWidget,
                     ),
-                    // Tombol Show/Hide Saldo
-                    InkWell(
-                      // Buat ikon bisa ditekan
-                      onTap: onToggleVisibility, // Panggil callback dari parent
-                      child: Icon(
-                        isBalanceVisible
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined, // Ganti ikon
-                        color: Colors.white.withOpacity(0.9),
-                        size: 22,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment:
-                      CrossAxisAlignment.end, // Agar points align bawah
-                  children: [
-                    // Tampilkan Widget Saldo yang sudah diproses
-                    AnimatedSwitcher(
-                      // Animasi halus saat ganti teks saldo (opsional)
-                      duration: Duration(milliseconds: 300),
-                      child:
-                          balanceWidget, // Gunakan widget saldo yang sudah dibuat
-                      transitionBuilder: (child, animation) {
-                        return FadeTransition(opacity: animation, child: child);
-                      },
-                    ),
-
-                    // Points (Biarkan hardcoded atau terima dari parameter)
-                    GestureDetector(
-                      // Buat Points bisa di-tap (jika ada halaman detail points)
-                      onTap: () {
-                        // TODO: Navigasi ke halaman detail points jika ada
-                        print("Points Tapped");
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(
-                            0.2,
-                          ), // Background lebih subtle
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.star_border_purple500_outlined,
-                              color: AppColors.accent1Light,
-                              size: 16,
-                            ), // Ganti ikon?
-                            const SizedBox(width: 6),
-                            Text(
-                              '1.473 Points', // Ganti dengan variabel jika dinamis (misal: points ?? '0 Points')
-                              style: textTheme.labelMedium?.copyWith(
-                                // Style dari theme
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.chevron_right,
-                              color: Colors.white.withOpacity(0.7),
-                              size: 16,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(opacity: animation, child: child);
+                    },
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          // --- Action Buttons (Kode Asli Anda - pastikan _buildActionButton ada) ---
-          // Padding(
-          //   padding: const EdgeInsets.fromLTRB(8, 12, 8, 16), // Sesuaikan padding
-          //   child: Row(
-          //     mainAxisAlignment: MainAxisAlignment.spaceAround, // spaceAround lebih baik?
-          //     children: [
-          //       // Pastikan Anda punya implementasi _buildActionButton
-          //       // _buildActionButton(context, Icons.add, 'Top Up'),
-          //       // _buildActionButton(context, Icons.swap_horiz, 'Transfer'),
-          //       // _buildActionButton(context, Icons.arrow_downward, 'Tarik Tunai'),
-          //       // _buildActionButton(context, Icons.history, 'History'),
-          //     ],
-          //   ),
-          // ),
-        ],
+            // Beri sedikit jarak horizontal antara teks dan ikon QR
+            const SizedBox(width: 12),
+
+            // Bagian Kanan: Tombol QR
+            IconButton(
+              icon: Icon(
+                Icons.qr_code_scanner,
+                color: Colors.white.withOpacity(0.9),
+                size: 50, // Ukuran ikon yang sudah diperbesar
+              ),
+              onPressed: isLoading || error != null ? null : onGenerateQr,
+              tooltip: 'Tampilkan QR Code No. Anggota',
+              splashRadius: 24,
+              // IconButton secara alami akan ditengahkan vertikal oleh Row
+              // Tidak perlu constraints atau padding khusus di sini kecuali untuk visual
+              // constraints: const BoxConstraints(),
+              // padding: EdgeInsets.zero,
+            ),
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildActionButton(IconData icon, String label) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: Colors.white, size: 24),
+Widget _buildActionButton(IconData icon, String label) {
+  return Column(
+    children: [
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          shape: BoxShape.circle,
         ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
-      ],
-    );
-  }
+        child: Icon(icon, color: Colors.white, size: 24),
+      ),
+      const SizedBox(height: 4),
+      Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+    ],
+  );
 }
 
 // Widget: Categories
@@ -442,176 +389,182 @@ class CategoryItem extends StatelessWidget {
 }
 
 // Widget: Recent Transactions
-class RecentTransactionsWidget extends StatelessWidget {
-  const RecentTransactionsWidget({Key? key}) : super(key: key);
+class BeritaListWidget extends StatelessWidget {
+  final List<BeritaItem> beritaList;
+
+  const BeritaListWidget({Key? key, required this.beritaList})
+    : super(key: key);
+
+  // Fungsi helper format tanggal (tetap sama)
+  String _formatDisplayDate(String dateString) {
+    try {
+      final DateTime dateTime = DateTime.parse(dateString);
+      return DateFormat('dd MMMM yyyy', 'id_ID').format(dateTime);
+    } catch (e) {
+      return dateString;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> transactions = [
-      {
-        "title": "Potongan Angsuran",
-        "date": "10 September 2023",
-        "amount": "Rp. 500.000",
-      },
-      {
-        "title": "Potongan Angsuran",
-        "date": "10 Agustus 2023",
-        "amount": "Rp. 500.000",
-      },
-      {
-        "title": "Potongan Angsuran",
-        "date": "10 Juli 2023",
-        "amount": "Rp. 500.000",
-      },
-    ];
+    final textTheme = Theme.of(context).textTheme;
+
+    // --- BATASI JUMLAH BERITA MENJADI MAKSIMAL 5 ---
+    final limitedBeritaList = beritaList.take(5).toList();
+    // ----------------------------------------------
+
+    // Handle jika list berita (setelah dibatasi) kosong
+    if (limitedBeritaList.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32.0),
+          child: Text(
+            "Saat ini belum ada berita.",
+            style: textTheme.bodyMedium,
+          ),
+        ),
+      );
+    }
+
+    // Tentukan lebar untuk setiap kartu berita dalam list horizontal
+    const double cardWidth = 280.0; // Sesuaikan lebar kartu sesuai keinginan
+    // Tentukan tinggi untuk area list horizontal
+    // Perkiraan: (Lebar Kartu / Rasio Aspek Gambar) + Padding Teks + Tinggi Teks
+    // Contoh: (280 / (16/9)) + 12 + 12 + (20 * 2) + 6 + (14*1)  ~= 158 + 24 + 40 + 6 + 14 ~= 242
+    const double horizontalListHeight = 260.0; // Sesuaikan tinggi ini
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          "Recent Transactions",
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+          child: Text(
+            "Berita Terbaru",
+            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
-        const SizedBox(height: 10),
-        ...transactions.map((transaction) {
-          return Card(
-            elevation: 2,
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ListTile(
-              leading: Icon(Icons.arrow_upward, color: Colors.red),
-              title: Text(
-                transaction['title'],
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text(transaction['date']),
-              trailing: Text(
-                transaction['amount'],
-                style: const TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ],
-    );
-  }
-}
+        const SizedBox(height: 12),
 
-// Widget: Bottom Navigation Bar
-class BottomNavigationBarWidget extends StatelessWidget {
-  const BottomNavigationBarWidget({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      currentIndex: 0,
-      selectedItemColor: AppColors.primaryLight,
-      unselectedItemColor: Colors.grey,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-        // BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.credit_card),
-          label: "Transactions",
-        ),
-        BottomNavigationBarItem(icon: Icon(Icons.settings), label: "Settings"),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-      ],
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: CustomScrollView(
-        slivers: [
-          // Header dengan background berbeda (gray)
-          SliverToBoxAdapter(
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.alternateLight,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-              ),
-              child: SafeArea(
-                bottom: false,
-                child: Column(
-                  children: [
-                    // Custom AppBar
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 8.0,
-                      ),
-                      child: Row(
-                        children: const [
-                          CircleAvatar(
-                            backgroundImage: AssetImage(
-                              'assets/images/profile.jpg',
-                            ),
-                            radius: 16,
+        // --- AREA LIST HORIZONTAL ---
+        SizedBox(
+          height:
+              horizontalListHeight, // Beri tinggi tetap untuk list horizontal
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal, // Atur scroll ke horizontal
+            itemCount:
+                limitedBeritaList.length, // Gunakan list yang sudah dibatasi
+            padding: const EdgeInsets.symmetric(
+              horizontal: 4.0,
+            ), // Padding awal/akhir list
+            itemBuilder: (context, index) {
+              final berita = limitedBeritaList[index];
+              // Buat widget untuk setiap item berita
+              return Padding(
+                // Beri jarak antar kartu di list horizontal
+                padding: const EdgeInsets.only(
+                  right: 12.0,
+                ), // Jarak kanan antar item
+                child: SizedBox(
+                  // Beri lebar tetap untuk setiap item
+                  width: cardWidth,
+                  child: Card(
+                    elevation: 3.0,
+                    margin: EdgeInsets.zero, // Margin diatur oleh Padding luar
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () {
+                        print("Berita tapped: ${berita.id} - ${berita.title}");
+                        // TODO: Navigasi ke detail
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // --- Gambar Thumbnail ---
+                          // AspectRatio akan menyesuaikan tinggi gambar berdasarkan lebar kartu
+                          AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child:
+                                (berita.thumbnailPath != null &&
+                                        berita.thumbnailPath!.isNotEmpty)
+                                    ? Image.network(
+                                      berita.thumbnailPath!,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (ctx, child, progress) {
+                                        if (progress == null) return child;
+                                        return const Center(
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        );
+                                      },
+                                      errorBuilder: (ctx, error, stackTrace) {
+                                        return Container(
+                                          color: Colors.grey[200],
+                                          child: Icon(
+                                            Icons.broken_image_outlined,
+                                            color: Colors.grey[400],
+                                            size: 40,
+                                          ),
+                                        );
+                                      },
+                                    )
+                                    : Container(
+                                      // Placeholder jika tidak ada gambar
+                                      color: Colors.grey[200],
+                                      child: Icon(
+                                        Icons.image_not_supported_outlined,
+                                        color: Colors.grey[400],
+                                        size: 40,
+                                      ),
+                                    ),
                           ),
-                          SizedBox(width: 10),
-                          Text(
-                            'Welcome, Alwi Ghozali',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+
+                          // --- Teks (Judul & Tanggal) ---
+                          // Expanded diperlukan agar Padding mengisi sisa ruang vertikal
+                          // dan teks tidak overflow jika tinggi kartu terbatas
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.start, // Mulai dari atas
+                                children: [
+                                  Text(
+                                    berita.title,
+                                    style: textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _formatDisplayDate(berita.validFrom),
+                                    style: textTheme.bodySmall?.copyWith(
+                                      color: Colors.grey[600],
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-
-                    // Banner Widget
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: BannerWidget(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Content area dengan background putih
-          SliverToBoxAdapter(
-            child: PageWrapper(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 30),
-                  Text(
-                    'Categories',
-                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 20),
-                  CategoriesWidget(),
-                  const SizedBox(height: 0),
-                  RecentTransactionsWidget(),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
-        ],
-      ),
-      bottomNavigationBar: const BottomNavigationBarWidget(),
+        ),
+        // --- AKHIR AREA LIST HORIZONTAL ---
+      ],
     );
   }
 }

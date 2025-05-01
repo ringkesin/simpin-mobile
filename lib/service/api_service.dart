@@ -9,6 +9,9 @@ import '../model/shu.dart';
 import '../model/tenor_response.dart';
 import '../model/simulasi_pinjaman_response.dart';
 import '../model/tabungan_tahunan_response.dart';
+import '../model/berita.dart';
+import '../model/jenis_tabungan.dart';
+import '../model/pengajuan_pencairan.dart';
 
 class ApiService {
   static Dio _dio = Dio(
@@ -529,4 +532,384 @@ class ApiService {
       rethrow; // Lempar ulang error asli jika bukan DioException atau tidak ada detail
     }
   }
+
+  Future<String?> _getAuthToken() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      // GANTI 'auth_token' dengan key yang Anda gunakan
+      return prefs.getString('token');
+    } catch (e) {
+      print("Error getting auth token from SharedPreferences: $e");
+      return null;
+    }
+  }
+
+  Future<BeritaResponse> getListBerita() async {
+    const String endpoint = '/api/konten';
+    Options? requestOptions; // Deklarasikan options sebagai nullable
+
+    try {
+      // 1. Ambil token SEBELUM request
+      String? token = await _getAuthToken();
+
+      // (Opsional) Throw error jika token wajib tapi tidak ada
+      // if (token == null || token.isEmpty) {
+      //   throw Exception("Token otentikasi diperlukan untuk mengakses berita.");
+      // }
+
+      // 2. Siapkan header jika token ada
+      if (token != null && token.isNotEmpty) {
+        print("ApiService (getListBerita): Using Auth Token.");
+        requestOptions = Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            // Tambahkan header lain jika perlu
+            // 'Accept': 'application/json',
+          },
+        );
+      } else {
+        print(
+          "ApiService (getListBerita): No Auth Token found. Request might fail if token is required.",
+        );
+        // Biarkan requestOptions null jika tidak ada token
+      }
+
+      print("ApiService: Fetching list berita from $endpoint");
+      // 3. Kirim request dengan options (yang mungkin berisi header)
+      final response = await _dio.get(endpoint, options: requestOptions);
+
+      if (response.statusCode == 200) {
+        return BeritaResponse.fromJson(response.data as Map<String, dynamic>);
+      } else {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          error:
+              'Failed to load berita list: Status code ${response.statusCode}',
+          type: DioExceptionType.badResponse,
+        );
+      }
+    } on DioException catch (e) {
+      print("ApiService Error (getListBerita): ${e.message}");
+      print("ApiService Error Response: ${e.response?.data}");
+      String errorMessage = "Terjadi kesalahan jaringan atau server.";
+      // Penanganan error 401/403 tetap relevan
+      if (e.response?.statusCode == 401) {
+        errorMessage =
+            "Akses ditolak. Sesi Anda mungkin telah berakhir, silakan login kembali.";
+      } else if (e.response?.statusCode == 403) {
+        errorMessage =
+            "Anda tidak memiliki izin untuk mengakses sumber daya ini.";
+      } else if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message'] ?? errorMessage;
+      } else if (e.type ==
+              DioExceptionType.connectionTimeout || /* ... timeout checks ... */
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = "Koneksi timeout. Periksa jaringan internet Anda.";
+      } else if (e.type == DioExceptionType.unknown) {
+        errorMessage = "Koneksi internet bermasalah.";
+      }
+      throw Exception(errorMessage);
+    } catch (e) {
+      print("ApiService Error (getListBerita - Unknown): $e");
+      throw Exception("Terjadi kesalahan tidak diketahui: $e");
+    }
+  }
+
+  /// Mengambil detail berita/konten berdasarkan ID (MEMERLUKAN TOKEN)
+  Future<SingleBeritaResponse> getBeritaById(int id) async {
+    final String endpoint = '/api/konten/$id';
+    Options? requestOptions; // Deklarasikan options sebagai nullable
+
+    try {
+      // 1. Ambil token SEBELUM request
+      String? token = await _getAuthToken();
+
+      // (Opsional) Throw error jika token wajib tapi tidak ada
+      // if (token == null || token.isEmpty) {
+      //   throw Exception("Token otentikasi diperlukan untuk mengakses detail berita.");
+      // }
+
+      // 2. Siapkan header jika token ada
+      if (token != null && token.isNotEmpty) {
+        print("ApiService (getBeritaById): Using Auth Token.");
+        requestOptions = Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            // 'Accept': 'application/json',
+          },
+        );
+      } else {
+        print(
+          "ApiService (getBeritaById): No Auth Token found. Request might fail if token is required.",
+        );
+      }
+
+      print("ApiService: Fetching berita by ID from $endpoint");
+      // 3. Kirim request dengan options
+      final response = await _dio.get(endpoint, options: requestOptions);
+
+      if (response.statusCode == 200) {
+        return SingleBeritaResponse.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+      } else {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          error:
+              'Failed to load berita detail: Status code ${response.statusCode}',
+          type: DioExceptionType.badResponse,
+        );
+      }
+    } on DioException catch (e) {
+      print("ApiService Error (getBeritaById): ${e.message}");
+      print("ApiService Error Response: ${e.response?.data}");
+      String errorMessage =
+          "Terjadi kesalahan jaringan atau server saat mengambil detail.";
+      // Penanganan error 401/403/404 tetap relevan
+      if (e.response?.statusCode == 401) {
+        errorMessage =
+            "Akses ditolak. Sesi Anda mungkin telah berakhir, silakan login kembali.";
+      } else if (e.response?.statusCode == 403) {
+        errorMessage = "Anda tidak memiliki izin untuk mengakses detail ini.";
+      } else if (e.response?.statusCode == 404) {
+        errorMessage = "Data berita dengan ID $id tidak ditemukan.";
+      } else if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message'] ?? errorMessage;
+      } else if (e.type ==
+              DioExceptionType.connectionTimeout || /* ... timeout checks ... */
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = "Koneksi timeout. Periksa jaringan internet Anda.";
+      } else if (e.type == DioExceptionType.unknown) {
+        errorMessage = "Koneksi internet bermasalah.";
+      }
+      throw Exception(errorMessage);
+    } catch (e) {
+      print("ApiService Error (getBeritaById - Unknown): $e");
+      throw Exception(
+        "Terjadi kesalahan tidak diketahui saat mengambil detail: $e",
+      );
+    }
+  }
+
+  Future<JenisTabunganResponse> getJenisTabungan() async {
+    const String endpoint = '/api/master/jenis-tabungan';
+    Options? requestOptions;
+    String? token; // Untuk logging jika perlu
+
+    try {
+      // 1. Ambil token
+      token = await _getAuthToken();
+
+      // (Sangat disarankan) Throw error jika token wajib tapi tidak ada
+      if (token == null || token.isEmpty) {
+        print(
+          "[ApiService.getJenisTabungan] ERROR: Auth Token is required but not found.",
+        );
+        throw Exception("Token otentikasi diperlukan untuk data ini.");
+      }
+
+      // 2. Siapkan header
+      print("[ApiService.getJenisTabungan] Using Auth Token.");
+      requestOptions = Options(
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json', // Header umum yang baik ditambahkan
+        },
+      );
+
+      print("ApiService: Fetching jenis tabungan from $endpoint");
+      // 3. Kirim request dengan options
+      final response = await _dio.get(endpoint, options: requestOptions);
+
+      print(
+        "[ApiService.getJenisTabungan] Response status: ${response.statusCode}",
+      );
+      // 4. Handle response
+      if (response.statusCode == 200) {
+        return JenisTabunganResponse.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+      } else {
+        // Jarang tercapai karena Dio throw error, tapi sebagai fallback
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          error:
+              'Gagal memuat jenis tabungan: Status code ${response.statusCode}',
+          type: DioExceptionType.badResponse,
+        );
+      }
+    } on DioException catch (e) {
+      String errorMessage = "Terjadi kesalahan jaringan atau server.";
+      if (e.response?.statusCode == 401) {
+        errorMessage =
+            "Akses jenis tabungan ditolak (401). Token: ${token ?? 'Tidak ada'}. Sesi Anda mungkin telah berakhir.";
+      } else if (e.response?.statusCode == 403) {
+        errorMessage =
+            "Anda tidak memiliki izin untuk mengakses jenis tabungan.";
+      } else if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message'] ?? errorMessage;
+      } else if (e.type ==
+              DioExceptionType.connectionTimeout || /* ... timeout checks ... */
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = "Koneksi timeout saat mengambil jenis tabungan.";
+      } else if (e.type == DioExceptionType.unknown) {
+        errorMessage = "Koneksi internet bermasalah.";
+      }
+      throw Exception(errorMessage); // Re-throw pesan error
+    } catch (e) {
+      print("[ApiService.getJenisTabungan] Non-Dio Exception caught: $e");
+      throw Exception(
+        "Terjadi kesalahan tidak diketahui saat mengambil jenis tabungan: $e",
+      );
+    }
+  }
+
+  Future<PengajuanPencairanResponse> submitPengajuanPencairan({
+    required int pAnggotaId,
+    required int pJenisTabunganId,
+    required num jumlahDiambil, // Gunakan num untuk fleksibilitas int/double
+    required String rekeningBank,
+    required String rekeningNo,
+    String? keterangan, // Keterangan opsional (nullable)
+  }) async {
+    const String endpoint = '/api/tabungan/pencairan/pengajuan';
+    Options? requestOptions;
+    String? token; // Untuk logging jika perlu
+
+    try {
+      // 1. Ambil token
+      token = await _getAuthToken();
+
+      // (Sangat disarankan) Throw error jika token wajib tapi tidak ada
+      if (token == null || token.isEmpty) {
+        print(
+          "[ApiService.submitPengajuanPencairan] ERROR: Auth Token is required but not found.",
+        );
+        throw Exception(
+          "Token otentikasi diperlukan untuk mengajukan pencairan.",
+        );
+      }
+
+      // 2. Siapkan header
+      print("[ApiService.submitPengajuanPencairan] Using Auth Token.");
+      requestOptions = Options(
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+          'Content-Type':
+              'application/json', // Penting untuk POST dengan body JSON
+        },
+      );
+
+      // 3. Siapkan payload
+      final Map<String, dynamic> payload = {
+        'p_anggota_id': pAnggotaId,
+        'p_jenis_tabungan_id': pJenisTabunganId,
+        'jumlah_diambil': jumlahDiambil,
+        'rekening_bank': rekeningBank,
+        'rekening_no': rekeningNo,
+      };
+      // Tambahkan keterangan hanya jika tidak null atau tidak kosong
+      if (keterangan != null && keterangan.isNotEmpty) {
+        payload['keterangan'] = keterangan;
+      }
+
+      print("ApiService: Submitting Pengajuan Pencairan to $endpoint");
+      print("ApiService: Payload: $payload"); // Log payload
+
+      // 4. Kirim request POST dengan payload dan options
+      final response = await _dio.post(
+        endpoint,
+        data: payload, // Kirim payload sebagai data
+        options: requestOptions,
+      );
+
+      print(
+        "[ApiService.submitPengajuanPencairan] Response status: ${response.statusCode}",
+      );
+      print(
+        "[ApiService.submitPengajuanPencairan] Response data: ${response.data}",
+      ); // Log response data
+
+      // 5. Handle response
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // 201 Created juga sering digunakan untuk POST
+        // Cek apakah response.data adalah Map sebelum parsing
+        if (response.data is Map<String, dynamic>) {
+          return PengajuanPencairanResponse.fromJson(
+            response.data as Map<String, dynamic>,
+          );
+        } else {
+          // Handle jika response.data bukan Map (misalnya String atau null)
+          print(
+            "[ApiService.submitPengajuanPencairan] ERROR: Unexpected response data format.",
+          );
+          throw Exception("Format respons tidak valid dari server.");
+        }
+      } else {
+        // Jarang tercapai karena Dio throw error, tapi sebagai fallback
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          error:
+              'Gagal submit pengajuan pencairan: Status code ${response.statusCode}',
+          type: DioExceptionType.badResponse,
+        );
+      }
+    } on DioException catch (e) {
+      print("[ApiService.submitPengajuanPencairan] DioException caught!");
+      print("  -> Request URL: ${e.requestOptions.uri}");
+      print("  -> Request Headers: ${e.requestOptions.headers}");
+      print(
+        "  -> Request Payload: ${e.requestOptions.data}",
+      ); // Log payload saat error
+      print("  -> Response Status: ${e.response?.statusCode}");
+      print("  -> Response Data: ${e.response?.data}");
+      print("  -> DioException Type: ${e.type}");
+      print("  -> DioException Message: ${e.message}");
+
+      String errorMessage = "Gagal mengirim pengajuan pencairan.";
+      if (e.response?.statusCode == 401) {
+        errorMessage =
+            "Akses ditolak (401). Token: ${token ?? 'Tidak ada'}. Sesi Anda mungkin telah berakhir.";
+      } else if (e.response?.statusCode == 403) {
+        errorMessage = "Anda tidak memiliki izin untuk melakukan aksi ini.";
+      } else if (e.response?.statusCode == 422) {
+        // Unprocessable Entity (Validation Error)
+        errorMessage =
+            "Data yang dikirim tidak valid. Periksa kembali isian Anda.";
+        // Anda bisa mencoba mem-parsing pesan error validasi dari backend jika ada
+        if (e.response?.data is Map<String, dynamic>) {
+          var errors = e.response?.data['errors'];
+          if (errors is Map<String, dynamic> && errors.isNotEmpty) {
+            // Ambil pesan error pertama
+            errorMessage += "\n${errors.values.first[0]}";
+          } else if (e.response?.data['message'] != null) {
+            errorMessage =
+                e.response?.data['message']; // Ambil pesan utama jika ada
+          }
+        }
+      } else if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message'] ?? errorMessage;
+      } else if (e.type ==
+              DioExceptionType.connectionTimeout || /* ... timeout checks ... */
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = "Koneksi timeout saat mengirim pengajuan.";
+      } else if (e.type == DioExceptionType.unknown) {
+        errorMessage = "Koneksi internet bermasalah.";
+      }
+      throw Exception(errorMessage); // Re-throw pesan error
+    } catch (e) {
+      print(
+        "[ApiService.submitPengajuanPencairan] Non-Dio Exception caught: $e",
+      );
+      throw Exception(
+        "Terjadi kesalahan tidak diketahui saat mengirim pengajuan: $e",
+      );
+    }
+  }
+  // --- Akhir Metode submitPengajuanPencairan ---
 }
