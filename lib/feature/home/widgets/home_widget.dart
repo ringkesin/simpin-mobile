@@ -32,48 +32,51 @@ class HeaderWidget extends StatelessWidget {
 }
 
 class BannerWidget extends StatelessWidget {
-  // --- Parameter Constructor (Tetap sama) ---
-  final bool isLoading;
-  final String? error;
+  final bool isLoading; // Keseluruhan loading state untuk banner
   final String? username;
   final String? nomorAnggota;
+  final String? usernameError; // Error spesifik untuk username
+  final String? nomorAnggotaError; // Error spesifik untuk nomor anggota
   final VoidCallback? onGenerateQr;
 
   const BannerWidget({
     Key? key,
     this.isLoading = false,
-    this.error,
     this.username,
     this.nomorAnggota,
+    this.usernameError,
+    this.nomorAnggotaError,
     this.onGenerateQr,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // Gunakan Theme yang aktif dari context
     final ThemeData theme = Theme.of(context);
     final TextTheme textTheme = theme.textTheme;
-    final ColorScheme colorScheme = theme.colorScheme;
+    // final ColorScheme colorScheme = theme.colorScheme; // Jika diperlukan
 
-    // --- Logika Tampilan Username (Tetap sama) ---
+    // --- Logika Tampilan Username ---
     String displayUsername;
     TextStyle usernameStyle =
         textTheme.bodyLarge?.copyWith(color: Colors.white.withOpacity(0.9)) ??
         const TextStyle(color: Colors.white70, fontSize: 16);
 
     if (isLoading) {
+      // Jika banner secara keseluruhan sedang loading
       displayUsername = 'Memuat Nama...';
       usernameStyle = usernameStyle.copyWith(
         color: Colors.white.withOpacity(0.7),
       );
-    } else if (error != null) {
-      displayUsername = 'Gagal Memuat Nama';
+    } else if (usernameError != null) {
+      // Jika ada error spesifik untuk username
+      displayUsername = usernameError!; // Tampilkan pesan error username
       usernameStyle = usernameStyle.copyWith(color: AppColors.warningLight);
     } else {
+      // Jika tidak loading dan tidak ada error username
       displayUsername = username?.isNotEmpty ?? false ? username! : 'Pengguna';
     }
 
-    // --- Logika Tampilan nomorAnggota (Tetap sama) ---
+    // --- Logika Tampilan nomorAnggota ---
     Widget nomorAnggotaWidget;
     final nomorAnggotaTextStyle =
         textTheme.headlineSmall?.copyWith(
@@ -87,6 +90,7 @@ class BannerWidget extends StatelessWidget {
         );
 
     if (isLoading) {
+      // Jika banner secara keseluruhan sedang loading
       nomorAnggotaWidget = Text(
         'Memuat No. Anggota...',
         style: nomorAnggotaTextStyle.copyWith(
@@ -95,24 +99,31 @@ class BannerWidget extends StatelessWidget {
           fontSize: 18,
         ),
       );
-    } else if (error != null) {
+    } else if (nomorAnggotaError != null) {
+      // Jika ada error spesifik untuk nomor anggota
       nomorAnggotaWidget = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.error_outline, color: AppColors.warningLight, size: 20),
           const SizedBox(width: 8),
-          Text(
-            'Gagal Memuat No. Anggota',
-            style:
-                textTheme.bodyLarge?.copyWith(
-                  color: AppColors.warningLight,
-                  fontWeight: FontWeight.w500,
-                ) ??
-                TextStyle(color: AppColors.warningLight, fontSize: 16),
+          Expanded(
+            // Agar teks error tidak overflow
+            child: Text(
+              nomorAnggotaError!, // Tampilkan pesan error nomor anggota
+              style:
+                  textTheme.bodyLarge?.copyWith(
+                    color: AppColors.warningLight,
+                    fontWeight: FontWeight.w500,
+                  ) ??
+                  TextStyle(color: AppColors.warningLight, fontSize: 16),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
           ),
         ],
       );
     } else if (nomorAnggota == null || nomorAnggota!.isEmpty) {
+      // Jika tidak ada error, tapi data kosong
       nomorAnggotaWidget = Text(
         'No. Anggota Tidak Tersedia',
         style: nomorAnggotaTextStyle.copyWith(
@@ -122,9 +133,15 @@ class BannerWidget extends StatelessWidget {
         ),
       );
     } else {
+      // Jika tidak loading, tidak ada error, dan data ada
       nomorAnggotaWidget = Text(nomorAnggota!, style: nomorAnggotaTextStyle);
     }
-    // --- Akhir Logika Tampilan nomorAnggota ---
+
+    // Kunci untuk AnimatedSwitcher, agar transisi terjadi saat state relevan berubah
+    final String animatedSwitcherKey =
+        isLoading
+            ? 'loading'
+            : '${nomorAnggotaError ?? nomorAnggota ?? "empty"}';
 
     return Container(
       width: double.infinity,
@@ -143,43 +160,29 @@ class BannerWidget extends StatelessWidget {
           ),
         ],
       ),
-      // Padding utama card
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 20,
-        ), // Padding simetris
-        // Gunakan Row utama untuk layout Kiri (Teks) dan Kanan (QR)
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         child: Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.center, // Tengahkan item secara vertikal
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Bagian Kiri: Kolom untuk teks username dan nomor anggota
             Expanded(
-              // Ambil semua ruang tersisa di kiri
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start, // Teks rata kiri
-                mainAxisSize: MainAxisSize.min, // Column sekecil kontennya
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Tampilkan Nama Pengguna
                   Text(
                     displayUsername,
                     style: usernameStyle,
                     overflow: TextOverflow.ellipsis,
-                    maxLines: 1, // Batasi 1 baris jika terlalu panjang
+                    maxLines: 1,
                   ),
-                  const SizedBox(
-                    height: 10,
-                  ), // Jarak antara username & no anggota
-                  // Tampilkan Widget nomorAnggota
+                  const SizedBox(height: 10),
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
+                    key: ValueKey<String>(
+                      animatedSwitcherKey,
+                    ), // Kunci yang diperbarui
                     child: Align(
-                      // Pastikan widget rata kiri
-                      key: ValueKey<String>(
-                        nomorAnggotaWidget.toString() +
-                            (isLoading ? 'loading' : error ?? 'ok'),
-                      ),
                       alignment: Alignment.centerLeft,
                       child: nomorAnggotaWidget,
                     ),
@@ -190,24 +193,23 @@ class BannerWidget extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Beri sedikit jarak horizontal antara teks dan ikon QR
             const SizedBox(width: 12),
-
-            // Bagian Kanan: Tombol QR
             IconButton(
               icon: Icon(
                 Icons.qr_code_scanner,
                 color: Colors.white.withOpacity(0.9),
-                size: 50, // Ukuran ikon yang sudah diperbesar
+                size: 50,
               ),
-              onPressed: isLoading || error != null ? null : onGenerateQr,
+              // Tombol QR dinonaktifkan jika sedang loading, ada error nomor anggota, atau nomor anggota tidak ada
+              onPressed:
+                  (isLoading ||
+                          nomorAnggotaError != null ||
+                          nomorAnggota == null ||
+                          nomorAnggota!.isEmpty)
+                      ? null
+                      : onGenerateQr,
               tooltip: 'Tampilkan QR Code No. Anggota',
               splashRadius: 24,
-              // IconButton secara alami akan ditengahkan vertikal oleh Row
-              // Tidak perlu constraints atau padding khusus di sini kecuali untuk visual
-              // constraints: const BoxConstraints(),
-              // padding: EdgeInsets.zero,
             ),
           ],
         ),

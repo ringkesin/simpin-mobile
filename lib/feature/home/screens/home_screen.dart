@@ -4,12 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kkba_mobile/page_wrapper.dart'; // Asumsi path benar
 import 'package:kkba_mobile/theme.dart'; // Asumsi path benar
-import 'package:qr_flutter/qr_flutter.dart'; // <-- Import library QR
+import 'package:qr_flutter/qr_flutter.dart';
 
-// --- Import Baru & Diperlukan ---
-import '../../../service/api_service.dart'; // Import ApiService
-import 'package:kkba_mobile/model/berita.dart'; // Import model BeritaItem
-import '../widgets/home_widget.dart';
+import '../../../service/api_service.dart';
+import 'package:kkba_mobile/model/berita.dart';
+import '../widgets/home_widget.dart'; // Pastikan BannerWidget ada di sini atau diimport terpisah
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -17,57 +16,59 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // --- Service ---
-  final ApiService _apiService = ApiService(); // Instance ApiService
+  final ApiService _apiService = ApiService();
 
-  // --- State untuk Data Pengguna ---
   String? _userName;
   String? _nomorAnggota;
 
-  // --- State untuk Loading & Error Banner ---
-  bool _isLoadingBanner = true;
-  String? _bannerError;
+  // --- State Loading & Error yang Dimodifikasi ---
+  bool _isLoadingBanner = true; // Untuk loading keseluruhan data banner
+  String? _userNameError; // Error spesifik untuk username
+  String? _nomorAnggotaError; // Error spesifik untuk nomor anggota
 
-  // --- State untuk Berita ---
   List<BeritaItem> _beritaList = [];
   bool _isLoadingBerita = true;
   String? _beritaError;
-  // ---------------------------
 
   @override
   void initState() {
     super.initState();
-    _loadInitialData(); // Memuat data user dan berita
+    _loadInitialData();
   }
 
-  // Fungsi gabungan untuk load data awal (User & Berita)
   Future<void> _loadInitialData() async {
     if (!mounted) return;
     setState(() {
       _isLoadingBanner = true;
-      _isLoadingBerita = true; // Set loading berita juga
-      _bannerError = null;
-      _beritaError = null; // Reset error berita
+      _isLoadingBerita = true;
+      _userNameError = null; // Reset error spesifik
+      _nomorAnggotaError = null; // Reset error spesifik
+      _beritaError = null;
       _userName = null;
       _nomorAnggota = null;
-      _beritaList = []; // Kosongkan list berita
+      _beritaList = [];
     });
 
     try {
       // Jalankan fetch user data dan berita secara paralel
-      await Future.wait([
-        _loadUserData(),
-        _fetchBeritaList(), // Panggil fetch berita
-      ]);
-      // Loading state spesifik dihandle di dalam fungsi fetch masing-masing
+      // _loadUserData akan menangani _userName, _nomorAnggota, _userNameError, _nomorAnggotaError
+      // _fetchBeritaList akan menangani _beritaList, _beritaError
+      await Future.wait([_loadUserData(), _fetchBeritaList()]);
     } catch (e) {
-      print("Error during initial load: $e");
+      // Catch ini untuk error yang tidak terduga/tidak ditangani oleh fungsi di atas
+      print("Critical error during initial load: $e");
       if (mounted) {
         setState(() {
-          // Set error umum jika perlu, atau biarkan error spesifik
-          _bannerError = _bannerError ?? "Gagal memuat data awal.";
+          _userNameError = _userNameError ?? "Gagal memuat data pengguna.";
+          _nomorAnggotaError =
+              _nomorAnggotaError ?? "Gagal memuat data pengguna.";
           _beritaError = _beritaError ?? "Gagal memuat berita awal.";
-          // Pastikan semua loading berhenti jika ada error fatal
+        });
+      }
+    } finally {
+      // Pastikan semua state loading utama diatur ke false di sini
+      if (mounted) {
+        setState(() {
           _isLoadingBanner = false;
           _isLoadingBerita = false;
         });
@@ -75,54 +76,73 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Fungsi load data user (username & nomor anggota)
   Future<void> _loadUserData() async {
-    try {
-      // Memuat data user
-      await Future.wait([_loadUserName(), _loadNomorAnggota()]);
-      if (mounted) {
-        setState(() {
-          _isLoadingBanner = false; // Loading banner selesai
-        });
-      }
-    } catch (e) {
-      print("Error loading user data: $e");
-      if (mounted) {
-        setState(() {
-          _bannerError = "Gagal memuat data pengguna.";
-          _isLoadingBanner = false;
-        });
-      }
-      throw Exception("Gagal memuat data pengguna: $e"); // Re-throw
-    }
+    // _loadUserName dan _loadNomorAnggota akan memanggil setState
+    // untuk data mereka dan error spesifik mereka masing-masing.
+    await Future.wait([_loadUserName(), _loadNomorAnggota()]);
+    // _isLoadingBanner akan diatur ke false di blok finally _loadInitialData
   }
 
-  // Fungsi load username
   Future<void> _loadUserName() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? name = prefs.getString('nama'); // PASTIKAN KEY BENAR
-    if (mounted) {
+    if (!mounted) return;
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? name = prefs.getString('nama');
+      if (!mounted) return;
       setState(() {
         _userName = name;
+        if (name == null || name.isEmpty) {
+          // Anda bisa memilih untuk menampilkan "Pengguna" di BannerWidget
+          // atau menampilkan error spesifik di sini.
+          // Untuk konsistensi, jika tidak ada nama, anggap saja "Pengguna".
+          // _userNameError = "Nama pengguna tidak ditemukan.";
+          _userNameError =
+              null; // Jika null/empty dianggap bukan error, tapi state data
+        } else {
+          _userNameError = null;
+        }
+      });
+    } catch (e) {
+      print("Error loading username: $e");
+      if (!mounted) return;
+      setState(() {
+        _userName = null;
+        _userNameError = "Gagal memuat nama.";
       });
     }
   }
 
-  // Fungsi load nomor anggota
   Future<void> _loadNomorAnggota() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    // GANTI 'nomor_anggota' dengan key yang benar
-    final String? nomorFromPrefs = prefs.getString('nomor_anggota');
-    if (mounted) {
+    if (!mounted) return;
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? nomorFromPrefs = prefs.getString('nomor_anggota');
+      if (!mounted) return;
       setState(() {
         _nomorAnggota = nomorFromPrefs;
+        if (nomorFromPrefs == null || nomorFromPrefs.isEmpty) {
+          // Jika null/empty dianggap bukan error, tapi state data (misal "Tidak Tersedia")
+          // yang akan ditangani BannerWidget
+          _nomorAnggotaError = null;
+          // Jika ingin ini jadi error:
+          // _nomorAnggotaError = "No. anggota tidak ditemukan.";
+        } else {
+          _nomorAnggotaError = null;
+        }
+      });
+    } catch (e) {
+      print("Error loading nomor anggota: $e");
+      if (!mounted) return;
+      setState(() {
+        _nomorAnggota = null;
+        _nomorAnggotaError = "Gagal memuat no. anggota.";
       });
     }
   }
 
-  // Fungsi Fetch Berita
   Future<void> _fetchBeritaList() async {
-    // Tidak perlu setState loading di sini jika sudah di _loadInitialData
+    if (!mounted) return;
+    // _isLoadingBerita sudah di-set true di _loadInitialData
     try {
       final response = await _apiService.getListBerita();
       if (!mounted) return;
@@ -135,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         setState(() {
           _beritaList = [];
-          _beritaError = response.message;
+          _beritaError = response.message ?? "Gagal mendapatkan data berita.";
         });
       }
     } catch (e) {
@@ -145,17 +165,14 @@ class _HomeScreenState extends State<HomeScreen> {
         _beritaList = [];
         _beritaError = e.toString().replaceFirst("Exception: ", "");
       });
-      throw Exception("Gagal memuat berita: $e"); // Re-throw
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingBerita = false); // Akhiri loading berita
-      }
     }
+    // _isLoadingBerita akan di-set false di blok finally _loadInitialData
   }
 
-  // Fungsi handle Generate QR (Tetap sama)
   void _handleGenerateQr() {
-    if (_nomorAnggota != null && _nomorAnggota!.isNotEmpty) {
+    if (_nomorAnggota != null &&
+        _nomorAnggota!.isNotEmpty &&
+        _nomorAnggotaError == null) {
       showDialog(
         context: context,
         builder: (BuildContext context) {
@@ -183,11 +200,14 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       );
     } else {
+      String message = 'Nomor Anggota tidak tersedia untuk generate QR Code.';
+      if (_nomorAnggotaError != null) {
+        message = "Tidak bisa generate QR: $_nomorAnggotaError";
+      } else if (_nomorAnggota == null || _nomorAnggota!.isEmpty) {
+        message = "Nomor Anggota kosong atau tidak valid.";
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nomor Anggota tidak tersedia untuk generate QR Code.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
     }
   }
@@ -195,14 +215,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          Colors.white, // Atau Theme.of(context).colorScheme.background
+      backgroundColor: Colors.white,
       body: RefreshIndicator(
-        onRefresh: _loadInitialData, // Refresh semua data
+        onRefresh: _loadInitialData,
         color: AppColors.primaryLight,
         child: CustomScrollView(
           slivers: [
-            // --- Header ---
             SliverToBoxAdapter(
               child: Container(
                 decoration: const BoxDecoration(
@@ -216,7 +234,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   bottom: false,
                   child: Column(
                     children: [
-                      // --- Baris Welcome & Avatar ---
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16.0,
@@ -227,38 +244,39 @@ class _HomeScreenState extends State<HomeScreen> {
                             const CircleAvatar(
                               backgroundImage: AssetImage(
                                 'assets/images/profile.jpg',
-                              ), // Pastikan path benar
-                              radius: 20, // Sedikit lebih besar?
+                              ),
+                              radius: 20,
                             ),
                             const SizedBox(width: 12),
-                            // Gunakan Expanded agar teks tidak overflow jika nama panjang
                             Expanded(
                               child: Text(
-                                'Welcome, $_userName', // Nama dari state
+                                // Menampilkan nama dari state, atau "Guest" jika null/kosong dan tidak ada error nama
+                                (_userNameError == null &&
+                                        (_userName?.isNotEmpty ?? false))
+                                    ? 'Welcome, $_userName'
+                                    : (_userNameError != null
+                                        ? 'Welcome, ...'
+                                        : 'Welcome, Guest'),
                                 style: AppTheme.textThemeLight.titleMedium
                                     ?.copyWith(
-                                      // Gunakan style dari theme
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
                                     ),
-                                overflow:
-                                    TextOverflow
-                                        .ellipsis, // Handle nama panjang
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            // Tambahkan ikon notifikasi atau lainnya jika perlu
-                            // IconButton(onPressed: (){}, icon: Icon(Icons.notifications_none, color: Colors.white))
                           ],
                         ),
                       ),
-                      // --- BannerWidget ---
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 20.0),
                         child: BannerWidget(
+                          // Widget dari home_widget.dart
                           isLoading: _isLoadingBanner,
-                          error: _bannerError,
                           username: _userName,
                           nomorAnggota: _nomorAnggota,
+                          usernameError: _userNameError, // Prop baru
+                          nomorAnggotaError: _nomorAnggotaError, // Prop baru
                           onGenerateQr: _handleGenerateQr,
                         ),
                       ),
@@ -267,12 +285,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            // --- Akhir Header ---
-
-            // --- Content Area ---
             SliverToBoxAdapter(
               child: PageWrapper(
-                // Atau Padding
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -284,28 +298,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    CategoriesWidget(), // Widget Kategori
+                    CategoriesWidget(), // Widget dari home_widget.dart
                     const SizedBox(height: 24),
-
-                    // --- GANTI RecentTransactionsWidget DENGAN _buildBeritaSection ---
-                    _buildBeritaSection(), // Memanggil helper untuk menampilkan berita
-                    // ---------------------------------------------------------------
+                    _buildBeritaSection(),
                     const SizedBox(height: 20),
                   ],
                 ),
               ),
             ),
-            // --- Akhir Content Area ---
           ],
         ),
       ),
     );
   }
 
-  // Widget Helper untuk Menampilkan Berita (Loading/Error/List)
   Widget _buildBeritaSection() {
     if (_isLoadingBerita) {
-      // Tampilkan indikator loading
       return const Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 32.0),
@@ -313,7 +321,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } else if (_beritaError != null) {
-      // Tampilkan pesan error
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 16.0),
@@ -327,20 +334,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[600]),
               ),
-              // Opsional: Tombol coba lagi
-              // TextButton.icon(
-              //    icon: Icon(Icons.refresh, size: 18),
-              //    label: Text("Coba Lagi"),
-              //    onPressed: _fetchBeritaList,
-              // )
             ],
           ),
         ),
       );
     } else {
-      // Tampilkan list berita menggunakan BeritaListWidget
-      // Penanganan jika _beritaList kosong ada di dalam BeritaListWidget
-      return BeritaListWidget(beritaList: _beritaList);
+      return BeritaListWidget(
+        beritaList: _beritaList,
+      ); // Widget dari home_widget.dart
     }
   }
 }

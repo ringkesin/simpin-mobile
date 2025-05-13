@@ -1102,4 +1102,144 @@ class ApiService {
       throw Exception("Terjadi kesalahan tidak diketahui: $e");
     }
   }
+
+  Future<Map<String, dynamic>> changePassword({
+    // Mengembalikan Map<String, dynamic>
+    required String oldPassword,
+    required String newPassword,
+    required String confirmNewPassword,
+  }) async {
+    const String endpoint = '/api/change-password';
+    Options? requestOptions;
+    String? authTokenForLogging;
+
+    try {
+      authTokenForLogging = await _getAuthToken();
+
+      if (authTokenForLogging == null || authTokenForLogging.isEmpty) {
+        print(
+          "[ApiService.changePassword] ERROR: Auth Token is required but not found.",
+        );
+        throw Exception(
+          "Sesi tidak valid. Silakan login kembali.",
+        ); // Throw Exception
+      }
+
+      print("[ApiService.changePassword] Using Auth Token.");
+      requestOptions = Options(
+        headers: {
+          'Authorization': 'Bearer $authTokenForLogging',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      final Map<String, dynamic> payload = {
+        'old_password': oldPassword,
+        'new_password': newPassword,
+        'password_confirmation': confirmNewPassword,
+      };
+
+      print("[ApiService.changePassword] Submitting to $endpoint");
+      print("[ApiService.changePassword] Payload: $payload");
+
+      final response = await ApiService._dio.post(
+        endpoint,
+        data: payload,
+        options: requestOptions,
+      );
+
+      print(
+        "[ApiService.changePassword] Response status: ${response.statusCode}",
+      );
+      print("[ApiService.changePassword] Response data: ${response.data}");
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (response.data is Map<String, dynamic>) {
+          return response.data as Map<String, dynamic>; // Kembalikan data Map
+        } else {
+          print(
+            "[ApiService.changePassword] ERROR: Unexpected response data format.",
+          );
+          throw Exception(
+            "Format respons server tidak valid setelah mengubah password.",
+          );
+        }
+      } else {
+        // Ini biasanya tidak akan tercapai jika validateStatus default Dio digunakan (hanya 2xx)
+        // Dio akan throw DioException untuk status non-2xx.
+        String message = "Gagal mengubah password.";
+        if (response.data is Map<String, dynamic> &&
+            (response.data as Map<String, dynamic>)['message'] != null) {
+          message = (response.data as Map<String, dynamic>)['message'];
+        }
+        throw Exception("$message (Status: ${response.statusCode})");
+      }
+    } on DioException catch (e) {
+      print("[ApiService.changePassword] DioException caught!");
+      print("  -> Request URL: ${e.requestOptions.uri}");
+      print("  -> Request Payload: ${e.requestOptions.data}");
+      print("  -> Response Status: ${e.response?.statusCode}");
+      print("  -> Response Data: ${e.response?.data}");
+      print("  -> DioException Type: ${e.type}");
+      print("  -> DioException Message: ${e.message}");
+
+      String errorMessage = "Gagal mengubah password.";
+      Map<String, dynamic>? responseData =
+          (e.response?.data is Map<String, dynamic>)
+              ? e.response!.data as Map<String, dynamic>
+              : null;
+
+      if (responseData != null && responseData['message'] is String) {
+        errorMessage = responseData['message'];
+      }
+
+      if (e.response?.statusCode == 401) {
+        errorMessage =
+            "Sesi Anda telah berakhir atau token tidak valid. Silakan login kembali.";
+      } else if (e.response?.statusCode == 403) {
+        errorMessage = "Anda tidak memiliki izin untuk mengubah password.";
+      } else if (e.response?.statusCode == 422) {
+        // Unprocessable Entity (Validation Error)
+        if (responseData != null &&
+            responseData['errors'] is Map<String, dynamic>) {
+          final errors = responseData['errors'] as Map<String, dynamic>;
+          if (errors.isNotEmpty) {
+            final firstErrorField = errors.keys.first;
+            final firstErrorMessage =
+                (errors[firstErrorField] as List).isNotEmpty
+                    ? (errors[firstErrorField] as List).first
+                    : "Data tidak valid.";
+            errorMessage = "Validasi gagal: $firstErrorMessage";
+          } else {
+            // Jika 'errors' kosong tapi ada 'message' utama di 422
+            errorMessage =
+                responseData['message'] as String? ??
+                "Data yang Anda masukkan tidak valid.";
+          }
+        } else {
+          errorMessage =
+              responseData?['message'] as String? ??
+              "Data yang Anda masukkan tidak valid.";
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = "Koneksi timeout. Periksa jaringan Anda dan coba lagi.";
+      } else if (e.type == DioExceptionType.unknown ||
+          e.type == DioExceptionType.connectionError) {
+        errorMessage =
+            "Koneksi internet bermasalah atau server tidak dapat dijangkau.";
+      } else if (errorMessage == "Gagal mengubah password." &&
+          e.message != null &&
+          e.message!.isNotEmpty) {
+        // Fallback ke pesan error Dio jika belum ada pesan yang lebih spesifik
+        errorMessage = e.message!;
+      }
+      throw Exception(errorMessage); // Throw Exception
+    } catch (e) {
+      print("[ApiService.changePassword] Non-Dio Exception caught: $e");
+      throw Exception("Terjadi kesalahan sistem: $e"); // Throw Exception
+    }
+  }
 }
