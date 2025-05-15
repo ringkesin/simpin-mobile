@@ -73,48 +73,63 @@ class TabunganBulananData {
 
 // --- Model untuk Object 'total' (BARU) ---
 class TotalTabungan {
-  final num? totalBulanIni; // Gunakan num? untuk fleksibilitas int/double
+  final num? totalBulanIni;
   final num? totalBulanIniSd;
 
-  TotalTabungan({
-    this.totalBulanIni = 0, // Default 0
-    this.totalBulanIniSd = 0, // Default 0
-  });
+  TotalTabungan({this.totalBulanIni = 0, this.totalBulanIniSd = 0});
 
   factory TotalTabungan.fromJson(Map<String, dynamic> json) => TotalTabungan(
-    totalBulanIni: (json["total_bulan_ini"] as num?) ?? 0,
-    totalBulanIniSd: (json["total_bulan_ini_sd"] as num?) ?? 0,
+    // === PERBAIKAN KUNCI JSON DI SINI ===
+    totalBulanIni:
+        (json["saldo_bulan_ini"] as num?) ?? 0, // Menggunakan "saldo_bulan_ini"
+    totalBulanIniSd:
+        (json["saldo_sd_bulan_ini"] as num?) ??
+        0, // Menggunakan "saldo_sd_bulan_ini"
+    // ====================================
   );
 
   Map<String, dynamic> toJson() => {
-    "total_bulan_ini": totalBulanIni,
-    "total_bulan_ini_sd": totalBulanIniSd,
+    // Jika Anda mengirim balik, pastikan key di sini juga sesuai harapan API
+    "saldo_bulan_ini": totalBulanIni,
+    "saldo_sd_bulan_ini": totalBulanIniSd,
   };
 }
 
-// --- Model untuk item dalam list 'detail' (BARU) ---
+// --- Model untuk item dalam list 'detail' (KUNCI DIPERBAIKI) ---
 class DetailTabunganItem {
-  final String? jenisTabungan; // String?
-  final num? nilaiBulanIni; // num?
-  final num? nilaiBulanIniSd; // num?
+  final String? jenisTabungan;
+  final num? nilaiBulanIni;
+  final num? nilaiBulanIniSd;
+  // Anda bisa menambahkan p_jenis_tabungan_id jika perlu
+  // final int? pJenisTabunganId;
 
   DetailTabunganItem({
-    this.jenisTabungan = '', // Default string kosong
+    this.jenisTabungan = '',
     this.nilaiBulanIni = 0,
     this.nilaiBulanIniSd = 0,
+    // this.pJeniTabunganId,
   });
 
-  factory DetailTabunganItem.fromJson(Map<String, dynamic> json) =>
-      DetailTabunganItem(
-        jenisTabungan: (json["jenis_tabungan"] as String?) ?? '',
-        nilaiBulanIni: (json["nilai_bulan_ini"] as num?) ?? 0,
-        nilaiBulanIniSd: (json["nilai_bulan_ini_sd"] as num?) ?? 0,
-      );
+  factory DetailTabunganItem.fromJson(
+    Map<String, dynamic> json,
+  ) => DetailTabunganItem(
+    jenisTabungan: (json["jenis_tabungan"] as String?) ?? '',
+    // === PERBAIKAN KUNCI JSON DI SINI ===
+    nilaiBulanIni:
+        (json["saldo_bulan_ini"] as num?) ?? 0, // Menggunakan "saldo_bulan_ini"
+    nilaiBulanIniSd:
+        (json["saldo_sd_bulan_ini"] as num?) ??
+        0, // Menggunakan "saldo_sd_bulan_ini"
+    // ====================================
+    // pJenisTabunganId: json["p_jenis_tabungan_id"] as int?, // Jika ingin mengambil p_jenis_tabungan_id
+  );
 
   Map<String, dynamic> toJson() => {
     "jenis_tabungan": jenisTabungan,
-    "nilai_bulan_ini": nilaiBulanIni,
-    "nilai_bulan_ini_sd": nilaiBulanIniSd,
+    // Jika Anda mengirim balik, pastikan key di sini juga sesuai harapan API
+    "saldo_bulan_ini": nilaiBulanIni,
+    "saldo_sd_bulan_ini": nilaiBulanIniSd,
+    // "p_jenis_tabungan_id": pJenisTabunganId,
   };
 }
 

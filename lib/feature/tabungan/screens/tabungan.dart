@@ -4,12 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// --- Ganti import model ---
 import '../../../service/api_service.dart';
-// import '../../../model/tabungan.dart'; // Hapus atau komentari ini
-import '../../../model/tabungan.dart'; // <-- Import model baru
-import '../../../theme.dart';
-// --------------------------
+import '../../../model/tabungan.dart';
+import '../../../model/mutasi_tabungan_response.dart';
+import '../../../theme.dart'; // Pastikan AppColors ada di sini
 
 class TabunganPage extends StatefulWidget {
   const TabunganPage({super.key});
@@ -24,12 +22,14 @@ class _TabunganPageState extends State<TabunganPage> {
   String? _selectedBulan;
   String? _selectedTahun;
 
-  bool _isLoading = true;
-  String? _errorMessage;
-  // --- Ganti tipe state data ---
-  TabunganBulananResponse? _tabunganResponse; // <-- Gunakan model response baru
-  // TabunganData? _tabunganData; // Hapus atau komentari ini
-  // ---------------------------
+  bool _isLoadingSaldo = true;
+  String? _errorMessageSaldo;
+  TabunganBulananResponse? _tabunganResponse;
+
+  bool _isLoadingMutasi = true;
+  String? _errorMessageMutasi;
+  MutasiTabunganResponse? _mutasiResponse;
+
   int? _pAnggotaId;
 
   final List<String> _bulanOptions = List.generate(
@@ -43,6 +43,7 @@ class _TabunganPageState extends State<TabunganPage> {
     symbol: 'Rp ',
     decimalDigits: 0,
   );
+  final DateFormat _dateFormatter = DateFormat('dd MMM yy, HH:mm', 'id_ID');
 
   @override
   void initState() {
@@ -50,27 +51,30 @@ class _TabunganPageState extends State<TabunganPage> {
     _initializeAndFetchData();
   }
 
-  // ... (Fungsi _initializeAndFetchData tetap sama) ...
-  Future<void> _initializeAndFetchData() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  @override
+  void dispose() {
+    super.dispose();
+  }
 
+  Future<void> _initializeAndFetchData() async {
+    // ... (Implementasi _initializeAndFetchData Anda tetap sama dari respons sebelumnya) ...
+    setState(() {
+      _isLoadingSaldo = true;
+      _isLoadingMutasi = true;
+      _errorMessageSaldo = null;
+      _errorMessageMutasi = null;
+    });
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       _pAnggotaId = prefs.getInt('p_anggota_id');
-
       if (_pAnggotaId == null) {
         throw Exception(
           'ID Anggota (p_anggota_id) tidak ditemukan di penyimpanan.',
         );
       }
-
       final now = DateTime.now();
       _selectedBulan = DateFormat('MM').format(now);
       _selectedTahun = DateFormat('yyyy').format(now);
-
       int currentYear = now.year;
       _tahunOptions =
           List.generate(
@@ -80,153 +84,243 @@ class _TabunganPageState extends State<TabunganPage> {
       if (!_tahunOptions.contains(currentYear.toString())) {
         _tahunOptions.insert(0, currentYear.toString());
       }
-
-      await _fetchData(); // Panggil fetch data setelah inisialisasi selesai
+      await _fetchAllData();
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage =
+          final initError =
               "Error Inisialisasi: ${e.toString().replaceFirst("Exception: ", "")}";
-          _isLoading = false;
+          _errorMessageSaldo = initError;
+          _errorMessageMutasi = initError;
+          _isLoadingSaldo = false;
+          _isLoadingMutasi = false;
         });
       }
     }
   }
 
-  // --- Update _fetchData ---
-  Future<void> _fetchData() async {
+  Future<void> _fetchAllData() async {
+    // ... (Implementasi _fetchAllData Anda tetap sama dari respons sebelumnya) ...
     if (_selectedBulan == null ||
         _selectedTahun == null ||
         _pAnggotaId == null) {
+      final errMsg = "Gagal memuat: Bulan, Tahun, atau ID Anggota tidak valid.";
       setState(() {
-        _errorMessage =
-            "Gagal memuat: Bulan, Tahun, atau ID Anggota tidak valid.";
-        _isLoading = false;
+        _errorMessageSaldo = errMsg;
+        _errorMessageMutasi = errMsg;
+        _isLoadingSaldo = false;
+        _isLoadingMutasi = false;
       });
       return;
     }
-
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      // Jangan reset _tabunganResponse di sini jika ingin total card tetap ada saat refresh
+      _isLoadingSaldo = true;
+      _isLoadingMutasi = true;
+      _errorMessageSaldo = null;
+      _errorMessageMutasi = null;
     });
-
     try {
-      // Panggil API Service (pastikan getTabungan di ApiService return TabunganBulananResponse)
-      final result = await _apiService.getTabungan(
-        bulan: _selectedBulan!,
-        tahun: _selectedTahun!,
-        pAnggotaId: _pAnggotaId,
-      );
-
+      final results = await Future.wait([
+        _apiService.getTabungan(
+          bulan: _selectedBulan!,
+          tahun: _selectedTahun!,
+          pAnggotaId: _pAnggotaId,
+        ),
+        _apiService.getMutasiTabungan(
+          bulan: _selectedBulan!,
+          tahun: _selectedTahun!,
+          pAnggotaId: _pAnggotaId,
+        ),
+      ]);
       if (mounted) {
+        final tabunganResult = results[0] as TabunganBulananResponse;
+        final mutasiResult = results[1] as MutasiTabunganResponse;
         setState(() {
-          // Simpan seluruh response
-          _tabunganResponse = result;
-          // Reset error jika sukses (meskipun result.success mungkin false)
-          _errorMessage = result.success ? null : result.message;
-          _isLoading = false;
+          _tabunganResponse = tabunganResult;
+          _errorMessageSaldo =
+              tabunganResult.success ? null : tabunganResult.message;
+          _mutasiResponse = mutasiResult;
+          _errorMessageMutasi =
+              mutasiResult.success ? null : mutasiResult.message;
         });
       }
     } catch (e) {
       if (mounted) {
-        String errorMsg = e.toString().replaceFirst("Exception: ", "");
+        String errorMsg =
+            "Terjadi kesalahan: ${e.toString().replaceFirst("Exception: ", "")}";
         setState(() {
-          _tabunganResponse =
-              null; // Hapus data lama jika ada error network/lainnya
-          _errorMessage = errorMsg;
-          _isLoading = false;
+          _tabunganResponse = null;
+          _mutasiResponse = null;
+          _errorMessageSaldo = errorMsg;
+          _errorMessageMutasi = errorMsg;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingSaldo = false;
+          _isLoadingMutasi = false;
         });
       }
     }
   }
-  // --- Akhir Update _fetchData ---
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    // final colors = Theme.of(context).brightness == Brightness.light
-    //     ? AppColors.primaryLight // ini kurang tepat, ambil dari context saja
-    //     : AppColors.primaryDark;
-    final theme = Theme.of(context); // Gunakan theme dari context
+    // final theme = Theme.of(context); // Bisa tetap digunakan untuk TextTheme jika AppTheme tidak lengkap
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detail Tabungan Anggota'),
-        // Style AppBar akan diambil dari AppTheme
+        backgroundColor: AppColors.primaryLight, // Gunakan AppColors
+        foregroundColor:
+            Colors.white, // Biasanya putih untuk AppColors.primaryLight
+        elevation: 1,
       ),
-      // Background scaffold diambil dari AppTheme
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: AppColors.primaryBackgroundLight, // Gunakan AppColors
       body: RefreshIndicator(
-        onRefresh: _fetchData,
-        color: theme.primaryColor, // Sesuaikan warna refresh indicator
-        child: ListView(
-          // Gunakan ListView untuk scrollability + refresh
-          children: [
-            // --- Area Total Tabungan ---
-            // Tampilkan hanya jika tidak loading DAN response ada DAN sukses
-            if (!_isLoading &&
-                _errorMessage == null &&
-                _tabunganResponse != null &&
-                _tabunganResponse!.success &&
-                _tabunganResponse!.data?.total != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  16.0,
-                  20.0,
-                  16.0,
-                  0,
-                ), // Beri padding atas
-                child: _buildTotalCard(
-                  context,
-                  _tabunganResponse!.data!.total!,
-                ), // Kirim objek TotalTabungan
-              ),
+        onRefresh: _fetchAllData,
+        color: AppColors.primaryLight, // Gunakan AppColors
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment
+                        .start, // Agar judul "Riwayat Mutasi" rata kiri
+                children: [
+                  if (_isLoadingSaldo)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 75.0),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_errorMessageSaldo != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        16.0,
+                        20.0,
+                        16.0,
+                        10.0,
+                      ),
+                      child: Text(
+                        "Gagal memuat total saldo: $_errorMessageSaldo",
+                        style: TextStyle(color: AppColors.errorLight),
+                        textAlign: TextAlign.center,
+                      ), // Gunakan AppColors
+                    )
+                  else if (_tabunganResponse?.success == true &&
+                      _tabunganResponse!.data?.total != null)
+                    _buildTotalCard(context, _tabunganResponse!.data!.total!)
+                  else
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        16.0,
+                        20.0,
+                        16.0,
+                        10.0,
+                      ),
+                      child: Text(
+                        _tabunganResponse?.message ??
+                            "Total saldo tidak tersedia.",
+                        style: TextStyle(color: AppColors.secondaryTextLight),
+                        textAlign: TextAlign.center,
+                      ), // Gunakan AppColors
+                    ),
 
-            // --- Area Pilihan Bulan & Tahun ---
-            _buildSelectionArea(), // Widget ini tetap sama secara fungsional
-            // --- Area Tampilan Data Detail / Loading / Error ---
-            Padding(
-              padding: const EdgeInsets.only(
-                bottom: 16.0,
-                left: 16.0,
-                right: 16.0,
-              ), // Padding
-              child: _buildDataDisplayArea(),
+                  _buildSelectionArea(),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+                    child: Text(
+                      "Riwayat Mutasi (${_formatNamaBulan(_selectedBulan ?? DateFormat('MM').format(DateTime.now()))} $_selectedTahun)",
+                      style: AppTheme.textThemeLight.titleMedium?.copyWith(
+                        // Gunakan AppTheme
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryTextLight, // Gunakan AppColors
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+            _buildMutasiDisplayArea(),
           ],
         ),
       ),
     );
   }
 
-  // ... (_buildSelectionArea tetap sama secara fungsional, hanya pastikan style diambil dari theme) ...
+  Widget _buildTotalCard(BuildContext context, TotalTabungan total) {
+    final textTheme = AppTheme.textThemeLight; // Prioritaskan AppTheme
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 10.0),
+      padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 20.0),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight, // Gunakan AppColors
+        borderRadius: BorderRadius.circular(16.0),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Total Saldo (s/d Bulan Ini)',
+            textAlign: TextAlign.center,
+            style: textTheme.titleMedium?.copyWith(
+              color: Colors.white.withOpacity(
+                0.9,
+              ), // Teks putih di atas primaryLight
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _currencyFormatter.format(total.totalBulanIniSd ?? 0),
+            style: textTheme.displaySmall?.copyWith(
+              color: Colors.white, // Teks putih
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Perubahan Bulan Ini: ${_currencyFormatter.format(total.totalBulanIni ?? 0)}',
+            style: textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withOpacity(0.8), // Teks putih
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSelectionArea() {
-    // Tampilkan placeholder jika state belum siap
+    final textTheme = AppTheme.textThemeLight;
+    final theme = Theme.of(context); // Ambil theme di sini jika belum
+    final inputDecoration = InputDecoration(
+      filled: true,
+      fillColor: AppColors.secondaryBackgroundLight.withOpacity(0.5),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        borderSide: BorderSide.none,
+      ),
+      labelStyle: textTheme.bodyMedium?.copyWith(
+        color: AppColors.secondaryTextLight,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      isDense: true,
+    );
+
     if (_selectedBulan == null ||
         _selectedTahun == null ||
         _tahunOptions.isEmpty) {
-      // Beri tinggi minimum agar tidak collapse saat loading awal
       return const SizedBox(
         height: 80,
         child: Center(child: Text("Menyiapkan filter...")),
       );
     }
-    final theme = Theme.of(context); // Ambil theme
 
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        // Beri sedikit style
-        color: theme.cardColor,
-        // borderRadius: BorderRadius.circular(12), // Opsional: lengkungan
-        // border: Border.all(color: theme.dividerColor) // Opsional: border
-      ),
-      margin: const EdgeInsets.symmetric(
-        vertical: 16.0,
-        horizontal: 16.0,
-      ), // Beri margin horizontal juga
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
       child: Row(
         children: [
           Expanded(
@@ -235,88 +329,77 @@ class _TabunganPageState extends State<TabunganPage> {
               value: _selectedBulan,
               items:
                   _bulanOptions.map((bulan) {
+                    // Awal dari .map()
                     return DropdownMenuItem<String>(
                       value: bulan,
                       child: Text(
                         _formatNamaBulan(bulan),
-                        style: theme.textTheme.bodyMedium,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: AppColors.primaryTextLight,
+                        ),
                       ),
                     );
-                  }).toList(),
+                  }).toList(), // <--- PASTIKAN .toList() ADA DI SINI
               onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _selectedBulan = value;
-                  });
-                }
+                if (value != null) setState(() => _selectedBulan = value);
               },
-              // Ambil decoration dari theme
-              decoration: InputDecoration(
-                labelText: 'Bulan',
-                border: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(8)),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                isDense: true,
-              ),
+              decoration: inputDecoration.copyWith(labelText: 'Bulan'),
+              dropdownColor: AppColors.primaryBackgroundLight,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             flex: 2,
             child: DropdownButtonFormField<String>(
               value: _selectedTahun,
               items:
                   _tahunOptions.map((tahun) {
+                    // Awal dari .map()
                     return DropdownMenuItem<String>(
                       value: tahun,
-                      child: Text(tahun, style: theme.textTheme.bodyMedium),
+                      child: Text(
+                        tahun,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: AppColors.primaryTextLight,
+                        ),
+                      ),
                     );
-                  }).toList(),
+                  }).toList(), // <--- PASTIKAN .toList() ADA DI SINI
               onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _selectedTahun = value;
-                  });
-                }
+                if (value != null) setState(() => _selectedTahun = value);
               },
-              decoration: InputDecoration(
-                labelText: 'Tahun',
-                border: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(8)),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                isDense: true,
-              ),
+              decoration: inputDecoration.copyWith(labelText: 'Tahun'),
+              dropdownColor: AppColors.primaryBackgroundLight,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           SizedBox(
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _fetchData,
-              // Style ElevatedButton akan diambil dari theme
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                minimumSize: const Size(48, 48), // Pastikan ukurannya cukup
+            height: 50,
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: ElevatedButton(
+                onPressed:
+                    _isLoadingSaldo || _isLoadingMutasi ? null : _fetchAllData,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryLight,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: EdgeInsets.zero,
+                ),
+                child:
+                    _isLoadingSaldo || _isLoadingMutasi
+                        ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                        : const Icon(Icons.search, size: 22),
               ),
-              child:
-                  _isLoading
-                      ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                      : const Icon(Icons.search, size: 20),
             ),
           ),
         ],
@@ -324,276 +407,197 @@ class _TabunganPageState extends State<TabunganPage> {
     );
   }
 
-  // --- Update _buildDataDisplayArea ---
-  Widget _buildDataDisplayArea() {
-    final textTheme = Theme.of(context).textTheme;
+  Widget _buildMutasiDisplayArea() {
+    final textTheme = AppTheme.textThemeLight; // Prioritaskan AppTheme
 
-    if (_isLoading && _tabunganResponse == null) {
-      // Loading awal
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32.0),
-          child: CircularProgressIndicator(),
+    if (_isLoadingMutasi && _mutasiResponse == null) {
+      return const SliverFillRemaining(
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_errorMessageMutasi != null) {
+      return SliverFillRemaining(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.wifi_off_rounded,
+                  color: AppColors.secondaryTextLight,
+                  size: 60,
+                ), // AppColors
+                const SizedBox(height: 16),
+                Text(
+                  "Gagal Memuat Mutasi",
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryTextLight,
+                  ),
+                ), // AppColors
+                const SizedBox(height: 8),
+                Text(
+                  _errorMessageMutasi!,
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppColors.secondaryTextLight,
+                  ), // AppColors
+                ),
+                const SizedBox(height: 20),
+                if (!_errorMessageMutasi!.toLowerCase().contains(
+                      "id anggota",
+                    ) &&
+                    !_errorMessageMutasi!.toLowerCase().contains("token") &&
+                    !_errorMessageMutasi!.toLowerCase().contains("sesi"))
+                  ElevatedButton.icon(
+                    // Kembali ke ElevatedButton
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Coba Lagi'),
+                    onPressed: _fetchAllData,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryLight, // AppColors
+                      foregroundColor: Colors.white, // AppColors
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    if (_mutasiResponse == null ||
+        !_mutasiResponse!.success ||
+        _mutasiResponse!.data == null ||
+        _mutasiResponse!.data!.items.isEmpty) {
+      return SliverFillRemaining(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.search_off_rounded,
+                  color: AppColors.secondaryTextLight,
+                  size: 60,
+                ), // AppColors
+                const SizedBox(height: 16),
+                Text(
+                  "Tidak Ada Mutasi",
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryTextLight,
+                  ),
+                ), // AppColors
+                const SizedBox(height: 8),
+                Text(
+                  _mutasiResponse?.message ??
+                      "Tidak ada data mutasi untuk periode ini.",
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppColors.secondaryTextLight,
+                  ), // AppColors
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
 
-    if (_errorMessage != null) {
-      // Error state
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+    final mutasiList = _mutasiResponse!.data!.items;
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final item = mutasiList[index];
+          final bool isLastItem = index == mutasiList.length - 1;
+          return Column(
             children: [
-              Icon(
-                Icons.error_outline,
-                color: Theme.of(context).colorScheme.error,
-                size: 50,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
-              ),
-              const SizedBox(height: 20),
-              if (!_errorMessage!.contains("ID Anggota"))
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Coba Lagi'),
-                  onPressed: _fetchData,
-                ),
+              _buildMutasiListItem(context, item),
+              if (!isLastItem)
+                Divider(
+                  height: 1,
+                  thickness: 0.5,
+                ), // Gunakan AppColors jika ada, atau default
             ],
-          ),
-        ),
-      );
-    }
-
-    // Jika response tidak sukses atau data null setelah fetch
-    if (_tabunganResponse != null &&
-        (!_tabunganResponse!.success || _tabunganResponse!.data == null)) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            _tabunganResponse!.message ??
-                "Data tidak ditemukan untuk periode ini.",
-            textAlign: TextAlign.center,
-            style: textTheme.bodyMedium,
-          ),
-        ),
-      );
-    }
-
-    // Jika response sukses dan data ada (termasuk saat refresh)
-    if (_tabunganResponse != null &&
-        _tabunganResponse!.success &&
-        _tabunganResponse!.data != null) {
-      return _buildDetailContent(
-        _tabunganResponse!.data!,
-      ); // Kirim TabunganBulananData
-    }
-
-    // State default sebelum fetch pertama atau jika _tabunganResponse masih null karena alasan lain
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Text(
-          "Silakan pilih bulan dan tahun, lalu tekan tombol cari.",
-          textAlign: TextAlign.center,
-          style: textTheme.bodyMedium,
-        ),
+          );
+        }, childCount: mutasiList.length),
       ),
     );
   }
-  // --- Akhir Update _buildDataDisplayArea ---
 
-  // --- Update _buildDetailContent ---
-  Widget _buildDetailContent(TabunganBulananData data) {
-    // Terima TabunganBulananData
-    final textTheme = Theme.of(context).textTheme;
-    final detailList =
-        data.detail ?? []; // Ambil list detail, default list kosong
+  Widget _buildMutasiListItem(BuildContext context, MutasiTabunganItem item) {
+    final textTheme = AppTheme.textThemeLight; // Prioritaskan AppTheme
+    final bool isDebit = item.nilai < 0;
+    final Color nilaiColor =
+        isDebit ? AppColors.errorLight : AppColors.successLight;
+    final IconData typeIcon =
+        isDebit
+            ? Icons.arrow_circle_down_rounded
+            : Icons.arrow_circle_up_rounded;
 
-    if (detailList.isEmpty) {
-      return const Center(
-        child: Text("Tidak ada rincian tabungan untuk periode ini."),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: Text(
-              "Rincian untuk: ${_formatNamaBulan(data.bulan.toString().padLeft(2, '0'))} ${data.tahun}",
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-        // Gunakan Card untuk membungkus rincian
-        Card(
-          elevation: 1.5,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          margin:
-              EdgeInsets
-                  .zero, // Hapus margin Card jika sudah ada padding di parent
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: 8.0,
-            ), // Padding vertikal dalam card
-            // Gunakan ListView.separated untuk memberi pemisah antar item
-            child: ListView.separated(
-              shrinkWrap: true, // Penting di dalam Column/ListView lain
-              physics:
-                  const NeverScrollableScrollPhysics(), // Nonaktifkan scroll internal
-              itemCount: detailList.length,
-              itemBuilder: (context, index) {
-                return _buildDetailItem(
-                  context,
-                  detailList[index],
-                ); // Panggil helper baru
-              },
-              separatorBuilder:
-                  (context, index) => const Divider(
-                    height: 1,
-                    indent: 16,
-                    endIndent: 16,
-                  ), // Pemisah antar item
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-  // --- Akhir Update _buildDetailContent ---
-
-  // --- Update _buildTotalCard ---
-  Widget _buildTotalCard(BuildContext context, TotalTabungan total) {
-    // Terima TotalTabungan
-    final textTheme = Theme.of(context).textTheme;
-    final theme = Theme.of(context);
-    final Color textColorOnPrimary =
-        theme.colorScheme.onPrimary; // Ambil warna teks onPrimary dari theme
-
-    return Card(
-      elevation: 2.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-      color: theme.primaryColor, // Warna Card dari theme
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: 20.0,
-          horizontal: 16.0,
-        ), // Sesuaikan padding
-        child: Column(
-          children: [
-            Text(
-              'Total Saldo Tabungan (s/d Bulan Ini)',
-              textAlign: TextAlign.center,
-              style: textTheme.titleMedium?.copyWith(
-                color: textColorOnPrimary.withOpacity(0.9),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              _currencyFormatter.format(
-                total.totalBulanIniSd ?? 0,
-              ), // Tampilkan total s/d bulan ini
-              style: textTheme.headlineMedium?.copyWith(
-                color: textColorOnPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            // Tampilkan juga perubahan bulan ini (opsional)
-            Text(
-              'Perubahan Bulan Ini: ${_currencyFormatter.format(total.totalBulanIni ?? 0)}',
-              style: textTheme.bodyMedium?.copyWith(
-                color: textColorOnPrimary.withOpacity(0.8),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  // --- Akhir Update _buildTotalCard ---
-
-  // --- Widget BARU untuk menampilkan satu item detail ---
-  Widget _buildDetailItem(BuildContext context, DetailTabunganItem item) {
-    final textTheme = Theme.of(context).textTheme;
-    final gain = (item.nilaiBulanIni ?? 0) > 0;
-    final loss = (item.nilaiBulanIni ?? 0) < 0;
-    final unchanged = (item.nilaiBulanIni ?? 0) == 0;
-    final Color changeColor =
-        gain
-            ? AppColors.successLight
-            : (loss ? AppColors.errorLight : AppColors.secondaryTextLight);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Kolom Kiri: Jenis Tabungan & Perubahan Bulan Ini
+          Icon(typeIcon, color: nilaiColor, size: 28),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.jenisTabungan ?? '-',
+                  item.jenisTabungan.nama,
                   style: textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
-                  ),
+                    color: AppColors.primaryTextLight,
+                  ), // AppColors
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      "Perubahan Bln Ini:",
-                      style: textTheme.bodySmall?.copyWith(
-                        color: AppColors.secondaryTextLight,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _currencyFormatter.format(item.nilaiBulanIni ?? 0),
-                      style: textTheme.bodySmall?.copyWith(
-                        color: changeColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                Text(
+                  item.tglTransaksi != null
+                      ? _dateFormatter.format(item.tglTransaksi!)
+                      : '-',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.secondaryTextLight,
+                  ), // AppColors
                 ),
+                if (item.catatan != null && item.catatan!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    "Catatan: ${item.catatan}",
+                    style: textTheme.bodySmall?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      color: AppColors.secondaryTextLight.withOpacity(0.8),
+                    ), // AppColors
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
             ),
           ),
-          const SizedBox(width: 16),
-          // Kolom Kanan: Saldo s/d Bulan Ini
+          const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                "Saldo s/d Bln Ini",
-                style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.secondaryTextLight,
+                "${isDebit ? '-' : '+'}${_currencyFormatter.format(item.nilai.abs())}",
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: nilaiColor,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                _currencyFormatter.format(item.nilaiBulanIniSd ?? 0),
-                style: textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                _currencyFormatter.format(item.nilaiSd),
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.secondaryTextLight,
+                ), // AppColors
               ),
             ],
           ),
@@ -601,15 +605,9 @@ class _TabunganPageState extends State<TabunganPage> {
       ),
     );
   }
-  // --- Akhir Widget BARU ---
-
-  // --- HAPUS _buildDetailCard dan _buildDetailRow yang lama ---
-  // Widget _buildDetailCard(BuildContext context, Data dataTabungan) { ... }
-  // Widget _buildDetailRow(String label, num value) { ... }
-  // -------------------------------------------------------------
 
   String _formatNamaBulan(String bulan) {
-    // ... (kode _formatNamaBulan tetap sama) ...
+    // ... (Implementasi _formatNamaBulan Anda tetap sama) ...
     try {
       final monthNumber = int.parse(bulan);
       final date = DateTime(2000, monthNumber, 1);
@@ -619,4 +617,4 @@ class _TabunganPageState extends State<TabunganPage> {
       return bulan;
     }
   }
-} // Akhir State Class
+}

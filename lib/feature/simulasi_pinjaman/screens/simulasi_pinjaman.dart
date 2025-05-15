@@ -5,8 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../model/tenor_response.dart';
 import '../../../model/simulasi_pinjaman_response.dart';
+// GANTI IMPORT MODEL JENIS PINJAMAN
+import '../../../model/jenis_pinjaman.dart'; // SESUAIKAN PATH JIKA PERLU
 import '../../../service/api_service.dart';
-import '../../../theme.dart'; // Import AppTheme Anda
+import '../../../theme.dart';
 
 class SimulasiPinjamanScreen extends StatefulWidget {
   const SimulasiPinjamanScreen({super.key});
@@ -19,19 +21,25 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
   final ApiService _apiService = ApiService();
   final _formKey = GlobalKey<FormState>();
   final _jumlahPinjamanController = TextEditingController();
-  // Tambahkan formatter untuk input ribuan (opsional tapi bagus)
   final _amountFormatter = NumberFormat("#,##0", "id_ID");
 
-  bool _isLoadingTenors = true;
+  // State untuk Jenis Pinjaman - GUNAKAN JenisPinjamanModel
+  bool _isLoadingJenisPinjaman = true;
+  String? _jenisPinjamanError;
+  List<JenisPinjamanModel> _availableJenisPinjaman = []; // GANTI TIPE LIST
+  int? _selectedJenisPinjamanId;
+
+  // State untuk Tenor
+  bool _isLoadingTenors = false;
   String? _tenorError;
   List<TenorItem> _availableTenors = [];
   int? _selectedTenor;
 
+  // State untuk Simulasi
   bool _isLoadingSimulasi = false;
   String? _simulasiError;
   SimulasiResult? _simulasiResult;
 
-  // Formatter output
   final _currencyFormatter = NumberFormat.currency(
     locale: 'id_ID',
     symbol: 'Rp ',
@@ -45,22 +53,16 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchTenors();
-    // Listener untuk format input jumlah pinjaman (opsional)
+    _fetchJenisPinjaman();
     _jumlahPinjamanController.addListener(_formatAmountInput);
   }
 
-  // Fungsi format input jumlah pinjaman (opsional)
   void _formatAmountInput() {
-    final text = _jumlahPinjamanController.text.replaceAll(
-      '.',
-      '',
-    ); // Hapus pemisah lama
+    final text = _jumlahPinjamanController.text.replaceAll('.', '');
     if (text.isEmpty) return;
     try {
       final value = int.parse(text);
       final formattedValue = _amountFormatter.format(value);
-      // Cek agar tidak infinite loop
       if (_jumlahPinjamanController.text != formattedValue) {
         _jumlahPinjamanController.value = TextEditingValue(
           text: formattedValue,
@@ -68,34 +70,68 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
         );
       }
     } catch (e) {
-      // Abaikan jika parsing gagal (misal saat user masih mengetik)
+      /* Abaikan */
     }
   }
 
   @override
   void dispose() {
-    _jumlahPinjamanController.removeListener(
-      _formatAmountInput,
-    ); // Hapus listener
+    _jumlahPinjamanController.removeListener(_formatAmountInput);
     _jumlahPinjamanController.dispose();
     super.dispose();
   }
 
+  Future<void> _fetchJenisPinjaman() async {
+    setState(() {
+      _isLoadingJenisPinjaman = true;
+      _jenisPinjamanError = null;
+      _availableJenisPinjaman = [];
+      _selectedJenisPinjamanId = null;
+      _availableTenors = [];
+      _selectedTenor = null;
+      _tenorError = null;
+      _simulasiResult = null;
+      _simulasiError = null;
+    });
+    try {
+      // PANGGIL METODE DARI API SERVICE ANDA
+      final jenisPinjamanList = await _apiService.getMasterJenisPinjaman();
+      if (!mounted) return;
+      setState(() {
+        _availableJenisPinjaman = jenisPinjamanList;
+        _isLoadingJenisPinjaman = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _jenisPinjamanError = e.toString().replaceFirst("Exception: ", "");
+        _isLoadingJenisPinjaman = false;
+      });
+    }
+  }
+
   Future<void> _fetchTenors() async {
-    // ... (logika fetch tenor tetap sama) ...
+    if (_selectedJenisPinjamanId == null) return;
+
     setState(() {
       _isLoadingTenors = true;
       _tenorError = null;
       _availableTenors = [];
       _selectedTenor = null;
+      _simulasiResult = null;
+      _simulasiError = null;
     });
     try {
-      final tenors = await _apiService.getAvailableTenors();
+      final tenors = await _apiService.getAvailableTenors(
+        jenisPinjamanId: _selectedJenisPinjamanId!,
+      );
+      if (!mounted) return;
       setState(() {
         _availableTenors = tenors;
         _isLoadingTenors = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _tenorError = e.toString().replaceFirst("Exception: ", "");
         _isLoadingTenors = false;
@@ -104,7 +140,6 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
   }
 
   Future<void> _calculateSimulasi() async {
-    // ... (logika calculate simulasi tetap sama) ...
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -114,9 +149,12 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
     );
     final int? jumlahPinjaman = int.tryParse(jumlahPinjamanStr);
 
-    if (jumlahPinjaman == null || _selectedTenor == null) {
+    if (jumlahPinjaman == null ||
+        _selectedTenor == null ||
+        _selectedJenisPinjamanId == null) {
       setState(() {
-        _simulasiError = "Jumlah pinjaman dan tenor harus diisi.";
+        _simulasiError =
+            "Jenis pinjaman, jumlah pinjaman, dan tenor harus diisi.";
       });
       return;
     }
@@ -131,12 +169,15 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
       final result = await _apiService.postSimulasiPinjaman(
         jumlahPinjaman: jumlahPinjaman,
         tenor: _selectedTenor!,
+        jenisPinjamanId: _selectedJenisPinjamanId!,
       );
+      if (!mounted) return;
       setState(() {
         _simulasiResult = result;
         _isLoadingSimulasi = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _simulasiError = e.toString().replaceFirst("Exception: ", "");
         _isLoadingSimulasi = false;
@@ -146,7 +187,6 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Gunakan TextTheme dari AppTheme
     final textTheme = AppTheme.textThemeLight;
 
     return Scaffold(
@@ -155,26 +195,20 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
           'Simulasi Pinjaman',
           style: textTheme.titleLarge?.copyWith(color: Colors.white),
         ),
-        backgroundColor: AppColors.primaryLight, // Tetap hijau untuk branding
+        backgroundColor: AppColors.primaryLight,
         iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 1, // Sedikit shadow
+        elevation: 1,
       ),
-      // --- Ganti Background menjadi Putih ---
       backgroundColor: AppColors.primaryBackgroundLight,
       body: GestureDetector(
-        // Untuk unfocus keyboard saat tap di luar
         onTap: () => FocusScope.of(context).unfocus(),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 24.0,
-            vertical: 28.0,
-          ), // Sesuaikan padding
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 28.0),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Judul Form (lebih simpel)
                 Text(
                   'Hitung Estimasi Angsuran',
                   style: textTheme.titleLarge?.copyWith(
@@ -183,45 +217,46 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Masukkan jumlah pinjaman dan pilih jangka waktu.',
+                  'Pilih jenis pinjaman, masukkan jumlah, dan pilih jangka waktu.',
                   style: textTheme.bodyMedium?.copyWith(
                     color: AppColors.secondaryTextLight,
                   ),
                 ),
-                const SizedBox(height: 32), // Spasi lebih lega
-                // --- Input Jumlah Pinjaman ---
+                const SizedBox(height: 32),
+
+                _buildJenisPinjamanDropdown(context), // Dropdown Jenis Pinjaman
+                const SizedBox(height: 20),
+
                 TextFormField(
                   controller: _jumlahPinjamanController,
-                  // Gunakan style input dari Theme
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Jumlah Pinjaman',
-                    prefixText: 'Rp ', // Prefix Rp
+                    prefixText: 'Rp ',
                     hintText: '5.000.000',
-                    // Icon tidak di dalam, tapi bisa di label jika suka
                   ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null || value.isEmpty)
                       return 'Jumlah pinjaman tidak boleh kosong';
-                    }
                     final int? amount = int.tryParse(value.replaceAll('.', ''));
-                    if (amount == null || amount <= 0) {
+                    if (amount == null || amount <= 0)
                       return 'Masukkan jumlah yang valid';
-                    }
+                    if (amount < 500000) return 'Minimal pinjaman Rp 500.000';
+                    if (amount > 100000000)
+                      return 'Maksimal pinjaman Rp 100.000.000';
                     return null;
                   },
                 ),
-                const SizedBox(height: 20), // Spasi antar input
-                // --- Dropdown Tenor ---
-                _buildTenorDropdown(context),
-                const SizedBox(height: 40), // Spasi sebelum tombol
-                // --- Tombol Hitung ---
+                const SizedBox(height: 20),
+
+                _buildTenorDropdown(context), // Dropdown Tenor
+                const SizedBox(height: 40),
+
                 ElevatedButton.icon(
                   icon:
                       _isLoadingSimulasi
                           ? const SizedBox(
-                            // Loading indicator tetap sama
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(
@@ -229,37 +264,27 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
                               color: Colors.white,
                             ),
                           )
-                          : const Icon(
-                            Icons.calculate_outlined,
-                            size: 20,
-                          ), // Sedikit perbesar ikon?
+                          : const Icon(Icons.calculate_outlined, size: 20),
                   label: const Text('HITUNG SIMULASI'),
-                  onPressed: _isLoadingSimulasi ? null : _calculateSimulasi,
+                  onPressed:
+                      (_isLoadingSimulasi || _selectedJenisPinjamanId == null)
+                          ? null
+                          : _calculateSimulasi,
                   style: ElevatedButton.styleFrom(
-                    // --- Eksplisit Gunakan Warna Primer ---
-                    backgroundColor:
-                        AppColors.primaryLight, // Warna background dari theme
-                    foregroundColor:
-                        Colors.white, // Warna teks dan ikon di atasnya
-                    // --- Ambil style lain dari theme atau definisikan di sini ---
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                    ), // Tinggi tombol
+                    backgroundColor: AppColors.primaryLight,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      // Bentuk tombol (sesuaikan dengan theme)
                       borderRadius: BorderRadius.circular(10),
                     ),
                     textStyle: AppTheme.textThemeLight.labelLarge?.copyWith(
-                      // Style teks tombol
-                      color: Colors.white, // Pastikan warna teks putih
-                      letterSpacing: 0.5, // Sedikit spasi (opsional)
+                      color: Colors.white,
+                      letterSpacing: 0.5,
                     ),
-                    elevation: 2, // Sedikit shadow (opsional)
-                    // -----------------------------------------
+                    elevation: 2,
                   ),
                 ),
-                const SizedBox(height: 32), // Spasi sebelum hasil
-                // --- Tampilan Hasil Simulasi ---
+                const SizedBox(height: 32),
                 _buildResultSection(context),
               ],
             ),
@@ -269,10 +294,80 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
     );
   }
 
-  // Widget untuk membangun dropdown tenor (tetap fungsional, style dari theme)
+  Widget _buildJenisPinjamanDropdown(BuildContext context) {
+    if (_isLoadingJenisPinjaman) {
+      return const Opacity(
+        opacity: 0.5,
+        child: Text("Memuat pilihan jenis pinjaman..."),
+      );
+    }
+    if (_jenisPinjamanError != null) {
+      return Text(
+        "Gagal memuat jenis pinjaman: $_jenisPinjamanError",
+        style: TextStyle(color: AppColors.errorLight),
+      );
+    }
+    if (_availableJenisPinjaman.isEmpty) {
+      return const Text("Tidak ada pilihan jenis pinjaman tersedia.");
+    }
+
+    return DropdownButtonFormField<int>(
+      value: _selectedJenisPinjamanId,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Jenis Pinjaman',
+        hintText: 'Pilih jenis pinjaman...',
+      ),
+      // GUNAKAN JenisPinjamanModel
+      items:
+          _availableJenisPinjaman.map((JenisPinjamanModel item) {
+            return DropdownMenuItem<int>(
+              value: item.id,
+              child: Text(item.nama),
+            );
+          }).toList(),
+      onChanged: (int? newValue) {
+        setState(() {
+          _selectedJenisPinjamanId = newValue;
+          _availableTenors = [];
+          _selectedTenor = null;
+          _tenorError = null;
+          _isLoadingTenors = false;
+          _simulasiResult = null;
+          _simulasiError = null;
+          if (newValue != null) {
+            _fetchTenors();
+          }
+        });
+      },
+      validator:
+          (value) => value == null ? 'Silakan pilih jenis pinjaman' : null,
+    );
+  }
+
   Widget _buildTenorDropdown(BuildContext context) {
+    // ... (Logika _buildTenorDropdown tetap sama seperti sebelumnya)
+    if (_selectedJenisPinjamanId == null) {
+      return Opacity(
+        opacity: 0.5,
+        child: InputDecorator(
+          decoration: const InputDecoration(
+            labelText: 'Jangka Waktu (Tenor)',
+            hintText: 'Pilih jenis pinjaman terlebih dahulu',
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 10.0,
+              vertical: 15.0,
+            ),
+          ),
+          child: Text(
+            'Pilih jenis pinjaman dahulu',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ),
+      );
+    }
     if (_isLoadingTenors) {
-      // Loading state lebih simpel
       return const Opacity(
         opacity: 0.5,
         child: Text("Memuat pilihan tenor..."),
@@ -285,18 +380,15 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
       );
     }
     if (_availableTenors.isEmpty) {
-      return const Text("Tidak ada pilihan tenor tersedia.");
+      return const Text("Tidak ada pilihan tenor untuk jenis pinjaman ini.");
     }
 
     return DropdownButtonFormField<int>(
       value: _selectedTenor,
       isExpanded: true,
-      // Gunakan style input dari Theme
       decoration: const InputDecoration(
         labelText: 'Jangka Waktu (Tenor)',
-        hintText: 'Pilih...',
-        // Prefix icon bisa dihapus untuk lebih minimalis jika diinginkan
-        // prefixIcon: Icon(Icons.calendar_month_outlined, color: AppColors.primaryLight, size: 20),
+        hintText: 'Pilih tenor...',
       ),
       items:
           _availableTenors.map((TenorItem item) {
@@ -312,17 +404,12 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
           _simulasiError = null;
         });
       },
-      validator: (value) {
-        if (value == null) {
-          return 'Silakan pilih tenor';
-        }
-        return null;
-      },
+      validator: (value) => value == null ? 'Silakan pilih tenor' : null,
     );
   }
 
-  // Widget untuk menampilkan hasil simulasi (lebih minimalis)
   Widget _buildResultSection(BuildContext context) {
+    // ... (Logika _buildResultSection tetap sama seperti sebelumnya, sudah menampilkan biaya_admin dan biaya_admin_rp)
     final textTheme = AppTheme.textThemeLight;
 
     if (_isLoadingSimulasi) {
@@ -343,10 +430,9 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
       );
     }
     if (_simulasiResult == null) {
-      return const SizedBox.shrink(); // Tidak tampil apa-apa jika belum ada hasil
+      return const SizedBox.shrink();
     }
 
-    // Tampilkan hasil tanpa Card dan Divider
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -357,8 +443,7 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 24), // Spasi lebih lega
-        // Gunakan helper row yang dimodifikasi
+        const SizedBox(height: 24),
         _buildResultRow(
           context,
           icon: Icons.percent_outlined,
@@ -366,16 +451,38 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
           value: _percentFormatter.format((_simulasiResult!.margin ?? 0) / 100),
         ),
         const SizedBox(height: 16),
+        if (_simulasiResult!.biayaAdmin != null) ...[
+          _buildResultRow(
+            context,
+            icon: Icons.admin_panel_settings_outlined,
+            label: 'Biaya Admin',
+            value: _percentFormatter.format(
+              (_simulasiResult!.biayaAdmin!) / 100,
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (_simulasiResult!.biayaAdminRp != null) ...[
+          _buildResultRow(
+            context,
+            icon: Icons.account_balance_wallet_outlined,
+            label: 'Biaya Admin (Rp)',
+            // Langsung format int karena biayaAdminRp sekarang adalah int?
+            value: _currencyFormatter.format(_simulasiResult!.biayaAdminRp!),
+          ),
+          const SizedBox(height: 16),
+        ],
+
         _buildResultRow(
           context,
           icon: Icons.payment_outlined,
           label: 'Estimasi Angsuran / Bulan',
           value: _currencyFormatter.format(_simulasiResult!.angsuran ?? 0),
-          isHighlight: true, // Tetap highlight angsuran
+          isHighlight: true,
         ),
         const SizedBox(height: 12),
         Text(
-          '*Hasil simulasi ini adalah perkiraan dan dapat berbeda tergantung pada perhitungan akhir.',
+          '*Hasil simulasi ini adalah perkiraan dan dapat berbeda.',
           style: textTheme.labelSmall?.copyWith(
             color: AppColors.secondaryTextLight,
           ),
@@ -385,7 +492,6 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
     );
   }
 
-  // Helper row hasil yang dimodifikasi (lebih modern, dengan ikon)
   Widget _buildResultRow(
     BuildContext context, {
     required IconData icon,
@@ -393,12 +499,12 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
     required String value,
     bool isHighlight = false,
   }) {
+    // ... (Logika _buildResultRow tetap sama seperti sebelumnya)
     final textTheme = AppTheme.textThemeLight;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Icon dan Label di kiri
         Row(
           children: [
             Icon(icon, color: AppColors.secondaryTextLight, size: 20),
@@ -411,9 +517,7 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
             ),
           ],
         ),
-        // Value di kanan
         Flexible(
-          // Agar teks panjang bisa wrap jika perlu
           child: Text(
             value,
             textAlign: TextAlign.right,
@@ -422,15 +526,14 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
                     ? textTheme.titleLarge?.copyWith(
                       color: AppColors.primaryLight,
                       fontWeight: FontWeight.bold,
-                    ) // Font lebih besar untuk highlight
+                    )
                     : textTheme.bodyLarge?.copyWith(
                       color: AppColors.primaryTextLight,
                       fontWeight: FontWeight.w500,
-                    ) // Font value standar sedikit lebih besar
-                    ),
+                    )),
           ),
         ),
       ],
     );
   }
-} // Akhir State
+}

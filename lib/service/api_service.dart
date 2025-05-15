@@ -16,6 +16,7 @@ import '../model/jenis_tabungan.dart';
 import '../model/pengajuan_pencairan.dart';
 import '../model/list_pengajuan.dart';
 import '../model/base_response.dart';
+import '../model/mutasi_tabungan_response.dart';
 
 class ApiService {
   static final Dio _dio = Dio(
@@ -181,6 +182,7 @@ class ApiService {
         data: payload,
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
+      print('ini ${response.data}');
 
       if (response.statusCode == 200) {
         return TabunganBulananResponse.fromJson(response.data);
@@ -293,44 +295,51 @@ class ApiService {
   }
 
   // --- METHOD UNTUK GET TENOR ---
-  Future<List<TenorItem>> getAvailableTenors() async {
+  Future<List<TenorItem>> getAvailableTenors({
+    required int jenisPinjamanId,
+  }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? token = prefs.getString("token");
+      final String? token = await _getAuthToken();
 
       if (token == null || token.isEmpty) {
         throw Exception('Token tidak ditemukan. Silakan login ulang.');
       }
 
-      // 1. Dapatkan tahun saat ini secara otomatis
       final int currentYear = DateTime.now().year;
-
-      // 2. Buat payload
-      final Map<String, dynamic> payload = {"tahun": currentYear};
+      final Map<String, dynamic> payload = {
+        "tahun": currentYear,
+        "jenis_pinjaman_id": jenisPinjamanId,
+      };
 
       final String path = '/api/simulasi/tenor';
-      print("Fetching tenors from path: $path with payload: $payload");
+      print(
+        "[ApiService.getAvailableTenors] Fetching tenors from path: $path with payload: $payload",
+      );
 
-      // 3. Ganti _dio.get menjadi _dio.post dan tambahkan 'data'
       final response = await _dio.post(
-        // <-- Ubah ke POST
+        // Menggunakan _dio instance dari class
         path,
-        data: payload, // <-- Kirim payload di sini
+        data: payload,
         options: Options(
           headers: {
             'Authorization': 'Bearer $token',
-            'Content-Type':
-                'application/json', // <-- Penting untuk POST dengan JSON
+            'Content-Type': 'application/json',
           },
         ),
       );
 
-      print("Tenor Response Status (Dio POST): ${response.statusCode}");
+      print(
+        "[ApiService.getAvailableTenors] Response Status (Dio POST): ${response.statusCode}",
+      );
+      print("[ApiService.getAvailableTenors] Response Data: ${response.data}");
 
-      // Logika parsing response tetap sama
       if (response.statusCode == 200 && response.data != null) {
-        final tenorResponse = TenorResponse.fromJson(response.data);
+        // Menggunakan model TenorResponse yang Anda berikan
+        final tenorResponse = TenorResponse.fromJson(
+          response.data as Map<String, dynamic>,
+        );
         if (tenorResponse.success && tenorResponse.data != null) {
+          // Sorting berdasarkan nilai tenor
           tenorResponse.data!.sort(
             (a, b) => (a.tenor ?? 0).compareTo(b.tenor ?? 0),
           );
@@ -341,28 +350,31 @@ class ApiService {
           );
         }
       } else {
-        // Coba ekstrak pesan error jika status code bukan 200
         String serverError = 'Format respons tenor tidak valid.';
-        if (response.data is Map && response.data['message'] != null) {
-          serverError = response.data['message'];
-        } else if (response.data is Map && response.data['error'] != null) {
-          serverError = response.data['error'];
+        if (response.data is Map<String, dynamic> &&
+            (response.data as Map<String, dynamic>)['message'] != null) {
+          serverError = (response.data as Map<String, dynamic>)['message'];
+        } else if (response.data is Map<String, dynamic> &&
+            (response.data as Map<String, dynamic>)['error'] != null) {
+          serverError = (response.data as Map<String, dynamic>)['error'];
         }
         throw Exception(serverError);
       }
     } catch (e) {
-      // Penanganan error tetap sama
-      print('Error getAvailableTenors: $e');
+      print('[ApiService.getAvailableTenors] Error: $e');
       if (e is DioException) {
-        print('DioError Response (Tenor): ${e.response?.data}');
-        // Melempar ulang dengan pesan error yang lebih spesifik jika memungkinkan
+        print(
+          '[ApiService.getAvailableTenors] DioError Response: ${e.response?.data}',
+        );
         String serverError = 'Gagal mengambil data tenor.';
-        if (e.response?.data is Map && e.response!.data['message'] != null) {
-          serverError = e.response!.data['message'];
-        } else if (e.response?.data is Map &&
-            e.response!.data['error'] != null) {
-          serverError = e.response!.data['error'];
-        } else if (e.message != null) {
+        if (e.response?.data is Map<String, dynamic>) {
+          final responseData = e.response!.data as Map<String, dynamic>;
+          if (responseData['message'] != null) {
+            serverError = responseData['message'];
+          } else if (responseData['error'] != null) {
+            serverError = responseData['error'];
+          }
+        } else if (e.message != null && e.message!.isNotEmpty) {
           serverError = e.message!;
         }
         throw Exception(serverError);
@@ -370,50 +382,55 @@ class ApiService {
       rethrow;
     }
   }
-  // --- AKHIR METHOD GET TENOR ---
 
-  // --- METHOD UNTUK POST SIMULASI PINJAMAN ---
+  // --- METHOD POST SIMULASI PINJAMAN (dari respons sebelumnya, sudah menggunakan SimulasiResult yang diperbarui) ---
   Future<SimulasiResult> postSimulasiPinjaman({
     required int jumlahPinjaman,
     required int tenor,
+    required int jenisPinjamanId,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? token = prefs.getString("token");
+      final String? token = await _getAuthToken();
 
       if (token == null || token.isEmpty) {
         throw Exception('Token tidak ditemukan. Silakan login ulang.');
       }
 
-      // Ambil tahun saat ini secara otomatis
       final int currentYear = DateTime.now().year;
-
-      // Siapkan payload
       final Map<String, dynamic> payload = {
         "tahun": currentYear,
         "jumlah_pinjaman": jumlahPinjaman,
         "tenor": tenor,
+        "jenis_pinjaman_id": jenisPinjamanId,
       };
 
-      print("Posting simulation with payload: $payload");
+      print(
+        "[ApiService.postSimulasiPinjaman] Posting simulation with payload: $payload",
+      );
       final String path = '/api/simulasi/pinjaman';
 
       final response = await _dio.post(
+        // Menggunakan _dio instance dari class
         path,
-        data: payload, // Kirim payload sebagai data
+        data: payload,
         options: Options(
           headers: {
             'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json', // Pastikan content type benar
+            'Content-Type': 'application/json',
           },
         ),
       );
 
-      print("Simulation Response Status (Dio): ${response.statusCode}");
+      print(
+        "[ApiService.postSimulasiPinjaman] Simulation Response Status (Dio): ${response.statusCode}",
+      );
+      print(
+        "[ApiService.postSimulasiPinjaman] Simulation Response Data: ${response.data}",
+      );
 
       if (response.statusCode == 200 && response.data != null) {
         final simulasiResponse = SimulasiPinjamanResponse.fromJson(
-          response.data,
+          response.data as Map<String, dynamic>,
         );
         if (simulasiResponse.success && simulasiResponse.data != null) {
           return simulasiResponse.data!;
@@ -423,28 +440,33 @@ class ApiService {
           );
         }
       } else {
-        // Coba ekstrak pesan error dari body jika status code bukan 200
         String serverError = 'Gagal menghitung simulasi.';
-        if (response.data is Map && response.data['message'] != null) {
-          serverError = response.data['message'];
+        if (response.data is Map<String, dynamic> &&
+            (response.data as Map<String, dynamic>)['message'] != null) {
+          serverError = (response.data as Map<String, dynamic>)['message'];
         }
         throw Exception(serverError);
       }
     } catch (e) {
-      print('Error postSimulasiPinjaman: $e');
+      print('[ApiService.postSimulasiPinjaman] Error: $e');
       if (e is DioException && e.response != null) {
-        print('DioError Response (Simulasi): ${e.response?.data}');
-        // Coba ambil pesan error spesifik dari DioException response
+        print(
+          '[ApiService.postSimulasiPinjaman] DioError Response (Simulasi): ${e.response?.data}',
+        );
         String serverError = 'Gagal menghitung simulasi.';
-        if (e.response?.data is Map && e.response!.data['message'] != null) {
-          serverError = e.response!.data['message'];
-        } else if (e.response?.data is Map &&
-            e.response!.data['error'] != null) {
-          serverError = e.response!.data['error'];
+        if (e.response?.data is Map<String, dynamic>) {
+          final responseData = e.response!.data as Map<String, dynamic>;
+          if (responseData['message'] != null) {
+            serverError = responseData['message'];
+          } else if (responseData['error'] != null) {
+            serverError = responseData['error'];
+          }
+        } else if (e.message != null && e.message!.isNotEmpty) {
+          serverError = e.message!;
         }
-        throw Exception(serverError); // Lempar pesan error dari server jika ada
+        throw Exception(serverError);
       }
-      rethrow; // Lempar ulang error asli jika bukan DioException dengan response
+      rethrow;
     }
   }
 
@@ -1240,6 +1262,163 @@ class ApiService {
     } catch (e) {
       print("[ApiService.changePassword] Non-Dio Exception caught: $e");
       throw Exception("Terjadi kesalahan sistem: $e"); // Throw Exception
+    }
+  }
+
+  Future<MutasiTabunganResponse> getMutasiTabungan({
+    required String bulan,
+    required String tahun,
+    int? pAnggotaId,
+    int page = 1, // Parameter untuk pagination, default halaman 1
+  }) async {
+    const String endpoint = '/api/tabungan/mutasi/list';
+    String? authTokenForLogging;
+
+    print(
+      "[ApiService.getMutasiTabungan] Called with: bulan='$bulan', tahun='$tahun', pAnggotaId=$pAnggotaId, page=$page",
+    );
+
+    if (pAnggotaId == null) {
+      print("[ApiService.getMutasiTabungan] ERROR: pAnggotaId is null.");
+      return MutasiTabunganResponse(
+        success: false,
+        message: "ID Anggota tidak valid.",
+      );
+    }
+
+    try {
+      authTokenForLogging = await _getAuthToken();
+
+      if (authTokenForLogging == null || authTokenForLogging.isEmpty) {
+        print(
+          "[ApiService.getMutasiTabungan] ERROR: Auth Token is required but not found.",
+        );
+        return MutasiTabunganResponse(
+          success: false,
+          message: "Sesi tidak valid. Silakan login kembali.",
+        );
+      }
+
+      print("[ApiService.getMutasiTabungan] Using Auth Token.");
+
+      final int? tahunInt = int.tryParse(tahun);
+      final int? bulanInt = int.tryParse(bulan);
+
+      if (tahunInt == null || bulanInt == null) {
+        print(
+          "[ApiService.getMutasiTabungan] ERROR: Invalid format for tahun ('$tahun') or bulan ('$bulan').",
+        );
+        throw Exception("Format tahun atau bulan tidak valid untuk payload.");
+      }
+      print(
+        "[ApiService.getMutasiTabungan] Parsed date: tahun=$tahunInt, bulan=$bulanInt",
+      );
+
+      Map<String, dynamic> payload = {
+        "tahun": tahunInt,
+        "bulan": bulanInt,
+        "p_anggota_id": pAnggotaId,
+        // "page": page, // Kirim parameter page jika backend Anda mendukungnya di payload POST
+      };
+
+      final response = await ApiService._dio.get(
+        endpoint, // Jika 'page' adalah query param, gunakan requestEndpoint
+        data: payload,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $authTokenForLogging',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      // LogInterceptor sudah menampilkan status dan body respons
+      print(
+        "[ApiService.getMutasiTabungan] Response status: ${response.statusCode}",
+      );
+      // print("[ApiService.getMutasiTabungan] Response data: ${response.data}"); // Dilog oleh Interceptor
+
+      if (response.statusCode == 200) {
+        print(
+          "[ApiService.getMutasiTabungan] Success response (200). Parsing data...",
+        );
+        if (response.data is Map<String, dynamic>) {
+          return MutasiTabunganResponse.fromJson(
+            response.data as Map<String, dynamic>,
+          );
+        } else {
+          print(
+            "[ApiService.getMutasiTabungan] ERROR: Unexpected response data format. Expected Map but got ${response.data.runtimeType}",
+          );
+          return MutasiTabunganResponse(
+            success: false,
+            message: "Format respons server tidak valid untuk data mutasi.",
+          );
+        }
+      } else {
+        String message = "Gagal memuat data mutasi tabungan.";
+        if (response.data is Map<String, dynamic> &&
+            (response.data as Map<String, dynamic>)['message'] != null) {
+          message = (response.data as Map<String, dynamic>)['message'];
+        }
+        print(
+          "[ApiService.getMutasiTabungan] ERROR: Failed with status ${response.statusCode}. Message: $message",
+        );
+        return MutasiTabunganResponse(
+          success: false,
+          message: "$message (Status: ${response.statusCode})",
+        );
+      }
+    } on DioException catch (e) {
+      print("[ApiService.getMutasiTabungan] DioException caught!");
+      print("  -> DioException Type: ${e.type}");
+      print("  -> Request URL: ${e.requestOptions.uri}");
+      print("  -> Request Data: ${e.requestOptions.data}");
+      if (e.response != null) {
+        print("  -> Response Status: ${e.response?.statusCode}");
+        // print("  -> Response Data: ${e.response?.data}"); // Dilog oleh Interceptor
+      } else {
+        print("  -> No response from server.");
+      }
+      print("  -> DioException Message: ${e.message}");
+
+      String errorMessage = "Gagal memuat rincian mutasi tabungan.";
+      // ... (logika penanganan error DioException yang lebih detail seperti pada getTabungan)
+      Map<String, dynamic>? errors;
+
+      if (e.response?.data is Map<String, dynamic>) {
+        final responseData = e.response!.data as Map<String, dynamic>;
+        errorMessage = responseData['message'] as String? ?? errorMessage;
+        if (responseData['errors'] is Map<String, dynamic>) {
+          errors = responseData['errors'] as Map<String, dynamic>;
+        }
+      }
+      if (e.response?.statusCode == 401) {
+        errorMessage =
+            "Sesi Anda telah berakhir atau token tidak valid. Silakan login kembali.";
+      } else if (e.response?.statusCode == 422 &&
+          errors != null &&
+          errors.isNotEmpty) {
+        final firstErrorField = errors.keys.first;
+        final firstErrorMessage =
+            (errors[firstErrorField] as List).isNotEmpty
+                ? (errors[firstErrorField] as List).first
+                : "Data tidak valid.";
+        errorMessage = "Validasi gagal: $firstErrorMessage";
+      } else if (e.type ==
+              DioExceptionType
+                  .connectionTimeout || /* ... timeout, connectionError ... */
+          e.type == DioExceptionType.unknown) {
+        errorMessage =
+            "Koneksi bermasalah atau server tidak merespons. Periksa jaringan Anda.";
+      }
+      return MutasiTabunganResponse(success: false, message: errorMessage);
+    } catch (e) {
+      print("[ApiService.getMutasiTabungan] General Exception caught: $e");
+      return MutasiTabunganResponse(
+        success: false,
+        message: "Terjadi kesalahan sistem: $e",
+      );
     }
   }
 }
