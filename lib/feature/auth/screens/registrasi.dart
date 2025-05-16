@@ -7,6 +7,7 @@ import '../../../theme.dart';
 import 'package:intl/intl.dart';
 import 'package:camera/camera.dart'; // Tambahkan ini
 import 'camera_screen.dart'; // Tambahkan ini (sesuaikan path jika perlu)
+import 'package:permission_handler/permission_handler.dart';
 
 class RegisterScreen extends StatefulWidget {
   @override
@@ -355,18 +356,88 @@ class _RegisterScreenState extends State<RegisterScreen> {
           // --- Ganti File Picker KTP dengan Camera Input ---
           _buildCameraInput(
             label: "Ambil Foto KTP",
-            iconData: Icons.camera_alt, // Icon kamera
-            file: _ktpImageFile,
+            iconData: Icons.camera_alt,
+            file:
+                _ktpImageFile, // Ini akan diupdate setelah CameraScreen ditutup
             onPick: () async {
-              if (_cameras.isEmpty) {
+              PermissionStatus status = await Permission.camera.status;
+              print("Status kamera awal: $status"); // Untuk debugging
+
+              if (status.isGranted) {
+                // Izin sudah ada, lanjutkan
+              } else if (status.isPermanentlyDenied) {
+                // Pengguna menolak permanen, arahkan ke pengaturan
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Kamera tidak tersedia atau izin ditolak.'),
+                    content: Text(
+                      'Izin kamera telah ditolak secara permanen. Aktifkan di Pengaturan Aplikasi.',
+                    ),
+                    duration: Duration(
+                      seconds: 5,
+                    ), // Beri waktu lebih lama agar pengguna bisa baca
+                    action: SnackBarAction(
+                      label: 'Pengaturan',
+                      onPressed: () {
+                        openAppSettings(); // Fungsi dari permission_handler
+                      },
+                    ),
                   ),
                 );
-                return;
+                return; // Jangan lanjutkan jika ditolak permanen
+              } else {
+                // Minta izin jika belum diberikan dan bukan ditolak permanen
+                // (status bisa jadi .denied, .restricted, .limited)
+                status = await Permission.camera.request();
+                print(
+                  "Status kamera setelah request: $status",
+                ); // Untuk debugging
+
+                if (!status.isGranted) {
+                  String message =
+                      'Izin kamera dibutuhkan untuk mengambil foto.';
+                  if (status.isPermanentlyDenied) {
+                    // Bisa jadi setelah request statusnya jadi permanentlyDenied
+                    message =
+                        'Izin kamera ditolak permanen. Aktifkan di Pengaturan Aplikasi.';
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(message),
+                        duration: Duration(seconds: 5),
+                        action: SnackBarAction(
+                          label: 'Pengaturan',
+                          onPressed: () {
+                            openAppSettings();
+                          },
+                        ),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(message)));
+                  }
+                  return; // Keluar jika izin tidak diberikan
+                }
               }
-              // Navigasi ke CameraScreen dan tunggu hasilnya (XFile)
+
+              // Lanjutkan jika izin diberikan
+              if (_cameras.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Mencoba menginisialisasi kamera...')),
+                );
+                await _initializeCameras();
+                if (_cameras.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Kamera tidak tersedia atau gagal diinisialisasi.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+              }
+
               final result = await Navigator.push<XFile?>(
                 context,
                 MaterialPageRoute(
@@ -374,7 +445,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               );
 
-              // Jika user mengambil gambar (result tidak null)
               if (result != null) {
                 setState(() {
                   _ktpImageFile = result;
@@ -384,6 +454,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     content: Text('Foto KTP berhasil diambil: ${result.name}'),
                     backgroundColor: Colors.green,
                   ),
+                );
+              } else {
+                print(
+                  "Pengambilan foto KTP dibatalkan atau tidak ada foto yang dipilih.",
                 );
               }
             },
