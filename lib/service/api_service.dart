@@ -17,6 +17,7 @@ import '../model/pengajuan_pencairan.dart';
 import '../model/list_pengajuan.dart';
 import '../model/base_response.dart';
 import '../model/mutasi_tabungan_response.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ApiService {
   static final Dio _dio = Dio(
@@ -40,15 +41,6 @@ class ApiService {
       // Jika sampai sini, berarti sukses (2xx)
       final data =
           response.data as Map<String, dynamic>; // Pastikan di-cast ke Map
-
-      // ----- Sebaiknya Hapus Penyimpanan SharedPreferences di Sini -----
-      // Penyimpanan lebih baik dilakukan di _handleLogin setelah parsing berhasil
-      // final token = data['data']['token'];
-      // final name = data['data']['user']['name'];
-      // SharedPreferences prefs = await SharedPreferences.getInstance();
-      // await prefs.setString('token', token);
-      // await prefs.setString('name', name);
-      // -------------------------------------------------------------
 
       return data;
     } on DioException catch (e) {
@@ -236,61 +228,97 @@ class ApiService {
     }
   }
 
-  Future<AnggotaProfileResponse> getAnggotaProfile() async {
-    // Return type tetap AnggotaProfile
+  static Future<ProfileResponseComplex> getProfile() async {
+    final String endpoint = "/api/profile"; // Endpoint relatif terhadap baseUrl
+
     try {
-      // Mulai blok try
-      final prefs = await SharedPreferences.getInstance();
-      final int? anggotaId = prefs.getInt("p_anggota_id");
+      // 1. Ambil instance SharedPreferences
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      // 2. Ambil token. Ganti "AUTH_TOKEN" dengan key yang Anda gunakan saat menyimpan token.
       final String? token = prefs.getString("token");
 
-      // Validasi token dan ID di awal (ini praktik yang baik)
+      // 3. Handle jika token tidak ditemukan
       if (token == null || token.isEmpty) {
-        throw Exception('Token tidak ditemukan. Silakan login ulang.');
-      }
-      if (anggotaId == null || anggotaId == 0) {
-        throw Exception('ID Anggota tidak ditemukan di SharedPreferences.');
+        print('Error: Token tidak ditemukan di SharedPreferences.');
+        // Anda bisa melempar exception spesifik atau mengembalikan respons error
+        // Di sini kita lempar exception agar bisa ditangkap oleh pemanggil
+        throw Exception(
+          'Sesi tidak valid atau token tidak ditemukan. Silakan login kembali.',
+        );
       }
 
-      final String path = '/api/anggota/$anggotaId';
-      print("Fetching profile from path: $path (using Dio)");
-
-      // Lakukan GET request menggunakan _dio
-      // Dio secara default akan throw DioException untuk status code non-2xx
-      final response = await _dio.get(
-        path,
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      // 4. Lanjutkan dengan request Dio menggunakan token yang diambil
+      final Response response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: {
+            'Authorization':
+                'Bearer $token', // Menyertakan token dari SharedPreferences
+            'Accept': 'application/json',
+          },
+        ),
       );
 
-      // Jika kode sampai sini, berarti response.statusCode adalah 2xx (sukses)
-      print("Profile Response Status (Dio): ${response.statusCode}");
-
-      // Langsung parse data karena diasumsikan sukses
-      // Tambahkan pengecekan tipe data jika perlu, meskipun Dio biasanya handle
       if (response.data != null && response.data is Map<String, dynamic>) {
-        final profileResponse = AnggotaProfileResponse.fromJson(response.data);
-
-        if (profileResponse.success && profileResponse.data?.anggota != null) {
-          return profileResponse; // Kembalikan data anggota
-        } else {
-          // Jika success false atau data anggota null dari response API yg sukses (status 200)
-          throw Exception(
-            profileResponse.message ??
-                "Gagal mengambil data profil anggota dari response.",
-          );
-        }
+        return ProfileResponseComplex.fromJson(
+          response.data as Map<String, dynamic>,
+        );
       } else {
-        // Kasus aneh: status 200 tapi data null atau bukan map
-        throw Exception("Format respons tidak valid dari server.");
+        throw Exception(
+          'Gagal mengambil profil: Format respons tidak valid atau data kosong.',
+        );
+      }
+    } on DioException catch (e) {
+      print('DioException saat getProfile: ${e.message}');
+      if (e.response != null) {
+        print('DioException - Data: ${e.response?.data}');
+        print('DioException - Status Code: ${e.response?.statusCode}');
+        String errorMessage =
+            'Gagal mengambil profil. Status: ${e.response?.statusCode}';
+
+        if (e.response?.data is Map && e.response?.data['message'] != null) {
+          errorMessage =
+              'Gagal: ${e.response?.data['message']} (Status: ${e.response?.statusCode})';
+        } else if (e.response?.data != null) {
+          errorMessage =
+              'Gagal mengambil profil: ${e.response?.data.toString()} (Status: ${e.response?.statusCode})';
+        }
+
+        if (e.response?.statusCode == 401) {
+          errorMessage =
+              'Unauthorized: Token tidak valid atau kadaluwarsa. (Status: 401)';
+          // Pertimbangkan untuk memanggil fungsi logout otomatis di sini atau
+          // memberi tahu pengguna untuk login ulang.
+        }
+        throw Exception(errorMessage);
+      } else {
+        print('DioException (tanpa respons): ${e.message}');
+        switch (e.type) {
+          case DioExceptionType.connectionTimeout:
+          case DioExceptionType.sendTimeout:
+          case DioExceptionType.receiveTimeout:
+            throw Exception('Gagal terhubung ke server: Waktu koneksi habis.');
+          case DioExceptionType.cancel:
+            throw Exception('Permintaan ke server dibatalkan.');
+          case DioExceptionType.connectionError:
+            throw Exception('Gagal terhubung ke server: Masalah koneksi.');
+          default:
+            throw Exception(
+              'Gagal terhubung ke server atau terjadi kesalahan jaringan: ${e.message}',
+            );
+        }
       }
     } catch (e) {
-      // Tangkap semua jenis error (DioException, Exception, parsing error, dll)
-      print('Error getAnggotaProfile: $e'); // Cetak error ke konsol
-      // Jika error adalah DioException dan memiliki response, cetak detailnya (opsional)
-      if (e is DioException && e.response != null) {
-        print('DioError Response: ${e.response?.data}');
+      // Menangani error umum lainnya (misalnya, dari SharedPreferences jika ada)
+      print('Error umum saat getProfile: $e');
+      // Jika error berasal dari Exception yang sudah kita lempar (misal, token tidak ada),
+      // kita bisa melemparnya kembali atau membuat pesan baru.
+      if (e is Exception && e.toString().contains("Sesi tidak valid")) {
+        throw e; // Lempar kembali exception asli
       }
-      rethrow; // Lempar ulang error asli agar bisa ditangani oleh pemanggil (UI)
+      throw Exception(
+        'Terjadi kesalahan tidak terduga saat mengambil profil: $e',
+      );
     }
   }
 
@@ -1418,6 +1446,560 @@ class ApiService {
       return MutasiTabunganResponse(
         success: false,
         message: "Terjadi kesalahan sistem: $e",
+      );
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateProfilePhoto(
+    XFile imageFile,
+  ) async {
+    final String endpoint = "/api/profile/update-photo";
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString(
+        "token",
+      ); // Pastikan key token benar
+
+      if (token == null || token.isEmpty) {
+        throw Exception(
+          'Sesi tidak valid. Silakan login kembali untuk mengubah foto.',
+        );
+      }
+
+      String fileName = imageFile.path.split('/').last;
+
+      // !! PERUBAHAN DI SINI !!
+      // Mengubah nama field dari "photo" menjadi "profile_photo" sesuai pesan error backend
+      Map<String, dynamic> formDataMap = {
+        "profile_photo": await MultipartFile.fromFile(
+          imageFile.path,
+          filename: fileName,
+        ),
+        // Jika API Anda menggunakan metode POST untuk operasi PUT/PATCH (umum di Laravel),
+        // Anda mungkin perlu menambahkan field _method seperti ini:
+        // "_method": "POST", // atau "PUT", "PATCH" tergantung bagaimana backend menghandlenya
+        // Biasanya jika endpointnya POST tapi aksinya update, _method bisa jadi PUT/PATCH
+        // Jika endpointnya memang sudah POST untuk update foto, ini tidak perlu.
+      };
+
+      FormData formData = FormData.fromMap(formDataMap);
+
+      print("ApiService: Mengirim FormData untuk update foto:");
+      formData.fields.forEach((field) {
+        print("  Field: ${field.key} = ${field.value}");
+      });
+      for (var file in formData.files) {
+        print(
+          "  File: key=${file.key}, filename=${file.value.filename}, contentType=${file.value.contentType}",
+        );
+      }
+
+      final Response response = await _dio.post(
+        endpoint,
+        data: formData,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+        onSendProgress: (int sent, int total) {
+          print(
+            'Progres upload: ${(sent / total * 100).toStringAsFixed(0)}% ($sent/$total)',
+          );
+        },
+      );
+
+      if (response.data != null && response.data is Map<String, dynamic>) {
+        if (response.data['success'] == true ||
+            response.statusCode == 200 ||
+            response.statusCode == 201) {
+          print(
+            "ApiService: Foto berhasil diunggah. Respons: ${response.data}",
+          );
+          return response.data as Map<String, dynamic>;
+        } else {
+          String serverMessage =
+              response.data['message'] ?? 'Gagal mengunggah foto dari server.';
+          if (response.data['errors'] != null &&
+              response.data['errors'] is Map) {
+            Map<String, dynamic> errors = response.data['errors'];
+            serverMessage +=
+                "\nDetail: " +
+                errors.entries
+                    .map(
+                      (entry) =>
+                          '${entry.key}: ${(entry.value as List).join(', ')}',
+                    )
+                    .join('; ');
+          }
+          print(
+            "ApiService: Gagal mengunggah foto. Pesan server: $serverMessage",
+          );
+          throw Exception(serverMessage);
+        }
+      } else {
+        print(
+          "ApiService: Gagal mengunggah foto. Respons tidak valid dari server.",
+        );
+        throw Exception(
+          'Gagal mengunggah foto: Respons tidak valid dari server.',
+        );
+      }
+    } on DioException catch (e) {
+      print('DioException saat updateProfilePhoto: ${e.message}');
+      String errorMessage =
+          'Gagal mengunggah foto. Status: ${e.response?.statusCode ?? 'N/A'}';
+      if (e.response != null) {
+        print('DioException - Data Respons Error: ${e.response?.data}');
+        if (e.response?.data is Map) {
+          final responseData = e.response?.data as Map<String, dynamic>;
+          if (responseData['message'] != null &&
+              responseData['message'].toString().isNotEmpty) {
+            errorMessage =
+                'Gagal: ${responseData['message']} (Status: ${e.response?.statusCode})';
+          }
+          if (responseData['errors'] != null && responseData['errors'] is Map) {
+            Map<String, dynamic> errors = responseData['errors'];
+            String details = errors.entries
+                .map(
+                  (entry) =>
+                      '${entry.key}: ${(entry.value as List).join(', ')}',
+                )
+                .join('; ');
+            errorMessage += "\nDetail: $details";
+          }
+        } else if (e.response?.data != null) {
+          errorMessage =
+              'Gagal mengunggah foto: ${e.response?.data.toString()} (Status: ${e.response?.statusCode})';
+        }
+
+        if (e.response?.statusCode == 401) {
+          errorMessage =
+              'Unauthorized: Token tidak valid atau kadaluwarsa. (Status: 401)';
+        } else if (e.response?.statusCode == 400) {
+          errorMessage =
+              'Permintaan tidak valid atau form tidak lengkap (Status: 400). ${errorMessage.contains("Detail:") ? "" : "Pastikan semua field yang dibutuhkan API telah dikirim."}';
+        } else if (e.response?.statusCode == 422) {
+          errorMessage =
+              'Data tidak valid (Status: 422). ${errorMessage.contains("Detail:") ? "" : "Periksa kembali data yang dikirim."}';
+        }
+      } else {
+        switch (e.type) {
+          case DioExceptionType.connectionTimeout:
+          case DioExceptionType.sendTimeout:
+          case DioExceptionType.receiveTimeout:
+            errorMessage = 'Gagal terhubung ke server: Waktu koneksi habis.';
+            break;
+          case DioExceptionType.cancel:
+            errorMessage = 'Permintaan ke server dibatalkan.';
+            break;
+          case DioExceptionType.connectionError:
+            errorMessage = 'Gagal terhubung ke server: Masalah koneksi.';
+            break;
+          default:
+            errorMessage =
+                'Gagal terhubung ke server atau terjadi kesalahan jaringan: ${e.message}';
+        }
+      }
+      throw Exception(errorMessage);
+    } catch (e) {
+      print('Error umum saat updateProfilePhoto: $e');
+      if (e is Exception && e.toString().contains("Sesi tidak valid")) {
+        throw e;
+      }
+      throw Exception(
+        'Terjadi kesalahan tidak terduga saat mengunggah foto: $e',
+      );
+    }
+  }
+
+  static Future<Map<String, dynamic>> registerUser({
+    required String nama,
+    required String alamatEmail,
+    required String nomorHp,
+    required String nomorPegawai,
+    required String nomorKtp,
+    String? tempatLahir, // Opsional
+    required String tanggalLahir, // Format YYYY-MM-DD
+    String? alamat, // Opsional
+    required int pUnitId,
+    XFile? attachmentKtpFile, // File KTP opsional
+    XFile? attachmentKartuPegawaiFile, // File Kartu Pegawai opsional
+    // Tambahkan parameter lain jika diperlukan, misalnya password
+    // required String password,
+    // required String passwordConfirmation,
+  }) async {
+    final String endpoint =
+        "/api/anggota/register"; // Pastikan endpoint ini benar
+
+    try {
+      // Membuat Map untuk field teks
+      Map<String, dynamic> textFields = {
+        "nama": nama,
+        "alamat_email": alamatEmail,
+        "nomor_hp": nomorHp,
+        "nomor_pegawai": nomorPegawai,
+        "nomor_ktp": nomorKtp,
+        "tanggal_lahir": tanggalLahir, // Pastikan format YYYY-MM-DD
+        "p_unit_id":
+            pUnitId.toString(), // API mungkin mengharapkan String untuk ID
+        // Tambahkan field opsional jika ada nilainya
+        if (tempatLahir != null && tempatLahir.isNotEmpty)
+          "tempat_lahir": tempatLahir,
+        if (alamat != null && alamat.isNotEmpty) "alamat": alamat,
+        // Tambahkan field password jika API Anda memerlukannya saat registrasi
+        // "password": password,
+        // "password_confirmation": passwordConfirmation,
+      };
+
+      // Membuat FormData dan menambahkan field teks
+      FormData formData = FormData.fromMap(textFields);
+
+      // Menambahkan file KTP jika ada
+      if (attachmentKtpFile != null) {
+        String ktpFileName = attachmentKtpFile.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            "attachment_ktp", // Pastikan nama field ini sesuai dengan API backend
+            await MultipartFile.fromFile(
+              attachmentKtpFile.path,
+              filename: ktpFileName,
+            ),
+          ),
+        );
+      }
+
+      // Menambahkan file Kartu Pegawai jika ada
+      if (attachmentKartuPegawaiFile != null) {
+        String kartuPegawaiFileName =
+            attachmentKartuPegawaiFile.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            "attachment_kartu_pegawai", // Pastikan nama field ini sesuai dengan API backend
+            await MultipartFile.fromFile(
+              attachmentKartuPegawaiFile.path,
+              filename: kartuPegawaiFileName,
+            ),
+          ),
+        );
+      }
+
+      print("ApiService: Mengirim FormData untuk registrasi:");
+      formData.fields.forEach((field) {
+        print("  Field: ${field.key} = ${field.value}");
+      });
+      for (var file in formData.files) {
+        print(
+          "  File: key=${file.key}, filename=${file.value.filename}, contentType=${file.value.contentType}",
+        );
+      }
+
+      final Response response = await _dio.post(
+        endpoint,
+        data: formData, // Mengirim FormData
+        options: Options(
+          headers: {
+            'Accept': 'application/json',
+            // Dio akan otomatis mengatur 'Content-Type' ke 'multipart/form-data'
+            // Token biasanya tidak diperlukan untuk endpoint registrasi
+          },
+        ),
+      );
+
+      if (response.data != null && response.data is Map<String, dynamic>) {
+        if (response.data['success'] == true ||
+            response.statusCode == 200 ||
+            response.statusCode == 201) {
+          print("ApiService: Registrasi berhasil. Respons: ${response.data}");
+          return response.data as Map<String, dynamic>;
+        } else {
+          String serverMessage =
+              response.data['message'] ?? 'Gagal melakukan registrasi.';
+          if (response.data['errors'] != null &&
+              response.data['errors'] is Map) {
+            Map<String, dynamic> errors = response.data['errors'];
+            serverMessage +=
+                "\nDetail: " +
+                errors.entries
+                    .map(
+                      (entry) =>
+                          '${entry.key}: ${(entry.value as List).join(', ')}',
+                    )
+                    .join('; ');
+          }
+          print("ApiService: Gagal registrasi. Pesan server: $serverMessage");
+          throw Exception(serverMessage);
+        }
+      } else {
+        print("ApiService: Gagal registrasi. Respons tidak valid dari server.");
+        throw Exception(
+          'Gagal melakukan registrasi: Respons tidak valid dari server.',
+        );
+      }
+    } on DioException catch (e) {
+      print('DioException saat registerUser: ${e.message}');
+      String errorMessage =
+          'Gagal melakukan registrasi. Status: ${e.response?.statusCode ?? 'N/A'}';
+      if (e.response != null) {
+        print(
+          'DioException - Data Respons Error Registrasi: ${e.response?.data}',
+        );
+        if (e.response?.data is Map) {
+          final responseData = e.response?.data as Map<String, dynamic>;
+          if (responseData['message'] != null &&
+              responseData['message'].toString().isNotEmpty) {
+            errorMessage =
+                'Gagal: ${responseData['message']} (Status: ${e.response?.statusCode})';
+          }
+          if (responseData['errors'] != null && responseData['errors'] is Map) {
+            Map<String, dynamic> errors = responseData['errors'];
+            String details = errors.entries
+                .map(
+                  (entry) =>
+                      '${entry.key}: ${(entry.value as List).join(', ')}',
+                )
+                .join('; ');
+            errorMessage += "\nDetail: $details";
+          }
+        } else if (e.response?.data != null) {
+          errorMessage =
+              'Gagal registrasi: ${e.response?.data.toString()} (Status: ${e.response?.statusCode})';
+        }
+        if (e.response?.statusCode == 422) {
+          errorMessage =
+              'Data registrasi tidak valid (Status: 422). ${errorMessage.contains("Detail:") ? "" : "Periksa kembali data yang Anda masukkan."}';
+        } else if (e.response?.statusCode == 400) {
+          errorMessage =
+              'Permintaan registrasi tidak valid (Status: 400). ${errorMessage.contains("Detail:") ? "" : "Pastikan semua field yang dibutuhkan API telah diisi dengan benar."}';
+        }
+      } else {
+        switch (e.type) {
+          case DioExceptionType.connectionTimeout:
+          case DioExceptionType.sendTimeout:
+          case DioExceptionType.receiveTimeout:
+            errorMessage = 'Gagal terhubung ke server: Waktu koneksi habis.';
+            break;
+          case DioExceptionType.cancel:
+            errorMessage = 'Permintaan ke server dibatalkan.';
+            break;
+          case DioExceptionType.connectionError:
+            errorMessage = 'Gagal terhubung ke server: Masalah koneksi.';
+            break;
+          default:
+            errorMessage =
+                'Gagal terhubung ke server atau terjadi kesalahan jaringan: ${e.message}';
+        }
+      }
+      throw Exception(errorMessage);
+    } catch (e) {
+      print('Error umum saat registerUser: $e');
+      throw Exception('Terjadi kesalahan tidak terduga saat registrasi: $e');
+    }
+  }
+
+  // --- METODE BARU UNTUK PENGAJUAN PINJAMAN ---
+  static Future<Map<String, dynamic>> submitLoanApplication({
+    required int pAnggotaId,
+    required int pJenisPinjamanId,
+    List<int>? pPinjamanKeperluanIds, // Opsional, tergantung pJenisPinjamanId
+    String? jenisBarang, // Opsional, tergantung pJenisPinjamanId
+    String? merkType, // Opsional, tergantung pJenisPinjamanId
+    required int tenor, // Asumsi integer untuk bulan
+    required double raJumlahPinjaman, // Asumsi double untuk jumlah
+    required double biayaAdmin, // Asumsi double
+    required String jaminan,
+    required String jaminanKeterangan,
+    required double jaminanPerkiraanNilai, // Asumsi double
+    required String noRekening,
+    required String bank,
+    XFile? docSlipGaji, // File PDF opsional
+  }) async {
+    final String endpoint = "/api/pinjaman/pengajuan"; // Sesuaikan jika berbeda
+
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString(
+        "token",
+      ); // Ambil token untuk autentikasi
+
+      if (token == null || token.isEmpty) {
+        throw Exception(
+          'Sesi tidak valid. Silakan login kembali untuk mengajukan pinjaman.',
+        );
+      }
+
+      Map<String, dynamic> fields = {
+        "p_anggota_id":
+            pAnggotaId.toString(), // API mungkin mengharapkan string
+        "p_jenis_pinjaman_id": pJenisPinjamanId.toString(),
+        "tenor": tenor.toString(),
+        "ra_jumlah_pinjaman": raJumlahPinjaman.toString(),
+        "biaya_admin": biayaAdmin.toString(),
+        "jaminan": jaminan,
+        "jaminan_keterangan": jaminanKeterangan,
+        "jaminan_perkiraan_nilai": jaminanPerkiraanNilai.toString(),
+        "no_rekening": noRekening,
+        "bank": bank,
+      };
+
+      // Logika kondisional untuk p_pinjaman_keperluan_ids atau jenis_barang & merk_type
+      if (pJenisPinjamanId == 1 || pJenisPinjamanId == 2) {
+        if (pPinjamanKeperluanIds == null || pPinjamanKeperluanIds.isEmpty) {
+          throw Exception(
+            "Untuk jenis pinjaman ini, keperluan pinjaman wajib diisi.",
+          );
+        }
+        // Mengirim array di FormData dengan Dio:
+        // Dio akan mengirimkannya sebagai p_pinjaman_keperluan_ids[]=id1&p_pinjaman_keperluan_ids[]=id2 dst.
+        // atau p_pinjaman_keperluan_ids[0]=id1&p_pinjaman_keperluan_ids[1]=id2 jika backend mendukung.
+        // Cara paling umum adalah mengirim list langsung.
+        fields["p_pinjaman_keperluan_ids"] =
+            pPinjamanKeperluanIds.map((id) => id.toString()).toList();
+      } else if (pJenisPinjamanId == 3) {
+        if (jenisBarang == null ||
+            jenisBarang.isEmpty ||
+            merkType == null ||
+            merkType.isEmpty) {
+          throw Exception(
+            "Untuk jenis pinjaman ini, jenis barang dan merk/tipe wajib diisi.",
+          );
+        }
+        fields["jenis_barang"] = jenisBarang;
+        fields["merk_type"] = merkType;
+      } else {
+        // Handle jenis pinjaman lain jika ada, atau throw error jika tidak valid
+        throw Exception("Jenis pinjaman tidak valid: $pJenisPinjamanId");
+      }
+
+      FormData formData = FormData.fromMap(fields);
+
+      // Tambahkan file slip gaji jika ada
+      if (docSlipGaji != null) {
+        String fileName = docSlipGaji.path.split('/').last;
+        formData.files.add(
+          MapEntry(
+            "doc_slip_gaji", // Pastikan nama field ini sesuai dengan API backend
+            await MultipartFile.fromFile(docSlipGaji.path, filename: fileName),
+          ),
+        );
+      }
+
+      print("ApiService: Mengirim FormData untuk pengajuan pinjaman:");
+      formData.fields.forEach((field) {
+        print("  Field: ${field.key} = ${field.value}");
+      });
+      for (var file in formData.files) {
+        print(
+          "  File: key=${file.key}, filename=${file.value.filename}, contentType=${file.value.contentType}",
+        );
+      }
+
+      final Response response = await _dio.post(
+        endpoint,
+        data: formData,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+        onSendProgress: (int sent, int total) {
+          print(
+            'Progres upload pengajuan: ${(sent / total * 100).toStringAsFixed(0)}% ($sent/$total)',
+          );
+        },
+      );
+
+      if (response.data != null && response.data is Map<String, dynamic>) {
+        if (response.data['success'] == true ||
+            response.statusCode == 200 ||
+            response.statusCode == 201) {
+          print(
+            "ApiService: Pengajuan pinjaman berhasil. Respons: ${response.data}",
+          );
+          return response.data as Map<String, dynamic>;
+        } else {
+          String serverMessage =
+              response.data['message'] ?? 'Gagal mengajukan pinjaman.';
+          if (response.data['errors'] != null &&
+              response.data['errors'] is Map) {
+            Map<String, dynamic> errors = response.data['errors'];
+            serverMessage +=
+                "\nDetail: " +
+                errors.entries
+                    .map(
+                      (entry) =>
+                          '${entry.key}: ${(entry.value as List).join(', ')}',
+                    )
+                    .join('; ');
+          }
+          print(
+            "ApiService: Gagal mengajukan pinjaman. Pesan server: $serverMessage",
+          );
+          throw Exception(serverMessage);
+        }
+      } else {
+        print(
+          "ApiService: Gagal mengajukan pinjaman. Respons tidak valid dari server.",
+        );
+        throw Exception(
+          'Gagal mengajukan pinjaman: Respons tidak valid dari server.',
+        );
+      }
+    } on DioException catch (e) {
+      print('DioException saat submitLoanApplication: ${e.message}');
+      String errorMessage =
+          'Gagal mengajukan pinjaman. Status: ${e.response?.statusCode ?? 'N/A'}';
+      if (e.response != null) {
+        print(
+          'DioException - Data Respons Error Pengajuan: ${e.response?.data}',
+        );
+        if (e.response?.data is Map) {
+          final responseData = e.response?.data as Map<String, dynamic>;
+          if (responseData['message'] != null &&
+              responseData['message'].toString().isNotEmpty) {
+            errorMessage =
+                'Gagal: ${responseData['message']} (Status: ${e.response?.statusCode})';
+          }
+          if (responseData['errors'] != null && responseData['errors'] is Map) {
+            Map<String, dynamic> errors = responseData['errors'];
+            String details = errors.entries
+                .map(
+                  (entry) =>
+                      '${entry.key}: ${(entry.value as List).join(', ')}',
+                )
+                .join('; ');
+            errorMessage += "\nDetail: $details";
+          }
+        } else if (e.response?.data != null) {
+          errorMessage =
+              'Gagal mengajukan pinjaman: ${e.response?.data.toString()} (Status: ${e.response?.statusCode})';
+        }
+        if (e.response?.statusCode == 401) {
+          errorMessage =
+              'Unauthorized: Token tidak valid atau kadaluwarsa. (Status: 401)';
+        } else if (e.response?.statusCode == 422) {
+          errorMessage =
+              'Data pengajuan tidak valid (Status: 422). ${errorMessage.contains("Detail:") ? "" : "Periksa kembali data yang Anda masukkan."}';
+        } else if (e.response?.statusCode == 400) {
+          errorMessage =
+              'Permintaan pengajuan tidak valid (Status: 400). ${errorMessage.contains("Detail:") ? "" : "Pastikan semua field yang dibutuhkan API telah diisi dengan benar."}';
+        }
+      } else {
+        // ... (Error handling DioExceptionType yang serupa) ...
+        throw Exception(
+          'Gagal terhubung ke server atau terjadi kesalahan jaringan: ${e.message}',
+        );
+      }
+      throw Exception(errorMessage);
+    } catch (e) {
+      print('Error umum saat submitLoanApplication: $e');
+      if (e is Exception && e.toString().contains("Sesi tidak valid")) {
+        throw e;
+      }
+      throw Exception(
+        'Terjadi kesalahan tidak terduga saat mengajukan pinjaman: $e',
       );
     }
   }

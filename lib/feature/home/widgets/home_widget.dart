@@ -248,13 +248,33 @@ class CategoriesWidget extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     final List<Map<String, dynamic>> categories = [
-      {"icon": Icons.calculate, "label": "Simulasi Pinjaman"},
-      {"icon": Icons.assignment, "label": "Pengajuan Pinjaman"},
-      {"icon": Icons.info, "label": "Info SHU"},
-      {"icon": Icons.person, "label": "Info Profile"},
-      {"icon": Icons.savings, "label": "Info Tabungan"},
-      {"icon": Icons.monetization_on, "label": "Pencairan Tabungan"},
-    ]; // Data tidak diubah
+      {"icon": Icons.calculate_outlined, "label": "Simulasi Pinjaman"},
+      {"icon": Icons.description_outlined, "label": "Pengajuan Pinjaman"},
+      {"icon": Icons.info_outline, "label": "Info SHU"},
+      {"icon": Icons.person_outline, "label": "Info Profil"},
+      {"icon": Icons.savings_outlined, "label": "Info Tabungan"},
+      {"icon": Icons.paid_outlined, "label": "Pencairan Tabungan"},
+    ];
+
+    // Determine crossAxisCount based on screen width
+    int crossAxisCount = screenWidth > 700 ? 4 : 3;
+    if (screenWidth < 380 && categories.length > 4) {
+      crossAxisCount = 3;
+    }
+
+    // Adjust childAspectRatio to give more height to items
+    // Smaller value means taller items relative to their width.
+    // Let's try even smaller values if 0.9/0.85 was not enough.
+    double childAspectRatio = 0.8; // Dikurangi dari 0.9
+    if (screenWidth < 420) {
+      // Penyesuaian breakpoint untuk layar yang lebih sempit
+      childAspectRatio =
+          0.75; // Dikurangi dari 0.85, memberi lebih banyak tinggi
+    }
+    if (screenWidth < 360) {
+      // Untuk layar yang sangat sempit
+      childAspectRatio = 0.7;
+    }
 
     return GridView.builder(
       itemCount: categories.length,
@@ -262,20 +282,16 @@ class CategoriesWidget extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: screenWidth > 600 ? 4 : 3,
-        // --- PERUBAHAN HANYA DI SINI ---
-        // Mengurangi aspect ratio untuk memberi ruang tinggi lebih pada item,
-        // mengatasi overflow saat teks label 2 baris.
-        // Coba nilai lain (misal: 0.95, 0.9) jika 1.0 belum cukup.
-        childAspectRatio: 1.0, // Diubah dari 1.2
-        // --- AKHIR PERUBAHAN ---
+        crossAxisCount: crossAxisCount,
+        childAspectRatio:
+            childAspectRatio, // Menggunakan nilai yang lebih kecil
         crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        mainAxisSpacing:
+            16, // Sedikit ditambah dari 12 untuk ruang vertikal antar baris
       ),
       itemBuilder: (context, index) {
         final category = categories[index];
         return CategoryItem(
-          // Memanggil CategoryItem
           category: category,
           isDarkMode: isDarkMode,
           textTheme: textTheme,
@@ -288,40 +304,42 @@ class CategoriesWidget extends StatelessWidget {
   }
 
   void _navigateToPage(BuildContext context, int index) {
-    // Logika navigasi tidak diubah
     switch (index) {
       case 0:
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => SimulasiPinjamanScreen()),
+          MaterialPageRoute(builder: (_) => const SimulasiPinjamanScreen()),
         );
         break;
       case 1:
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => FormWizardScreen()),
+          MaterialPageRoute(builder: (_) => const FormWizardScreen()),
         );
         break;
       case 2:
-        Navigator.push(context, MaterialPageRoute(builder: (_) => ShuPage()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ShuPage()),
+        );
         break;
       case 3:
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => FormWizardScreen()),
+          MaterialPageRoute(builder: (_) => const ShuPage()),
         );
         break;
       case 4:
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TabunganPage()),
-        ); // Seharusnya ke Info Tabungan? -> TabunganPage()
+          MaterialPageRoute(builder: (_) => const TabunganPage()),
+        );
         break;
       case 5:
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => PencairanTabunganScreen()),
-        ); // Seharusnya ke Pencairan?
+          MaterialPageRoute(builder: (_) => const PencairanTabunganScreen()),
+        );
         break;
     }
   }
@@ -346,42 +364,49 @@ class CategoryItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
+        // Padding vertikal bisa sedikit dikurangi jika childAspectRatio sangat kecil
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
           color:
               isDarkMode
-                  ? AppColors.primaryDark.withOpacity(0.1)
-                  : AppColors.primaryLight.withOpacity(0.1),
+                  ? AppColors.primaryDark.withOpacity(0.15)
+                  : AppColors.primaryLight.withOpacity(0.08),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDarkMode ? Colors.white12 : Colors.black12,
+            width: 0.5,
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             CircleAvatar(
-              radius: 25,
-              backgroundColor: Colors.transparent,
+              radius: 24, // Sedikit dikurangi jika ruang sangat terbatas
+              backgroundColor:
+                  isDarkMode
+                      ? AppColors.primaryLight.withOpacity(0.1)
+                      : AppColors.primaryDark.withOpacity(0.05),
               child: Icon(
                 category['icon'],
                 color:
                     isDarkMode ? AppColors.primaryLight : AppColors.primaryDark,
-                size: 28,
+                size: 26, // Ukuran ikon sedikit disesuaikan
               ),
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              // Added SizedBox to limit the width of the Text widget
-              width: 80, // You can adjust this value as needed
-              child: Text(
-                category['label'],
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.labelSmall?.copyWith(
-                  color:
-                      isDarkMode
-                          ? AppColors.primaryTextLight
-                          : AppColors.primaryTextLight,
-                ),
+            const SizedBox(
+              height: 8,
+            ), // Spasi antara ikon dan teks sedikit dikurangi
+            Text(
+              category['label'],
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: textTheme.labelMedium?.copyWith(
+                color: isDarkMode ? Colors.grey[300] : Colors.black87,
+                fontWeight: FontWeight.w500,
+                height:
+                    1.2, // Menambah sedikit line-height jika teks 2 baris terlalu rapat
               ),
             ),
           ],

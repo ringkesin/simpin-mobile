@@ -1,85 +1,124 @@
+// feature/register/screens/register_screen.dart
+
+import 'dart:io'; // Tidak secara langsung digunakan di sini, tapi CameraScreen mungkin membutuhkannya
 import 'package:flutter/material.dart';
-import 'package:step_progress_indicator/step_progress_indicator.dart';
-import '../../../service/api_service.dart';
-import 'package:flutter_typeahead/flutter_typeahead.dart';
-import 'package:file_selector/file_selector.dart';
-import '../../../theme.dart';
 import 'package:intl/intl.dart';
-import 'package:camera/camera.dart'; // Tambahkan ini
-import 'camera_screen.dart'; // Tambahkan ini (sesuaikan path jika perlu)
+import 'package:shared_preferences/shared_preferences.dart'; // Meskipun tidak digunakan langsung di sini, ApiService mungkin butuh
+import 'package:image_picker/image_picker.dart'; // Untuk XFile dari CameraScreen
+
+// !! PENTING: GANTI PATH DAN NAMA FILE IMPORT INI !!
+// Pastikan path ini benar dan file model berisi:
+// ProfileResponseComplex, ProfileUser, ProfileAnggota (jika respons registrasi mengembalikannya)
+// Jika model registrasi berbeda, buat dan impor model yang sesuai.
+// Untuk contoh ini, kita asumsikan ApiService.registerUser mengembalikan Map<String, dynamic>
+// dan tidak langsung menggunakan ProfileResponseComplex untuk registrasi.
+// import '../../../model/profile_complex_model.dart'; // Jika respons registrasi menggunakan model ini
+
+import '../../../service/api_service.dart';
+import '../../../theme.dart'; // Pastikan AppColors dan AppTheme.textThemeLight ada
+import 'package:step_progress_indicator/step_progress_indicator.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:camera/camera.dart';
+import 'camera_screen.dart'; // Pastikan path ini benar
 import 'package:permission_handler/permission_handler.dart';
 
 class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
   @override
-  _RegisterScreenState createState() => _RegisterScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen>
+    with TickerProviderStateMixin {
   final PageController _pageController = PageController();
   int _currentStep = 1;
   List<Map<String, dynamic>> _units = [];
-  List<CameraDescription> _cameras = []; // Untuk menyimpan list kamera
-  String? _selectedUnit;
+  List<CameraDescription> _cameras = [];
+  String? _selectedUnitId; // Menyimpan ID unit sebagai String
 
-  // Controller for date of birth text field
+  // --- Controllers untuk Step 1 ---
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _dobController = TextEditingController();
-  // Controller for department field
-  final TextEditingController _departmentController = TextEditingController();
   DateTime? _selectedDate;
+  final TextEditingController _tempatLahirController =
+      TextEditingController(); // BARU
+
+  // --- Controllers dan State untuk Step 2 ---
+  final TextEditingController _employeeIdController = TextEditingController();
+  final TextEditingController _departmentController = TextEditingController();
+  final TextEditingController _nomorKtpController = TextEditingController();
+  final TextEditingController _alamatController =
+      TextEditingController(); // BARU
+
+  XFile? _ktpImageFile;
+  XFile? _kartuPegawaiImageFile;
+
+  // --- State untuk proses registrasi ---
+  bool _isRegistering = false;
+
+  final GlobalKey<FormState> _formKeyStep1 = GlobalKey<FormState>();
+  final GlobalKey<FormState> _formKeyStep2 = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
     _fetchUnits();
-    _initializeCameras(); // Panggil fungsi inisialisasi kamera
+    _initializeCameras();
   }
 
-  // Fungsi baru untuk inisialisasi kamera
   Future<void> _initializeCameras() async {
     try {
-      WidgetsFlutterBinding.ensureInitialized(); // Pastikan binding siap
+      WidgetsFlutterBinding.ensureInitialized();
       _cameras = await availableCameras();
     } on CameraException catch (e) {
       print('Error initializing cameras: ${e.code}, ${e.description}');
-      // Handle error, mungkin tampilkan pesan ke user
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Tidak dapat mengakses kamera: ${e.description}'),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Tidak dapat mengakses kamera: ${e.description}'),
+          ),
+        );
+      }
     }
   }
 
   @override
   void dispose() {
-    _dobController.dispose();
-    _departmentController.dispose();
     _pageController.dispose();
+    _fullNameController.dispose();
+    _emailController.dispose();
+    _phoneNumberController.dispose();
+    _dobController.dispose();
+    _tempatLahirController.dispose(); // BARU
+    _employeeIdController.dispose();
+    _departmentController.dispose();
+    _nomorKtpController.dispose();
+    _alamatController.dispose(); // BARU
     super.dispose();
   }
 
-  // Method to show date picker
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate:
           _selectedDate ??
-          DateTime.now().subtract(
-            Duration(days: 365 * 18),
-          ), // Default 18 years ago
+          DateTime.now().subtract(const Duration(days: 365 * 18)),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
-              primary: Colors.green, // Header background color
-              onPrimary: Colors.white, // Header text color
-              onSurface: Colors.black, // Calendar text color
+              primary: AppColors.primaryLight,
+              onPrimary: Colors.white,
+              onSurface: Colors.black87,
             ),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: Colors.green, // Button text color
+                foregroundColor: AppColors.primaryLight,
               ),
             ),
           ),
@@ -96,85 +135,208 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _pickDocument(Function(XFile?) callback, {int maxSizeInMB = 2}) async {
-    final typeGroup = XTypeGroup(
-      label: 'documents',
-      extensions: ['pdf', 'doc', 'docx'],
-      uniformTypeIdentifiers: [
-        'com.adobe.pdf', // PDF
-        'com.microsoft.word.doc', // DOC
-        'org.openxmlformats.wordprocessingml.document', // DOCX
-      ],
+  String _getUnitNameById(String? id) {
+    if (id == null || id.isEmpty || _units.isEmpty) return "";
+    final unit = _units.firstWhere(
+      (unit) => unit['id'].toString() == id,
+      orElse: () => {'unit_name': ''},
     );
+    return unit['unit_name'].toString();
+  }
 
-    final XFile? file = await openFile(acceptedTypeGroups: [typeGroup]);
+  void _proceedToNextStepPage() {
+    if (_currentStep < 3) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      setState(() => _currentStep++);
+    }
+  }
 
-    if (file != null) {
-      // Cek ukuran file
-      final fileSize =
-          await file.length(); // Mendapatkan ukuran file dalam bytes
-      final fileSizeInMB = fileSize / (1024 * 1024); // Konversi ke MB
-
-      if (fileSizeInMB <= maxSizeInMB) {
-        // File ukurannya valid, lanjutkan
-        callback(file);
+  void _nextStepAction() {
+    if (_currentStep == 1) {
+      if (_formKeyStep1.currentState?.validate() ?? false) {
+        _proceedToNextStepPage();
       } else {
-        // File terlalu besar, tampilkan pesan error
-        callback(null); // Reset file yang dipilih (opsional)
-
-        // Tampilkan pesan error
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text(
-              'Ukuran file melebihi $maxSizeInMB MB. Silakan pilih file yang lebih kecil.',
+              'Harap lengkapi semua field yang wajib diisi di Langkah 1.',
             ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else if (_currentStep == 2) {
+      if (_formKeyStep2.currentState?.validate() ?? false) {
+        if (_ktpImageFile == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Foto KTP wajib diunggah.')),
+          );
+          return;
+        }
+        if (_kartuPegawaiImageFile == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Foto Kartu Pegawai wajib diunggah.')),
+          );
+          return;
+        }
+        _handleRegister();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Harap lengkapi semua field yang wajib diisi di Langkah 2.',
+            ),
           ),
         );
       }
     }
   }
 
-  String _getUnitNameById(String? id) {
-    if (id == null || id.isEmpty) return "";
-
-    final unit = _units.firstWhere(
-      (unit) => unit['id'].toString() == id,
-      orElse: () => {'unit_name': ''},
-    );
-
-    return unit['unit_name'].toString();
-  }
-
-  void _nextStep() {
-    if (_currentStep < 3) {
-      setState(() => _currentStep++);
-      _pageController.nextPage(
-        duration: Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
   void _prevStep() {
     if (_currentStep > 1) {
-      setState(() => _currentStep--);
       _pageController.previousPage(
-        duration: Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+      setState(() => _currentStep--);
     } else {
-      Navigator.pop(context); // Kembali ke halaman sebelumnya
+      Navigator.pop(context);
     }
   }
 
   Future<void> _fetchUnits() async {
-    List<Map<String, dynamic>> units = await ApiService.getUnit();
-    print("Fetched units: $units"); // Debugging
-    setState(() {
-      _units = units;
-    });
+    try {
+      List<Map<String, dynamic>> units = await ApiService.getUnit();
+      print("Fetched units: $units");
+      if (mounted) {
+        setState(() {
+          _units = units;
+        });
+      }
+    } catch (e) {
+      print("Error fetching units: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat data unit: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRegister() async {
+    // Validasi ulang form untuk langkah saat ini (Langkah 2)
+    if (!(_formKeyStep2.currentState?.validate() ?? false)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Harap lengkapi semua data di Langkah 2 dengan benar.'),
+        ),
+      );
+      return;
+    }
+    // Validasi file sudah ada (sebenarnya sudah divalidasi di _nextStepAction)
+    if (_ktpImageFile == null || _kartuPegawaiImageFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Foto KTP dan Kartu Pegawai wajib diunggah.'),
+        ),
+      );
+      return;
+    }
+    if (_selectedUnitId == null || _selectedUnitId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Departemen wajib dipilih.')),
+      );
+      return;
+    }
+
+    setState(() => _isRegistering = true);
+
+    try {
+      String formattedDob = "";
+      if (_selectedDate != null) {
+        formattedDob = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      } else {
+        throw Exception(
+          "Tanggal lahir wajib diisi.",
+        ); // Seharusnya sudah dicegah validator
+      }
+
+      int? unitId = int.tryParse(_selectedUnitId!);
+      if (unitId == null) {
+        throw Exception(
+          "ID Unit tidak valid.",
+        ); // Seharusnya sudah dicegah validator
+      }
+
+      final Map<String, dynamic> response = await ApiService.registerUser(
+        nama: _fullNameController.text,
+        alamatEmail: _emailController.text,
+        nomorHp: _phoneNumberController.text,
+        nomorPegawai: _employeeIdController.text,
+        nomorKtp: _nomorKtpController.text,
+        tanggalLahir: formattedDob,
+        pUnitId: unitId,
+        tempatLahir:
+            _tempatLahirController.text.isNotEmpty
+                ? _tempatLahirController.text
+                : null,
+        alamat:
+            _alamatController.text.isNotEmpty ? _alamatController.text : null,
+        attachmentKtpFile: _ktpImageFile,
+        attachmentKartuPegawaiFile: _kartuPegawaiImageFile,
+        // Jika ada password, tambahkan di sini
+        // password: _passwordController.text,
+        // passwordConfirmation: _confirmPasswordController.text,
+      );
+
+      if (mounted) {
+        if (response['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                response['message'] ?? 'Registrasi berhasil! Silakan login.',
+              ),
+              backgroundColor: AppColors.successLight,
+            ),
+          );
+          _proceedToNextStepPage(); // Lanjut ke halaman konfirmasi (Step 3)
+        } else {
+          // Menampilkan pesan error dari server jika ada, atau pesan default
+          String errorMessage = response['message'] ?? 'Registrasi gagal.';
+          if (response['data'] != null && response['data']['error'] is Map) {
+            // Jika ada detail error per field
+            Map<String, dynamic> errors = response['data']['error'];
+            String details = errors.entries
+                .map(
+                  (entry) =>
+                      '${entry.key}: ${(entry.value as List).join(', ')}',
+                )
+                .join('\n');
+            errorMessage += '\nDetail:\n$details';
+          }
+          throw Exception(errorMessage);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e is Exception
+                  ? e.toString().replaceFirst("Exception: ", "")
+                  : 'Terjadi kesalahan saat registrasi.',
+            ),
+            backgroundColor: AppColors.errorLight,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRegistering = false);
+      }
+    }
   }
 
   @override
@@ -182,10 +344,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: _prevStep,
         ),
-        title: Text(
+        title: const Text(
           "Register",
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
@@ -201,15 +363,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
               totalSteps: 3,
               currentStep: _currentStep,
               size: 6,
-              selectedColor: Colors.green,
+              selectedColor: AppColors.primaryLight,
               unselectedColor: Colors.grey[300]!,
-              roundedEdges: Radius.circular(10),
+              roundedEdges: const Radius.circular(10),
             ),
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
             Expanded(
               child: PageView(
                 controller: _pageController,
-                physics: NeverScrollableScrollPhysics(),
+                physics: const NeverScrollableScrollPhysics(),
                 children: [_stepOne(), _stepTwo(), _stepThree()],
               ),
             ),
@@ -219,285 +381,214 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildFilePicker({
-    required XFile? file,
-    required VoidCallback onPick,
-    required String label,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
-        SizedBox(height: 10),
-        InkWell(
-          onTap: onPick,
-          child: Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[300]!),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.upload_file, color: Colors.green, size: 22),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    file != null ? file.name : 'Pilih file',
-                    style: TextStyle(
-                      color: file != null ? Colors.black87 : Colors.grey[600],
-                      fontSize: 15,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (file != null)
-                  IconButton(
-                    icon: Icon(
-                      Icons.check_circle,
-                      color: Colors.green,
-                      size: 20,
-                    ),
-                    onPressed: null,
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 6, left: 2),
-          child: Text(
-            "Maks. ukuran file 2MB",
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ),
-        if (file != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              "File berhasil dipilih",
-              style: TextStyle(fontSize: 12, color: Colors.green),
-            ),
-          ),
-        SizedBox(height: 16),
-      ],
-    );
-  }
-
-  XFile? _ktpImageFile; // Ganti dengan ini
-  XFile? _idCardImageFile; // Ganti nama variabel kedua juga agar konsisten
-
   Widget _stepOne() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Personal Information",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 16),
-          _buildTextField("Full Name"),
-          _buildTextField(
-            "Email Address",
-            keyboardType: TextInputType.emailAddress,
-          ),
-          _buildTextField("Phone Number", keyboardType: TextInputType.phone),
-
-          // Date of Birth field
-          _buildDatePicker(
-            "Date of Birth",
-            _dobController,
-            onTap: () => _selectDate(context),
-          ),
-
-          SizedBox(height: 24),
-          _buildNextButton(),
-        ],
+    return Form(
+      key: _formKeyStep1,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Informasi Pribadi",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            _buildTextField(
+              label: "Nama Lengkap",
+              controller: _fullNameController,
+              validator:
+                  (value) =>
+                      (value?.isEmpty ?? true)
+                          ? 'Nama lengkap tidak boleh kosong.'
+                          : null,
+            ),
+            _buildTextField(
+              label: "Alamat Email",
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) {
+                if (value?.isEmpty ?? true)
+                  return 'Alamat email tidak boleh kosong.';
+                if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value!))
+                  return 'Format email tidak valid.';
+                return null;
+              },
+            ),
+            _buildTextField(
+              label: "Nomor HP",
+              controller: _phoneNumberController,
+              keyboardType: TextInputType.phone,
+              validator:
+                  (value) =>
+                      (value?.isEmpty ?? true)
+                          ? 'Nomor HP tidak boleh kosong.'
+                          : null,
+            ),
+            _buildTextField(
+              // BARU: Tempat Lahir
+              label: "Tempat Lahir (Opsional)",
+              controller: _tempatLahirController,
+            ),
+            _buildDatePicker(
+              label: "Tanggal Lahir",
+              controller: _dobController,
+              onTap: () => _selectDate(context),
+              validator:
+                  (value) =>
+                      (value?.isEmpty ?? true)
+                          ? 'Tanggal lahir tidak boleh kosong.'
+                          : null,
+            ),
+            const SizedBox(height: 24),
+            _buildNextButton(onPressed: _nextStepAction),
+          ],
+        ),
       ),
     );
   }
 
   Widget _stepTwo() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Employee Information",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 16),
-          _buildTextField("Employee ID"),
-          SizedBox(height: 8),
-          _buildDepartmentSelect(),
-          SizedBox(height: 8),
-          _buildTextField(
-            "Nomor KTP",
-            keyboardType: TextInputType.number,
-          ), // Gunakan number
-          SizedBox(height: 8),
-
-          // --- Ganti File Picker KTP dengan Camera Input ---
-          _buildCameraInput(
-            label: "Ambil Foto KTP",
-            iconData: Icons.camera_alt,
-            file:
-                _ktpImageFile, // Ini akan diupdate setelah CameraScreen ditutup
-            onPick: () async {
-              PermissionStatus status = await Permission.camera.status;
-              print("Status kamera awal: $status"); // Untuk debugging
-
-              if (status.isGranted) {
-                // Izin sudah ada, lanjutkan
-              } else if (status.isPermanentlyDenied) {
-                // Pengguna menolak permanen, arahkan ke pengaturan
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Izin kamera telah ditolak secara permanen. Aktifkan di Pengaturan Aplikasi.',
-                    ),
-                    duration: Duration(
-                      seconds: 5,
-                    ), // Beri waktu lebih lama agar pengguna bisa baca
-                    action: SnackBarAction(
-                      label: 'Pengaturan',
-                      onPressed: () {
-                        openAppSettings(); // Fungsi dari permission_handler
-                      },
-                    ),
-                  ),
-                );
-                return; // Jangan lanjutkan jika ditolak permanen
-              } else {
-                // Minta izin jika belum diberikan dan bukan ditolak permanen
-                // (status bisa jadi .denied, .restricted, .limited)
-                status = await Permission.camera.request();
-                print(
-                  "Status kamera setelah request: $status",
-                ); // Untuk debugging
-
-                if (!status.isGranted) {
-                  String message =
-                      'Izin kamera dibutuhkan untuk mengambil foto.';
-                  if (status.isPermanentlyDenied) {
-                    // Bisa jadi setelah request statusnya jadi permanentlyDenied
-                    message =
-                        'Izin kamera ditolak permanen. Aktifkan di Pengaturan Aplikasi.';
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(message),
-                        duration: Duration(seconds: 5),
-                        action: SnackBarAction(
-                          label: 'Pengaturan',
-                          onPressed: () {
-                            openAppSettings();
-                          },
-                        ),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(message)));
-                  }
-                  return; // Keluar jika izin tidak diberikan
+    return Form(
+      key: _formKeyStep2,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Informasi Kepegawaian & Dokumen",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            _buildTextField(
+              label: "Nomor Pegawai",
+              controller: _employeeIdController,
+              validator:
+                  (value) =>
+                      (value?.isEmpty ?? true)
+                          ? 'Nomor Pegawai tidak boleh kosong.'
+                          : null,
+            ),
+            _buildDepartmentSelect(
+              validator:
+                  (value) =>
+                      (_selectedUnitId == null || _selectedUnitId!.isEmpty)
+                          ? 'Departemen wajib dipilih.'
+                          : null,
+            ),
+            _buildTextField(
+              // BARU: Alamat
+              label: "Alamat Lengkap (Opsional)",
+              controller: _alamatController,
+              keyboardType: TextInputType.multiline,
+              maxLines: 3,
+            ),
+            _buildTextField(
+              label: "Nomor KTP",
+              controller: _nomorKtpController,
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value?.isEmpty ?? true)
+                  return 'Nomor KTP tidak boleh kosong.';
+                if (value!.length != 16) return 'Nomor KTP harus 16 digit.';
+                return null;
+              },
+            ),
+            _buildCameraInput(
+              label: "Foto KTP",
+              iconData: Icons.credit_card_outlined,
+              file: _ktpImageFile,
+              onPick: () async {
+                PermissionStatus status = await Permission.camera.status;
+                if (!status.isGranted && !status.isPermanentlyDenied) {
+                  status = await Permission.camera.request();
                 }
-              }
-
-              // Lanjutkan jika izin diberikan
-              if (_cameras.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Mencoba menginisialisasi kamera...')),
-                );
-                await _initializeCameras();
-                if (_cameras.isEmpty) {
+                if (!status.isGranted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Kamera tidak tersedia atau gagal diinisialisasi.',
+                        status.isPermanentlyDenied
+                            ? 'Izin kamera ditolak permanen. Aktifkan di Pengaturan.'
+                            : 'Izin kamera dibutuhkan.',
                       ),
                     ),
                   );
+                  if (status.isPermanentlyDenied) openAppSettings();
                   return;
                 }
-              }
-
-              final result = await Navigator.push<XFile?>(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CameraScreen(cameras: _cameras),
-                ),
-              );
-
-              if (result != null) {
-                setState(() {
-                  _ktpImageFile = result;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Foto KTP berhasil diambil: ${result.name}'),
-                    backgroundColor: Colors.green,
+                if (_cameras.isEmpty) {
+                  await _initializeCameras();
+                  if (_cameras.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Kamera tidak tersedia.')),
+                    );
+                    return;
+                  }
+                }
+                final result = await Navigator.push<XFile?>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CameraScreen(cameras: _cameras),
                   ),
                 );
-              } else {
-                print(
-                  "Pengambilan foto KTP dibatalkan atau tidak ada foto yang dipilih.",
+                if (result != null) setState(() => _ktpImageFile = result);
+              },
+            ),
+            _buildCameraInput(
+              label: "Foto Kartu Pegawai",
+              iconData: Icons.badge_outlined,
+              file: _kartuPegawaiImageFile,
+              onPick: () async {
+                PermissionStatus status = await Permission.camera.status;
+                if (!status.isGranted && !status.isPermanentlyDenied) {
+                  status = await Permission.camera.request();
+                }
+                if (!status.isGranted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        status.isPermanentlyDenied
+                            ? 'Izin kamera ditolak permanen. Aktifkan di Pengaturan.'
+                            : 'Izin kamera dibutuhkan.',
+                      ),
+                    ),
+                  );
+                  if (status.isPermanentlyDenied) openAppSettings();
+                  return;
+                }
+                if (_cameras.isEmpty) {
+                  await _initializeCameras();
+                  if (_cameras.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Kamera tidak tersedia.')),
+                    );
+                    return;
+                  }
+                }
+                final result = await Navigator.push<XFile?>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CameraScreen(cameras: _cameras),
+                  ),
                 );
-              }
-            },
-          ),
-
-          // --- Akhir Ganti File Picker KTP ---
-          SizedBox(height: 8),
-
-          // --- Tetap Gunakan File Picker untuk ID Card ---
-          // (Atau ubah menjadi _buildCameraInput jika ID Card juga pakai kamera)
-          _buildFilePicker(
-            label: "Upload Foto ID Card",
-            file: _idCardImageFile, // Pastikan nama variabel ini benar
-            onPick: () {
-              _pickDocument((file) {
-                setState(() {
-                  _idCardImageFile = file; // Update state untuk ID Card
-                });
-              }, maxSizeInMB: 2);
-            },
-          ),
-
-          // --- Akhir File Picker ID Card ---
-          SizedBox(height: 24), // Beri jarak sebelum tombol navigasi
-          _buildNavigationButtons(),
-        ],
+                if (result != null)
+                  setState(() => _kartuPegawaiImageFile = result);
+              },
+            ),
+            const SizedBox(height: 24),
+            _buildNavigationButtons(),
+          ],
+        ),
       ),
     );
   }
 
-  // Department selection with matching styling
-  Widget _buildDepartmentSelect() {
+  Widget _buildDepartmentSelect({String? Function(String?)? validator}) {
+    // Validator diubah ke String?
     final textTheme = Theme.of(context).textTheme;
-    final primaryColor = Theme.of(context).primaryColor;
+    final primaryColor = AppColors.primaryLight; // Menggunakan AppColors
     final borderColor = Colors.grey[300];
-
-    // Update department controller when selected unit changes
-    if (_selectedUnit != null) {
-      _departmentController.text = _getUnitNameById(_selectedUnit);
-    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -506,9 +597,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           controller: _departmentController,
           style: textTheme.bodyMedium,
           decoration: InputDecoration(
-            labelText: 'Select Department',
+            labelText: 'Pilih Departemen/Unit',
             labelStyle: textTheme.labelMedium,
-            hintText: 'Search or select department',
+            hintText: 'Ketik untuk mencari departemen',
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 12,
@@ -525,11 +616,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: primaryColor, width: 2),
             ),
-            prefixIcon: Icon(Icons.business, size: 20),
-            suffixIcon: Icon(Icons.arrow_drop_down),
+            prefixIcon: const Icon(Icons.business, size: 20),
+            suffixIcon: const Icon(Icons.arrow_drop_down),
           ),
         ),
         suggestionsCallback: (pattern) {
+          if (_units.isEmpty && pattern.isNotEmpty)
+            return Future.value([]); // Hindari error jika _units kosong
           return _units
               .where(
                 (unit) => unit['unit_name'].toString().toLowerCase().contains(
@@ -540,65 +633,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
         },
         itemBuilder: (context, suggestion) {
           return ListTile(
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
             title: Text(
               suggestion['unit_name'].toString(),
-              style: TextStyle(fontWeight: FontWeight.w500),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
             leading: CircleAvatar(
-              backgroundColor: Colors.green.withOpacity(0.1),
-              child: Icon(Icons.domain, color: Colors.green),
+              backgroundColor: primaryColor.withOpacity(0.1),
+              child: Icon(Icons.domain, color: primaryColor),
             ),
           );
         },
         onSuggestionSelected: (suggestion) {
           setState(() {
-            _selectedUnit = suggestion['id'].toString();
+            _selectedUnitId = suggestion['id'].toString(); // Simpan ID unit
             _departmentController.text = suggestion['unit_name'].toString();
           });
         },
         suggestionsBoxDecoration: SuggestionsBoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          elevation: 8.0,
-          shadowColor: Colors.black26,
-          constraints: BoxConstraints(maxHeight: 300),
+          elevation: 4.0, // Mengurangi elevation
+          shadowColor: Colors.black12, // Mengurangi shadow
+          constraints: const BoxConstraints(
+            maxHeight: 250,
+          ), // Mengurangi maxHeight
         ),
-        hideSuggestionsOnKeyboardHide: false,
+        hideSuggestionsOnKeyboardHide: true, // Diubah ke true
         noItemsFoundBuilder:
-            (context) => Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: 16.0,
-                horizontal: 16.0,
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.grey),
-                  SizedBox(width: 12),
-                  Text(
-                    'No departments found',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ],
+            (context) => const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                'Departemen tidak ditemukan.',
+                style: TextStyle(color: Colors.grey),
               ),
             ),
         loadingBuilder:
-            (context) => Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: 16.0,
-                horizontal: 16.0,
-              ),
+            (context) => const Padding(
+              padding: EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                  SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+                  CircularProgressIndicator(strokeWidth: 2),
                   SizedBox(width: 12),
-                  Text('Loading departments...'),
+                  Text('Memuat...'),
                 ],
               ),
             ),
+        validator: validator, // Menggunakan validator dari parameter
       ),
     );
   }
@@ -607,26 +690,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.check_circle, color: Colors.green, size: 80),
-        SizedBox(height: 16),
-        Text(
-          "Registration Completed!",
+        Icon(Icons.check_circle, color: AppColors.successLight, size: 80),
+        const SizedBox(height: 16),
+        const Text(
+          "Registrasi Selesai!",
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
-        SizedBox(height: 24),
+        const SizedBox(height: 8),
+        Text(
+          "Akun Anda telah berhasil dibuat. Silakan login.",
+          textAlign: TextAlign.center,
+          style: AppTheme.textThemeLight.bodyMedium,
+        ),
+        const SizedBox(height: 24),
         ElevatedButton(
           onPressed: () {
-            // Aksi setelah registrasi selesai
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/',
+              (Route<dynamic> route) => false,
+            );
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            padding: EdgeInsets.symmetric(vertical: 14, horizontal: 32),
+            backgroundColor: AppColors.primaryLight,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: Text(
-            "Finish",
+          child: const Text(
+            "Kembali ke Login",
             style: TextStyle(fontSize: 18, color: Colors.white),
           ),
         ),
@@ -634,19 +727,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // Date picker widget
-  Widget _buildDatePicker(
-    String label,
-    TextEditingController controller, {
+  Widget _buildDatePicker({
+    required String label,
+    required TextEditingController controller,
     required VoidCallback onTap,
+    String? Function(String?)? validator,
   }) {
     final textTheme = Theme.of(context).textTheme;
-    final primaryColor = Theme.of(context).primaryColor;
+    final primaryColor = AppColors.primaryLight;
     final borderColor = Colors.grey[300];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
-      child: TextField(
+      child: TextFormField(
+        // Diubah menjadi TextFormField untuk validasi
         controller: controller,
         readOnly: true,
         onTap: onTap,
@@ -671,27 +765,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(color: primaryColor, width: 2),
           ),
-          prefixIcon: Icon(Icons.calendar_today, size: 20),
-          suffixIcon: Icon(Icons.arrow_drop_down),
+          prefixIcon: const Icon(Icons.calendar_today, size: 20),
+          suffixIcon: const Icon(Icons.arrow_drop_down),
         ),
+        validator: validator, // Menggunakan validator dari parameter
       ),
     );
   }
 
-  Widget _buildTextField(
-    String label, {
+  Widget _buildTextField({
+    required String label,
+    TextEditingController? controller,
     TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
+    int? maxLines = 1,
   }) {
     final textTheme = Theme.of(context).textTheme;
-    final primaryColor = Theme.of(context).primaryColor;
-    final borderColor =
-        Colors.grey[300]; // Sama dengan warna di _buildFilePicker
+    final primaryColor = AppColors.primaryLight;
+    final borderColor = Colors.grey[300];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
-      child: TextField(
+      child: TextFormField(
+        // Diubah menjadi TextFormField untuk validasi
+        controller: controller,
         keyboardType: keyboardType,
         style: textTheme.bodyMedium,
+        maxLines: maxLines,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: textTheme.labelMedium,
@@ -712,19 +812,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
             borderSide: BorderSide(color: primaryColor, width: 2),
           ),
         ),
+        validator: validator, // Menggunakan validator dari parameter
       ),
     );
   }
 
-  Widget _buildNextButton() {
+  Widget _buildNextButton({required VoidCallback onPressed}) {
     final textTheme = Theme.of(context).textTheme;
-
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _nextStep,
+        onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Theme.of(context).primaryColor,
+          backgroundColor: AppColors.primaryLight,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -740,7 +840,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildNavigationButtons() {
     final textTheme = Theme.of(context).textTheme;
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -752,18 +851,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         ElevatedButton(
-          onPressed: _nextStep,
+          onPressed: _isRegistering ? null : _nextStepAction,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).primaryColor,
+            backgroundColor: AppColors.primaryLight,
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: Text(
-            "Next",
-            style: textTheme.titleMedium?.copyWith(color: Colors.white),
-          ),
+          child:
+              _isRegistering
+                  ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                  : Text(
+                    _currentStep == 2 ? "Register" : "Next",
+                    style: textTheme.titleMedium?.copyWith(color: Colors.white),
+                  ),
         ),
       ],
     );
@@ -780,18 +889,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: Colors.black87,
           ),
         ),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
         InkWell(
           onTap: onPick,
           child: Container(
             width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: BorderRadius.circular(8),
@@ -799,11 +908,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             child: Row(
               children: [
-                Icon(iconData, color: Colors.green, size: 22), // Icon Kamera
-                SizedBox(width: 12),
+                Icon(iconData, color: AppColors.primaryLight, size: 22),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    file != null ? file.name : 'Ambil Foto', // Teks tombol
+                    file != null ? file.name : 'Ambil Foto',
                     style: TextStyle(
                       color: file != null ? Colors.black87 : Colors.grey[600],
                       fontSize: 15,
@@ -813,26 +922,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 if (file != null)
                   Icon(
-                    // Ganti IconButton dengan Icon saja
                     Icons.check_circle,
-                    color: Colors.green,
+                    color: AppColors.successLight,
                     size: 20,
                   ),
               ],
             ),
           ),
         ),
-        // Hapus info ukuran file, karena kamera biasanya mengompres
-        // Padding( ... ),
         if (file != null)
           Padding(
             padding: const EdgeInsets.only(top: 6, left: 2),
             child: Text(
               "Foto berhasil diambil",
-              style: TextStyle(fontSize: 12, color: Colors.green),
+              style: TextStyle(fontSize: 12, color: AppColors.successLight),
             ),
           ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
       ],
     );
   }

@@ -1,11 +1,16 @@
 // feature/profile/screens/profile_screen.dart
 
+import 'dart:io'; // Untuk File, jika Anda perlu menampilkannya langsung
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart'; // Import image_picker
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../model/anggota_profile.dart'; // Pastikan import path benar
-import '../../../service/api_service.dart'; // Pastikan ada metode changePassword
-import '../../../theme.dart'; // Pastikan AppColors dan AppTheme.textThemeLight ada
+// !! PENTING: GANTI PATH DAN NAMA FILE IMPORT INI !!
+// Pastikan path ini benar dan file model berisi:
+// ProfileResponseComplex, ProfileUser, ProfileAnggota
+import '../../../model/anggota_profile.dart'; // CONTOH: GANTI DENGAN NAMA FILE MODEL ANDA
+import '../../../service/api_service.dart';
+import '../../../theme.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -16,15 +21,15 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen>
     with TickerProviderStateMixin {
+  // Instance ApiService untuk metode non-statis seperti changePassword
   final ApiService _apiService = ApiService();
 
   bool _isLoading = true;
   String? _errorMessage;
-  String? _userRole;
-  AnggotaProfile? _anggotaProfile;
-  String? _adminNama;
-  String? _adminEmail;
+  ProfileAnggota? _anggotaProfile;
+  ProfileUser? _profileUser;
   bool _isLoggingOut = false;
+  bool _isUploadingPhoto = false; // State untuk loading upload foto
 
   TabController? _tabController;
 
@@ -38,6 +43,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _obscureConfirmPassword = true;
   bool _isChangingPassword = false;
   String? _photoUrl;
+
+  final ImagePicker _picker = ImagePicker(); // Instance ImagePicker
 
   @override
   void initState() {
@@ -56,80 +63,143 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _loadInitialData() async {
-    // ... (Implementasi _loadInitialData Anda tetap sama) ...
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
-
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _userRole = prefs.getString("role");
-      _adminNama = prefs.getString("nama");
-      _adminEmail = prefs.getString("email");
-
-      if (_userRole == 'mobile_admin') {
-        print("User is Admin. Displaying data from SharedPreferences.");
-        _photoUrl = prefs.getString("foto_url_admin");
+      print(
+        "DEBUG ProfileScreen: Mengambil profil dari API (token diambil oleh ApiService).",
+      );
+      // ApiService.getProfile() sekarang mengambil token secara internal
+      final ProfileResponseComplex profileResponse =
+          await ApiService.getProfile();
+      if (profileResponse.success && profileResponse.data != null) {
+        _profileUser = profileResponse.data!.profileUser;
+        _anggotaProfile = profileResponse.data!.profileAnggota;
+        if (_profileUser == null && _anggotaProfile == null) {
+          throw Exception("Data profil tidak lengkap dari API.");
+        }
+        _photoUrl = _profileUser?.profilePhotoUrl;
       } else {
-        print("User is not Admin. Fetching Anggota Profile from API.");
-        // Ganti pemanggilan _apiService.getAnggotaProfile() dengan implementasi Anda
-        // Ini contoh jika getAnggotaProfile mengembalikan class dengan success, data, message
-        final dynamic profileResponseFromApi =
-            await _apiService.getAnggotaProfile();
-
-        // Asumsi profileResponseFromApi adalah Map<String, dynamic> atau objek custom
-        // dan Anda punya cara untuk mengecek sukses dan mendapatkan data anggota
-        // Misalnya, jika itu adalah Map:
-        if (profileResponseFromApi is Map<String, dynamic> &&
-            profileResponseFromApi['success'] == true &&
-            profileResponseFromApi['data'] != null &&
-            profileResponseFromApi['data']['anggota'] != null) {
-          _anggotaProfile = AnggotaProfile.fromJson(
-            profileResponseFromApi['data']['anggota'] as Map<String, dynamic>,
-          );
-          _photoUrl =
-              'https://kkba-simpin.laravel.cloud/storage/avatar/ZiC7FiPxOetjB2rRds9ZGooAAFvtvzqBj7NKOA1w.png'; // GANTI 'foto' dengan field yang benar
-        }
-        // Atau jika itu adalah objek custom (misal, ApiResponse yang TIDAK Anda gunakan secara global)
-        // else if (profileResponseFromApi.success && profileResponseFromApi.data?.anggota != null) {
-        // _anggotaProfile = profileResponseFromApi.data!.anggota!;
-        // _photoUrl = _anggotaProfile!.foto;
-        // }
-        else {
-          String message = "Data anggota tidak valid dalam respons.";
-          if (profileResponseFromApi is Map<String, dynamic> &&
-              profileResponseFromApi['message'] != null) {
-            message = profileResponseFromApi['message'];
-          }
-          // else if (profileResponseFromApi.message != null){
-          //   message = profileResponseFromApi.message;
-          // }
-          throw Exception(message);
-        }
+        throw Exception(
+          profileResponse.message.isNotEmpty
+              ? profileResponse.message
+              : "Gagal memuat profil.",
+        );
       }
     } catch (e) {
       print("Error loading initial profile data: $e");
       _errorMessage =
           e is Exception
               ? e.toString().replaceFirst("Exception: ", "")
-              : "Terjadi kesalahan tidak dikenal.";
+              : "Kesalahan tidak dikenal.";
     } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+        maxWidth: 800,
+      );
+
+      if (pickedFile != null) {
+        if (!mounted) return;
+        setState(() => _isUploadingPhoto = true);
+
+        // ApiService.updateProfilePhoto mengambil token secara internal
+        final Map<String, dynamic> uploadResponse =
+            await ApiService.updateProfilePhoto(pickedFile);
+
+        if (uploadResponse['success'] == true) {
+          String? newPhotoUrl;
+          if (uploadResponse['data'] != null &&
+              uploadResponse['data']['profile_photo_url'] != null) {
+            newPhotoUrl = uploadResponse['data']['profile_photo_url'] as String;
+          } else if (uploadResponse['data'] != null &&
+              uploadResponse['data']['user'] != null &&
+              uploadResponse['data']['user']['profile_photo_url'] != null) {
+            newPhotoUrl =
+                uploadResponse['data']['user']['profile_photo_url'] as String;
+          } else if (uploadResponse['profile_photo_url'] != null) {
+            newPhotoUrl = uploadResponse['profile_photo_url'] as String;
+          }
+
+          if (mounted) {
+            setState(() {
+              if (newPhotoUrl != null) {
+                _photoUrl = newPhotoUrl;
+              }
+              _isUploadingPhoto = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  uploadResponse['message'] ??
+                      'Foto profil berhasil diperbarui.',
+                ),
+                backgroundColor: AppColors.successLight,
+              ),
+            );
+            // Pertimbangkan memanggil _loadInitialData() untuk sinkronisasi penuh
+            // await _loadInitialData();
+          }
+        } else {
+          throw Exception(
+            uploadResponse['message'] ??
+                'Gagal memperbarui foto profil dari server.',
+          );
+        }
+      } else {
+        print('DEBUG ProfileScreen: Tidak ada gambar yang dipilih.');
+      }
+    } catch (e) {
+      print('Error saat memilih atau mengunggah gambar: $e');
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e is Exception
+                  ? e.toString().replaceFirst("Exception: ", "")
+                  : 'Gagal memproses gambar.',
+            ),
+            backgroundColor: AppColors.errorLight,
+          ),
+        );
+        setState(() => _isUploadingPhoto = false);
       }
     }
   }
 
   String _formatDate(String? dateString) {
-    if (dateString == null || dateString.isEmpty) return '-';
+    if (dateString == null || dateString.isEmpty) {
+      return '-';
+    }
     try {
-      final date = DateTime.parse(dateString);
-      return DateFormat('dd MMMM yyyy', 'id_ID').format(date);
+      // Gunakan DateTime.tryParse untuk mem-parsing string menjadi DateTime
+      final DateTime? date = DateTime.tryParse(dateString);
+
+      if (date != null) {
+        // Jika parsing berhasil, format DateTime menggunakan DateFormat
+        return DateFormat(
+          'dd MMMM yyyy',
+          'id_ID',
+        ).format(date.toLocal()); // Perbaikan: yyyy bukan yyyy
+      } else {
+        // Jika DateTime.tryParse gagal (mengembalikan null)
+        print(
+          "Tidak dapat mem-parsing string tanggal dengan DateTime.tryParse: $dateString",
+        );
+        return dateString; // Kembalikan string asli
+      }
     } catch (e) {
-      return dateString;
+      // Menangkap error tak terduga lainnya selama proses
+      print("Error dalam _formatDate untuk string '$dateString': $e");
+      return dateString; // Fallback ke string asli
     }
   }
 
@@ -138,7 +208,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _handleLogout() async {
-    // ... (Implementasi _handleLogout Anda tetap sama) ...
     final bool? confirmLogout = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -189,7 +258,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       setState(() => _isLoggingOut = true);
       try {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.clear();
+        await prefs.remove("AUTH_TOKEN");
+        await prefs.remove("role");
+        await prefs.remove("nama");
+        await prefs.remove("email");
+        await prefs.remove("foto_url_admin");
         if (mounted) {
           Navigator.pushNamedAndRemoveUntil(
             context,
@@ -212,12 +285,12 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _handleChangePassword() async {
-    // ... (Implementasi _handleChangePassword Anda tetap sama) ...
     if (_changePasswordFormKey.currentState?.validate() ?? false) {
       if (!mounted) return;
       setState(() => _isChangingPassword = true);
-
       try {
+        // --- PERBAIKAN DI SINI ---
+        // Panggil metode changePassword melalui instance _apiService
         final Map<String, dynamic> responseData = await _apiService
             .changePassword(
               oldPassword: _oldPasswordController.text,
@@ -258,36 +331,33 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   String? _validateNewPassword(String? value) {
-    // ... (Implementasi _validateNewPassword Anda tetap sama) ...
-    if (value == null || value.isEmpty) {
+    if (value == null || value.isEmpty)
       return 'Password baru tidak boleh kosong.';
-    }
-    if (value.length < 8) {
-      return 'Minimal 8 karakter.';
-    }
-    if (!value.contains(RegExp(r'[A-Z]'))) {
-      return 'Minimal 1 huruf besar.';
-    }
-    if (!value.contains(RegExp(r'[0-9]'))) {
-      return 'Minimal 1 angka.';
-    }
+    if (value.length < 8) return 'Minimal 8 karakter.';
+    if (!value.contains(RegExp(r'[A-Z]'))) return 'Minimal 1 huruf besar.';
+    if (!value.contains(RegExp(r'[0-9]'))) return 'Minimal 1 angka.';
     return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = AppTheme.textThemeLight;
+    final appBarTitle =
+        _isLoading
+            ? 'Memuat Profil...'
+            : (_profileUser?.name ??
+                _anggotaProfile?.nama ??
+                'Profil Pengguna');
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _userRole == 'mobile_admin' ? 'Profil Admin' : 'Profil Anggota',
+          appBarTitle,
           style: textTheme.titleLarge?.copyWith(color: Colors.white),
         ),
         backgroundColor: AppColors.primaryLight,
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 1,
-        // TabBar dihapus dari bottom AppBar
       ),
       backgroundColor: AppColors.primaryBackgroundLight,
       body: _buildBody(context),
@@ -303,21 +373,24 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (_errorMessage != null) {
       return _buildErrorState();
     }
+    if (_profileUser == null && _anggotaProfile == null) {
+      return _buildErrorStateWithMessage(
+        "Data profil tidak dapat dimuat. Silakan coba lagi atau hubungi dukungan.",
+      );
+    }
 
     return Column(
       children: [
         const SizedBox(height: 24),
         _buildProfilePicture(),
         const SizedBox(height: 16),
-        _buildMainInfoCard(context), // Kartu Info Utama (Nama, dll.)
+        _buildMainInfoCard(context),
         const SizedBox(height: 16),
         TabBar(
-          // TabBar sekarang di dalam Column body
           controller: _tabController,
-          labelColor: AppColors.primaryLight, // Warna label tab aktif
-          unselectedLabelColor:
-              AppColors.secondaryTextLight, // Warna label tab tidak aktif
-          indicatorColor: AppColors.primaryLight, // Warna indikator tab
+          labelColor: AppColors.primaryLight,
+          unselectedLabelColor: AppColors.secondaryTextLight,
+          indicatorColor: AppColors.primaryLight,
           tabs: const [Tab(text: 'Info Profil'), Tab(text: 'Ganti Password')],
         ),
         Expanded(
@@ -334,127 +407,130 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildProfilePicture() {
-    // ... (Implementasi _buildProfilePicture Anda tetap sama) ...
     bool hasValidPhoto = _photoUrl != null && _photoUrl!.isNotEmpty;
-    ImageProvider backgroundImage;
-    if (hasValidPhoto) {
-      backgroundImage = NetworkImage(_photoUrl!);
-    } else {
-      backgroundImage = const AssetImage(
-        'assets/images/placeholder_transparent.png',
-      );
+    ImageProvider? networkImageProvider;
+    if (hasValidPhoto && _photoUrl!.startsWith('http')) {
+      networkImageProvider = NetworkImage(_photoUrl!);
+    } else if (hasValidPhoto) {
+      hasValidPhoto = false;
     }
 
-    return CircleAvatar(
-      radius: 60,
-      backgroundColor: Colors.grey[300],
-      backgroundImage: hasValidPhoto ? backgroundImage : null,
-      onBackgroundImageError:
-          hasValidPhoto
-              ? (dynamic exception, StackTrace? stackTrace) {
-                print('Error loading profile image: $exception');
-                if (mounted) {
-                  setState(() {
-                    _photoUrl = null;
-                  });
-                }
-              }
-              : null,
-      child:
-          !hasValidPhoto
-              ? Icon(Icons.person, size: 70, color: Colors.grey[600])
-              : null,
+    return Stack(
+      alignment: Alignment.bottomRight,
+      children: [
+        CircleAvatar(
+          radius: 60,
+          backgroundColor: Colors.grey[300],
+          backgroundImage: hasValidPhoto ? networkImageProvider : null,
+          onBackgroundImageError:
+              hasValidPhoto && networkImageProvider != null
+                  ? (dynamic exception, StackTrace? stackTrace) {
+                    print('Error loading profile image: $exception');
+                    if (mounted) setState(() => _photoUrl = null);
+                  }
+                  : null,
+          child:
+              (!hasValidPhoto || networkImageProvider == null)
+                  ? Icon(Icons.person, size: 70, color: Colors.grey[600])
+                  : null,
+        ),
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Material(
+            color: AppColors.primaryLight,
+            shape: const CircleBorder(),
+            elevation: 2,
+            child: InkWell(
+              onTap: _isUploadingPhoto ? null : _pickAndUploadImage,
+              customBorder: const CircleBorder(),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child:
+                    _isUploadingPhoto
+                        ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                        : const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildMainInfoCard(BuildContext context) {
     final textTheme = AppTheme.textThemeLight;
-    Widget cardContent;
 
-    if (_userRole == 'mobile_admin') {
-      cardContent = Column(
-        mainAxisSize:
-            MainAxisSize.min, // Agar Column tidak mengambil semua tinggi Card
-        crossAxisAlignment: CrossAxisAlignment.center, // Rata tengah horizontal
-        children: [
-          Text(
-            _displayData(_adminNama),
-            style: textTheme.headlineSmall?.copyWith(
-              color: AppColors.primaryTextLight,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center, // Rata tengah teks
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Email: ${_displayData(_adminEmail)}',
-            style: textTheme.bodyMedium?.copyWith(
-              color: AppColors.secondaryTextLight,
-            ),
-            textAlign: TextAlign.center, // Rata tengah teks
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Role: Administrator',
-            style: textTheme.bodyMedium?.copyWith(
-              color: AppColors.secondaryTextLight,
-            ),
-            textAlign: TextAlign.center, // Rata tengah teks
-          ),
-        ],
-      );
-    } else if (_anggotaProfile != null) {
-      final profile = _anggotaProfile!;
-      cardContent = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            _displayData(profile.nama),
-            style: textTheme.headlineSmall?.copyWith(
-              color: AppColors.primaryTextLight,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'No. Anggota: ${_displayData(profile.nomorAnggota)}',
-            style: textTheme.bodyMedium?.copyWith(
-              color: AppColors.secondaryTextLight,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'NIK Karyawan: ${_displayData(profile.nik)}',
-            style: textTheme.bodyMedium?.copyWith(
-              color: AppColors.secondaryTextLight,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      );
-    } else {
-      cardContent = const Center(
-        child: Text("Data tidak tersedia"),
-      ); // Fallback
+    final String displayName =
+        _profileUser?.name ?? _anggotaProfile?.nama ?? "Pengguna";
+    String secondaryInfoLine1 =
+        "No. Anggota: ${_displayData(_anggotaProfile?.nomorAnggota)}";
+    String secondaryInfoLine2 =
+        "NIK Karyawan: ${_displayData(_anggotaProfile?.nik)}";
+
+    if (_anggotaProfile == null && _profileUser != null) {
+      secondaryInfoLine1 = "Email: ${_displayData(_profileUser!.email)}";
+      secondaryInfoLine2 = "Username: ${_displayData(_profileUser!.username)}";
     }
 
     return Card(
       elevation: 2,
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color:
-          Colors
-              .white, // atau AppColors.primaryBackgroundLight jika ingin sama dengan bg screen
+      color: Colors.white,
       child: Container(
-        // Tambahkan Container untuk padding dan alignment
         padding: const EdgeInsets.all(16.0),
-        width:
-            double
-                .infinity, // Pastikan Card mengambil lebar penuh untuk centering
-        child: cardContent,
+        width: double.infinity,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              displayName,
+              style: textTheme.headlineSmall?.copyWith(
+                color: AppColors.primaryTextLight,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              secondaryInfoLine1,
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppColors.secondaryTextLight,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (secondaryInfoLine2.isNotEmpty &&
+                (_anggotaProfile?.nik != null &&
+                        _anggotaProfile!.nik!.isNotEmpty ||
+                    _anggotaProfile == null &&
+                        _profileUser?.username != null &&
+                        _profileUser!.username!.isNotEmpty)) ...[
+              const SizedBox(height: 4),
+              Text(
+                secondaryInfoLine2,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: AppColors.secondaryTextLight,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -465,14 +541,20 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Bagian detail profil (setelah kartu info utama dipindahkan)
-          if (_userRole == 'mobile_admin')
-            ..._buildAdminProfileSections(context) // Helper baru
-          else if (_anggotaProfile != null)
-            ..._buildAnggotaProfileSections(context), // Helper baru
-
+          if (_profileUser != null || _anggotaProfile != null)
+            ..._buildUnifiedProfileSections(context)
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20.0),
+              child: Text(
+                "Informasi profil tidak dapat ditampilkan saat ini.",
+                textAlign: TextAlign.center,
+                style: AppTheme.textThemeLight.bodyMedium?.copyWith(
+                  color: AppColors.secondaryTextLight,
+                ),
+              ),
+            ),
           Padding(
-            // Tombol Logout
             padding: const EdgeInsets.only(top: 12.0, bottom: 16.0),
             child: ElevatedButton.icon(
               icon:
@@ -503,123 +585,146 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // Helper baru untuk bagian detail profil Admin (tanpa kartu info utama)
-  List<Widget> _buildAdminProfileSections(BuildContext context) {
-    return [
-      _buildProfileSection(
-        context,
-        title: "Data Pribadi",
-        icon: Icons.person_outline,
-        children: [
-          _buildInfoRow(
-            context,
-            label: 'Nama Lengkap',
-            value: _displayData(_adminNama),
-          ),
-          _buildInfoRow(context, label: 'NIK Karyawan', value: '-'),
-          _buildInfoRow(context, label: 'No. KTP', value: '-'),
-          _buildInfoRow(context, label: 'Tempat Lahir', value: '-'),
-          _buildInfoRow(context, label: 'Tanggal Lahir', value: '-'),
-          _buildInfoRow(context, label: 'Alamat', value: '-'),
-        ],
-      ),
-      _buildProfileSection(
-        context,
-        title: "Kontak & Keanggotaan",
-        icon: Icons.contact_mail_outlined,
-        children: [
-          _buildInfoRow(
-            context,
-            label: 'Email',
-            value: _displayData(_adminEmail),
-          ),
-          _buildInfoRow(context, label: 'No. Telepon', value: '-'),
-          _buildInfoRow(context, label: 'Tanggal Masuk', value: '-'),
-          _buildInfoRow(context, label: 'No. Anggota', value: '-'),
-        ],
-      ),
-    ];
-  }
+  List<Widget> _buildUnifiedProfileSections(BuildContext context) {
+    final user = _profileUser;
+    final anggota = _anggotaProfile;
+    List<Widget> sections = [];
 
-  // Helper baru untuk bagian detail profil Anggota (tanpa kartu info utama)
-  List<Widget> _buildAnggotaProfileSections(BuildContext context) {
-    final profile = _anggotaProfile!;
-    return [
-      _buildProfileSection(
-        context,
-        title: "Data Pribadi",
-        icon: Icons.person_outline,
-        children: [
-          _buildInfoRow(
-            context,
-            label: 'Nama Lengkap',
-            value: _displayData(profile.nama),
+    if (user != null) {
+      sections.add(
+        _buildProfileSection(
+          context,
+          title: "Informasi Akun",
+          icon: Icons.account_circle_outlined,
+          children: [
+            _buildInfoRow(
+              context,
+              label: 'Nama Akun',
+              value: _displayData(user.name),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'Username',
+              value: _displayData(user.username),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'Email Akun',
+              value: _displayData(user.email),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'No. Telepon Akun',
+              value: _displayData(user.mobile),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'Akun Valid Sejak',
+              value: _formatDate(user.validFrom?.toIso8601String()),
+            ),
+            if (user.emailVerifiedAt != null)
+              _buildInfoRow(
+                context,
+                label: 'Email Terverifikasi',
+                value: _formatDate(user.emailVerifiedAt?.toIso8601String()),
+              ),
+          ],
+        ),
+      );
+    }
+
+    if (anggota != null) {
+      sections.add(
+        _buildProfileSection(
+          context,
+          title: "Informasi Keanggotaan",
+          icon: Icons.card_membership_outlined,
+          children: [
+            if (user == null ||
+                (user.name != anggota.nama &&
+                    anggota.nama != null &&
+                    anggota.nama!.isNotEmpty))
+              _buildInfoRow(
+                context,
+                label: 'Nama Anggota',
+                value: _displayData(anggota.nama),
+              ),
+            _buildInfoRow(
+              context,
+              label: 'No. Anggota',
+              value: _displayData(anggota.nomorAnggota),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'NIK Karyawan',
+              value: _displayData(anggota.nik),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'No. KTP',
+              value: _displayData(anggota.ktp),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'Tempat Lahir',
+              value: _displayData(anggota.tempatLahir),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'Tanggal Lahir',
+              value: _formatDate(anggota.tglLahir),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'Alamat',
+              value: _displayData(anggota.alamat),
+              isMultiline: true,
+            ),
+            _buildInfoRow(
+              context,
+              label: 'Email Kontak',
+              value: _displayData(anggota.email),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'No. Telepon Kontak',
+              value: _displayData(anggota.mobile),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'Tgl. Masuk Anggota',
+              value: _formatDate(anggota.tanggalMasuk),
+            ),
+            _buildInfoRow(
+              context,
+              label: 'Status Registrasi',
+              value: anggota.isRegistered ? 'Terdaftar' : 'Belum Terdaftar',
+              valueColor:
+                  anggota.isRegistered
+                      ? AppColors.successLight
+                      : AppColors.warningLight,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (sections.isEmpty) {
+      sections.add(
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            "Tidak ada data profil rinci untuk ditampilkan.",
+            textAlign: TextAlign.center,
+            style: AppTheme.textThemeLight.bodyMedium,
           ),
-          _buildInfoRow(
-            context,
-            label: 'NIK Karyawan',
-            value: _displayData(profile.nik),
-          ),
-          _buildInfoRow(
-            context,
-            label: 'No. KTP',
-            value: _displayData(profile.ktp),
-          ),
-          _buildInfoRow(
-            context,
-            label: 'Tempat Lahir',
-            value: _displayData(profile.tempatLahir),
-          ),
-          _buildInfoRow(
-            context,
-            label: 'Tanggal Lahir',
-            value: _formatDate(profile.tglLahir),
-          ),
-          _buildInfoRow(
-            context,
-            label: 'Alamat',
-            value: _displayData(profile.alamat),
-            isMultiline: true,
-          ),
-        ],
-      ),
-      _buildProfileSection(
-        context,
-        title: "Kontak & Keanggotaan",
-        icon: Icons.contact_mail_outlined,
-        children: [
-          _buildInfoRow(
-            context,
-            label: 'Email',
-            value: _displayData(profile.email),
-          ),
-          _buildInfoRow(
-            context,
-            label: 'No. Telepon',
-            value: _displayData(profile.mobile),
-          ),
-          _buildInfoRow(
-            context,
-            label: 'Tanggal Masuk',
-            value: _formatDate(profile.tanggalMasuk),
-          ),
-          _buildInfoRow(
-            context,
-            label: 'Status Registrasi App',
-            value:
-                profile.isActuallyRegistered ? 'Terdaftar' : 'Belum Terdaftar',
-            valueColor:
-                profile.isActuallyRegistered
-                    ? AppColors.successLight
-                    : AppColors.warningLight,
-          ),
-        ],
-      ),
-    ];
+        ),
+      );
+    }
+    return sections;
   }
 
   Widget _buildChangePasswordTab(BuildContext context) {
-    // ... (Implementasi _buildChangePasswordTab Anda tetap sama) ...
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
       child: Form(
@@ -755,7 +860,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildErrorState() {
-    // ... (Implementasi _buildErrorState Anda tetap sama) ...
     final textTheme = AppTheme.textThemeLight;
     return Center(
       child: Padding(
@@ -796,19 +900,59 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  Widget _buildErrorStateWithMessage(String message) {
+    final textTheme = AppTheme.textThemeLight;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.info_outline, color: AppColors.warningLight, size: 50),
+            const SizedBox(height: 16),
+            Text(
+              'Informasi',
+              style: textTheme.titleMedium?.copyWith(
+                color: AppColors.primaryTextLight,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: textTheme.bodySmall?.copyWith(
+                color: AppColors.secondaryTextLight,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Muat Ulang'),
+              onPressed: _loadInitialData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryLight,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildProfileSection(
     BuildContext context, {
     required String title,
     required IconData icon,
     required List<Widget> children,
   }) {
-    // ... (Implementasi _buildProfileSection Anda tetap sama, pastikan warna Card sesuai) ...
     final textTheme = AppTheme.textThemeLight;
     return Card(
       elevation: 1,
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      color: Colors.white, // Warna Card agar kontras
+      color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -842,7 +986,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     Color? valueColor,
     bool isMultiline = false,
   }) {
-    // ... (Implementasi _buildInfoRow Anda tetap sama) ...
     final textTheme = AppTheme.textThemeLight;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
@@ -851,7 +994,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             isMultiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [
           SizedBox(
-            width: 120, // Lebar label konsisten
+            width: 120,
             child: Text(
               label,
               style: textTheme.bodyMedium?.copyWith(

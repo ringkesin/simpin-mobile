@@ -1,12 +1,17 @@
 // screens/form_wizard_screen.dart
 import 'package:flutter/material.dart';
-// Import file_picker HANYA JIKA masih digunakan di tempat lain
-// import 'package:file_picker/file_picker.dart'; // Hapus jika tidak perlu
+import 'package:file_picker/file_picker.dart'; // Import file_picker
+import 'package:image_picker/image_picker.dart'; // Untuk XFile
 import 'package:step_progress_indicator/step_progress_indicator.dart';
+import 'package:intl/intl.dart'; // Untuk DateFormat dan NumberFormat
+
 // --- Ganti dengan path import yang benar ---
 import '../../../service/api_service.dart';
-import '../../../model/jenis_pinjaman.dart';
-import '../../../model/keperluan_pinjaman.dart';
+import '../../../model/jenis_pinjaman.dart'; // Asumsi model ini ada
+import '../../../model/keperluan_pinjaman.dart'; // Asumsi model ini ada
+// Jika Anda memiliki model untuk p_anggota_id atau data user, impor di sini
+// import '../../../model/user_data_model.dart';
+import '../../../theme.dart';
 // -----------------------------------------
 
 class FormWizardScreen extends StatefulWidget {
@@ -17,72 +22,108 @@ class FormWizardScreen extends StatefulWidget {
 }
 
 class _FormWizardScreenState extends State<FormWizardScreen> {
-  // Current step index
   int _currentStep = 0;
-  final int _totalSteps = 2; // Total steps sekarang 2
+  final int _totalSteps = 2;
 
-  // Form keys for validation
   final _formKeyStep1 = GlobalKey<FormState>();
   final _formKeyStep2 = GlobalKey<FormState>();
-  // Hapus key form step 3: final _formKeyStep3 = GlobalKey<FormState>();
 
   // Form data - Step 1
   int? _selectedJenisPinjaman;
-  // Hapus map yang tidak terpakai: Map<int, bool> _selectedKeperluan = {};
   final _jenisBarangController = TextEditingController();
   final _merkTypeController = TextEditingController();
-  final _hargaController = TextEditingController();
+  final _hargaController = TextEditingController(); // Untuk ra_jumlah_pinjaman
   final _tenorCicilanController = TextEditingController();
-  // Gunakan Set ini untuk menyimpan ID keperluan yang dipilih
+  final _biayaAdminController = TextEditingController();
   final Set<int> _selectedKeperluanIds = {};
 
   // Form data - Step 2
   final _jenisJaminanController = TextEditingController();
   final _keteranganJaminanController = TextEditingController();
   final _perkiraanNilaiController = TextEditingController();
+  final _noRekeningController = TextEditingController();
+  final _bankController = TextEditingController();
+  XFile? _docSlipGaji;
 
-  // Hapus state data step 3
-  // String? _ktpPemohon;
-  // String? _ktpPasangan;
-  // String? _kartuKeluarga;
-  // String? _idCard;
-  // String? _slipGaji;
-
-  // API data
   List<JenisPinjamanModel> _jenisPinjamanList = [];
   List<KeperluanPinjamanModel> _keperluanPinjamanList = [];
   bool _isLoading = false;
+  bool _isSubmitting = false;
 
-  // API service
+  // --- PERBAIKAN: Buat instance ApiService ---
   final ApiService _apiService = ApiService();
 
-  // Page controller for step navigation
   final PageController _pageController = PageController();
 
   @override
   void initState() {
     super.initState();
     _fetchJenisPinjaman();
+    _hargaController.addListener(_formatRupiahInputHarga);
+    _perkiraanNilaiController.addListener(_formatRupiahInputNilaiJaminan);
+    _biayaAdminController.addListener(_formatRupiahInputBiayaAdmin);
   }
 
   @override
   void dispose() {
-    // Clean up controllers
+    _hargaController.removeListener(_formatRupiahInputHarga);
+    _perkiraanNilaiController.removeListener(_formatRupiahInputNilaiJaminan);
+    _biayaAdminController.removeListener(_formatRupiahInputBiayaAdmin);
+
     _jenisBarangController.dispose();
     _merkTypeController.dispose();
     _hargaController.dispose();
     _tenorCicilanController.dispose();
+    _biayaAdminController.dispose();
     _jenisJaminanController.dispose();
     _keteranganJaminanController.dispose();
     _perkiraanNilaiController.dispose();
+    _noRekeningController.dispose();
+    _bankController.dispose();
     _pageController.dispose();
     super.dispose();
   }
 
-  // Fetch Jenis Pinjaman (Tetap sama)
+  void _formatRupiah(TextEditingController controller) {
+    if (controller.text.isEmpty) return;
+    String plainNumber = controller.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (plainNumber.isEmpty) {
+      controller.clear();
+      return;
+    }
+    try {
+      double value = double.parse(plainNumber);
+      final formatter = NumberFormat.currency(
+        locale: 'id_ID',
+        symbol: '',
+        decimalDigits: 0,
+      );
+      String formatted = formatter.format(value);
+
+      if (controller.text != formatted) {
+        controller.value = TextEditingValue(
+          text: formatted,
+          selection: TextSelection.collapsed(offset: formatted.length),
+        );
+      }
+    } catch (e) {
+      print("Error formatting to Rupiah: $e");
+    }
+  }
+
+  void _formatRupiahInputHarga() => _formatRupiah(_hargaController);
+  void _formatRupiahInputNilaiJaminan() =>
+      _formatRupiah(_perkiraanNilaiController);
+  void _formatRupiahInputBiayaAdmin() => _formatRupiah(_biayaAdminController);
+
+  String _getCleanNumber(TextEditingController controller) {
+    return controller.text.replaceAll(RegExp(r'[^\d]'), '');
+  }
+
   Future<void> _fetchJenisPinjaman() async {
     setState(() => _isLoading = true);
     try {
+      // --- PERBAIKAN: Panggil melalui instance _apiService ---
       final data = await _apiService.getMasterJenisPinjaman();
       setState(() => _jenisPinjamanList = data);
     } catch (e) {
@@ -92,25 +133,23 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     }
   }
 
-  // Fetch Keperluan Pinjaman (Tetap sama)
   Future<void> _fetchKeperluanPinjaman() async {
-    if (!mounted) return; // Cek mounted sebelum setState
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
+      // --- PERBAIKAN: Panggil melalui instance _apiService ---
       final data = await _apiService.getMasterKeperluanPinjaman();
-      if (!mounted) return; // Cek mounted setelah await
+      if (!mounted) return;
       setState(() => _keperluanPinjamanList = data);
     } catch (e) {
       _showErrorSnackBar('Gagal memuat keperluan pinjaman: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false); // Cek mounted sebelum setState
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _showErrorSnackBar(String message) {
-    if (!mounted) return; // Jangan tampilkan jika widget sudah di-dispose
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -120,56 +159,72 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     );
   }
 
-  // Handle jenis pinjaman selection (Tetap sama)
+  void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   void _onJenisPinjamanChanged(int? value) {
     setState(() {
       _selectedJenisPinjaman = value;
-      _selectedKeperluanIds.clear(); // Reset keperluan ID selections
-      _keperluanPinjamanList = []; // Kosongkan list keperluan saat ganti jenis
-
+      _selectedKeperluanIds.clear();
+      _keperluanPinjamanList = [];
       if (value != 3) {
-        // Clear barang fields jika bukan pinjaman barang
         _jenisBarangController.clear();
         _merkTypeController.clear();
       }
-
-      // Fetch keperluan HANYA jika jenisnya Umum atau Khusus
       if (value == 1 || value == 2) {
         _fetchKeperluanPinjaman();
       }
     });
   }
 
-  // Hapus fungsi pick file PDF
-  /*
-  Future<String?> _pickPdfFile(String title) async { ... }
-  */
+  Future<void> _pickSlipGaji() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
 
-  // --- Validasi Steps (DIRUBAH) ---
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          // FilePicker mengembalikan path, kita buat XFile darinya
+          _docSlipGaji = XFile(result.files.single.path!);
+        });
+        _showSuccessSnackBar(
+          'Slip gaji berhasil dipilih: ${result.files.single.name}',
+        );
+      } else {
+        print('Pemilihan slip gaji dibatalkan.');
+      }
+    } catch (e) {
+      print("Error picking PDF: $e");
+      _showErrorSnackBar("Gagal memilih file: ${e.toString()}");
+    }
+  }
+
   bool _validateStep1() {
     if (_formKeyStep1.currentState?.validate() ?? false) {
-      // Validasi checkbox: Jika pinjaman umum/khusus, _selectedKeperluanIds tidak boleh kosong
       if ((_selectedJenisPinjaman == 1 || _selectedJenisPinjaman == 2) &&
           _selectedKeperluanIds.isEmpty) {
-        // <-- Gunakan _selectedKeperluanIds.isEmpty
         _showErrorSnackBar('Pilih minimal satu keperluan pinjaman');
         return false;
       }
-      return true; // Lolos validasi form dan checkbox
+      return true;
     }
-    return false; // Gagal validasi form
+    return false;
   }
 
   bool _validateStep2() {
     return _formKeyStep2.currentState?.validate() ?? false;
   }
 
-  // Hapus validasi step 3
-  /*
-  bool _validateStep3() { ... }
-  */
-
-  // --- Navigasi Steps (DIRUBAH) ---
   void _nextStep() {
     if (_currentStep == 0) {
       if (_validateStep1()) {
@@ -181,7 +236,6 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
       }
     } else if (_currentStep == 1) {
       if (_validateStep2()) {
-        // Step terakhir, panggil submit
         _submitForm();
       }
     }
@@ -197,82 +251,73 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     }
   }
 
-  // Submit Form (Tetap sama, tidak perlu ubah jika hanya kirim data step 1 & 2)
-  void _submitForm() {
-    // Pastikan p_anggota_id didapatkan dengan benar, contoh hardcoded
-    final pAnggotaId = 1276; // Ganti dengan cara Anda mendapatkan ID Anggota
-
-    List<int> selectedKeperluanIds = _selectedKeperluanIds.toList();
-
-    // Format data untuk dikirim
-    Map<String, dynamic> formData = {
-      "p_anggota_id": pAnggotaId,
-      "p_jenis_pinjaman_id": _selectedJenisPinjaman,
-      "tenor": _tenorCicilanController.text,
-      // Pastikan membersihkan format Rupiah sebelum mengirim
-      "ra_jumlah_pinjaman": _hargaController.text.replaceAll(
-        RegExp(r'[^\d]'),
-        '',
-      ),
-      "jaminan": _jenisJaminanController.text,
-      "jaminan_keterangan": _keteranganJaminanController.text,
-      "jaminan_perkiraan_nilai": _perkiraanNilaiController.text.replaceAll(
-        RegExp(r'[^\d]'),
-        '',
-      ),
-      // Tambahkan field barang jika itu pinjaman barang
-      if (_selectedJenisPinjaman == 3) ...{
-        "barang_jenis": _jenisBarangController.text,
-        "barang_merk": _merkTypeController.text,
-      },
-    };
-
-    // Tambahkan keperluan IDs jika ada (untuk pinjaman umum/khusus)
-    if (_selectedJenisPinjaman == 1 || _selectedJenisPinjaman == 2) {
-      for (int i = 0; i < selectedKeperluanIds.length; i++) {
-        // Key disesuaikan dengan format yang dibutuhkan API (contoh: array)
-        formData["p_pinjaman_keperluan_ids[$i]"] =
-            selectedKeperluanIds[i].toString();
-        // Atau jika API mengharapkan list langsung:
-        // formData["p_pinjaman_keperluan_ids"] = selectedKeperluanIds; // Perlu konfirmasi format API
-      }
+  Future<void> _submitForm() async {
+    if (!_validateStep1() || !_validateStep2()) {
+      _showErrorSnackBar(
+        "Harap lengkapi semua data yang diperlukan di setiap langkah.",
+      );
+      return;
     }
 
-    // Log data sebelum dikirim (untuk debugging)
-    print("Submitting Form Data: $formData");
+    setState(() => _isSubmitting = true);
 
-    // TODO: Implementasi pengiriman data ke API menggunakan _apiService
-    // Contoh:
-    // try {
-    //   setState(() => _isLoading = true);
-    //   await _apiService.submitPengajuanPinjaman(formData); // Ganti dengan nama fungsi API Anda
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Pengajuan pinjaman berhasil dikirim'),
-    //       backgroundColor: Colors.green,
-    //       behavior: SnackBarBehavior.floating,
-    //     ),
-    //   );
-    //   // Navigasi ke halaman sukses atau kembali
-    //   Navigator.pop(context);
-    // } catch (e) {
-    //   _showErrorSnackBar('Gagal mengirim pengajuan: $e');
-    // } finally {
-    //   if (mounted) setState(() => _isLoading = false);
-    // }
+    try {
+      const int pAnggotaIdPlaceholder =
+          1276; // GANTI INI dengan ID Anggota yang dinamis
 
-    // Placeholder sukses message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pengajuan pinjaman akan diproses (simulasi)'),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    // Contoh kembali ke halaman sebelumnya setelah submit
-    // Future.delayed(Duration(seconds: 1), () {
-    //   if (mounted) Navigator.pop(context);
-    // });
+      // --- PERBAIKAN: Panggil submitLoanApplication melalui instance _apiService jika non-static ---
+      // Jika submitLoanApplication di ApiService adalah static, maka ApiService.submitLoanApplication(...) sudah benar.
+      // Jika non-static, gunakan _apiService.submitLoanApplication(...)
+      // Untuk contoh ini, kita asumsikan submitLoanApplication adalah static sesuai definisi di ApiService sebelumnya.
+      final Map<String, dynamic>
+      response = await ApiService.submitLoanApplication(
+        pAnggotaId: pAnggotaIdPlaceholder,
+        pJenisPinjamanId: _selectedJenisPinjaman!,
+        pPinjamanKeperluanIds:
+            (_selectedJenisPinjaman == 1 || _selectedJenisPinjaman == 2)
+                ? _selectedKeperluanIds.toList()
+                : null,
+        jenisBarang:
+            _selectedJenisPinjaman == 3 ? _jenisBarangController.text : null,
+        merkType: _selectedJenisPinjaman == 3 ? _merkTypeController.text : null,
+        tenor: int.parse(_tenorCicilanController.text),
+        raJumlahPinjaman: double.parse(_getCleanNumber(_hargaController)),
+        biayaAdmin: double.parse(_getCleanNumber(_biayaAdminController)),
+        jaminan: _jenisJaminanController.text,
+        jaminanKeterangan: _keteranganJaminanController.text,
+        jaminanPerkiraanNilai: double.parse(
+          _getCleanNumber(_perkiraanNilaiController),
+        ),
+        noRekening: _noRekeningController.text,
+        bank: _bankController.text,
+        docSlipGaji: _docSlipGaji,
+      );
+
+      if (mounted) {
+        if (response['success'] == true) {
+          _showSuccessSnackBar(
+            response['message'] ?? 'Pengajuan pinjaman berhasil dikirim!',
+          );
+          Future.delayed(const Duration(seconds: 1), () {
+            if (mounted) Navigator.pop(context, true);
+          });
+        } else {
+          throw Exception(
+            response['message'] ?? 'Gagal mengirim pengajuan pinjaman.',
+          );
+        }
+      }
+    } catch (e) {
+      _showErrorSnackBar(
+        e is Exception
+            ? e.toString().replaceFirst("Exception: ", "")
+            : 'Terjadi kesalahan.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
@@ -280,9 +325,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back,
-          ), // Warna ikon akan diambil dari theme
+          icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (_currentStep > 0) {
               _prevStep();
@@ -291,20 +334,18 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             }
           },
         ),
-        title: const Text('Form Pengajuan Pinjaman'), // Style dari theme
+        title: const Text('Form Pengajuan Pinjaman'),
         centerTitle: true,
-        // backgroundColor, elevation dari theme
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
         child: Column(
           children: [
             StepProgressIndicator(
-              totalSteps: _totalSteps, // Total steps jadi 2
-              currentStep: _currentStep + 1, // currentStep tetap 1-based
+              totalSteps: _totalSteps,
+              currentStep: _currentStep + 1,
               size: 6,
-              selectedColor:
-                  Colors.green, // Atau Theme.of(context).primaryColor
+              selectedColor: AppColors.primaryLight,
               unselectedColor: Colors.grey[300]!,
               roundedEdges: const Radius.circular(10),
             ),
@@ -312,31 +353,21 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             Expanded(
               child: PageView(
                 controller: _pageController,
-                physics:
-                    const NeverScrollableScrollPhysics(), // Tidak bisa swipe antar step
-                children: [
-                  _buildStep1Content(),
-                  _buildStep2Content(),
-                  // Hapus step 3 dari children: _buildStep3Content(),
-                ],
+                physics: const NeverScrollableScrollPhysics(),
+                children: [_buildStep1Content(), _buildStep2Content()],
               ),
             ),
-            // Tombol navigasi tidak perlu ditaruh di sini karena
-            // sudah ada di dalam buildStep1Content dan buildStep2Content
           ],
         ),
       ),
     );
   }
 
-  // STEP 1: Data Pinjaman (Widget Build - DIRUBAH: hanya tombol Next)
   Widget _buildStep1Content() {
     return Form(
       key: _formKeyStep1,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.only(
-          bottom: 16,
-        ), // Padding bawah untuk tombol
+        padding: const EdgeInsets.only(bottom: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -345,55 +376,63 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-
-            // Jenis Pinjaman Dropdown
             _buildDropdown<int>(
-              // Tipe data <int>
               value: _selectedJenisPinjaman,
               items:
-                  _jenisPinjamanList.map((jenis) {
-                    return DropdownMenuItem<int>(
-                      value: jenis.id, // ID sebagai value
-                      child: Text(
-                        jenis.nama ?? 'Tidak Bernama',
-                      ), // Teks yang tampil
-                    );
-                  }).toList(),
+                  _jenisPinjamanList
+                      .map(
+                        (jenis) => DropdownMenuItem<int>(
+                          value: jenis.id,
+                          child: Text(jenis.nama ?? 'Tidak Bernama'),
+                        ),
+                      )
+                      .toList(),
               onChanged: _onJenisPinjamanChanged,
               labelText: 'Jenis Pinjaman',
               hintText: 'Pilih jenis pinjaman',
-              icon: Icons.account_balance_wallet_outlined, // Ganti ikon
-              validator: (value) {
-                if (value == null) return 'Pilih jenis pinjaman';
-                return null;
-              },
+              icon: Icons.account_balance_wallet_outlined,
+              validator:
+                  (value) => value == null ? 'Pilih jenis pinjaman' : null,
             ),
             const SizedBox(height: 20),
-
-            // Konten Dinamis: Keperluan atau Barang
             if (_selectedJenisPinjaman == 1 || _selectedJenisPinjaman == 2)
               _buildKeperluanPinjamanCheckboxes()
             else if (_selectedJenisPinjaman == 3)
               _buildBarangInputs(),
-
-            // Input Harga dan Tenor (muncul jika jenis pinjaman dipilih)
             if (_selectedJenisPinjaman != null) ...[
               const SizedBox(height: 20),
               _buildTextField(
                 controller: _hargaController,
-                labelText: 'Jumlah Pengajuan (Rp)', // Ganti label
+                labelText: 'Jumlah Pengajuan (Rp)',
                 hintText: 'Masukkan jumlah pengajuan',
                 prefixText: 'Rp ',
                 keyboardType: TextInputType.number,
-                icon: Icons.monetization_on_outlined, // Ganti ikon
+                icon: Icons.monetization_on_outlined,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
+                  if (value == null ||
+                      _getCleanNumber(_hargaController).isEmpty)
                     return 'Masukkan jumlah pengajuan';
-                  }
-                  if (int.tryParse(value.replaceAll(RegExp(r'[^\d]'), '')) ==
-                      null) {
+                  if (double.tryParse(_getCleanNumber(_hargaController)) ==
+                      null)
                     return 'Masukkan angka yang valid';
-                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              _buildTextField(
+                controller: _biayaAdminController,
+                labelText: 'Biaya Admin (Rp)',
+                hintText: 'Masukkan biaya admin',
+                prefixText: 'Rp ',
+                keyboardType: TextInputType.number,
+                icon: Icons.attach_money_outlined,
+                validator: (value) {
+                  if (value == null ||
+                      _getCleanNumber(_biayaAdminController).isEmpty)
+                    return 'Masukkan biaya admin';
+                  if (double.tryParse(_getCleanNumber(_biayaAdminController)) ==
+                      null)
+                    return 'Masukkan angka yang valid';
                   return null;
                 },
               ),
@@ -404,20 +443,17 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                 hintText: 'Masukkan tenor',
                 suffixText: 'bulan',
                 keyboardType: TextInputType.number,
-                icon: Icons.calendar_today_outlined, // Ganti ikon
+                icon: Icons.calendar_today_outlined,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
+                  if (value == null || value.isEmpty)
                     return 'Masukkan tenor cicilan';
-                  }
-                  if (int.tryParse(value) == null) {
+                  if (int.tryParse(value) == null)
                     return 'Masukkan angka yang valid';
-                  }
                   if (int.parse(value) <= 0) return 'Tenor harus lebih dari 0';
                   return null;
                 },
               ),
               const SizedBox(height: 32),
-              // Tombol hanya Next di Step 1
               _buildNextButton(),
             ],
           ],
@@ -426,31 +462,24 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     );
   }
 
-  // Keperluan Pinjaman checkboxes (Build Widget - Tidak berubah signifikan)
   Widget _buildKeperluanPinjamanCheckboxes() {
-    // Pastikan list tidak null sebelum digunakan
-    if (_isLoading && _keperluanPinjamanList.isEmpty) {
+    if (_isLoading && _keperluanPinjamanList.isEmpty)
       return const Center(child: CircularProgressIndicator());
-    }
     if (!_isLoading &&
         _keperluanPinjamanList.isEmpty &&
-        _selectedJenisPinjaman != null) {
-      return const Text("Tidak ada data keperluan untuk jenis pinjaman ini.");
-    }
-    if (_keperluanPinjamanList.isEmpty) {
-      return const SizedBox.shrink(); // Jangan tampilkan apa-apa jika list kosong
-    }
+        _selectedJenisPinjaman != null)
+      return const Text("Tidak ada data keperluan.");
+    if (_keperluanPinjamanList.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Keperluan Pinjaman *', // Tambah indikator wajib
+          'Keperluan Pinjaman *',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         Container(
-          // Beri border luar agar terlihat seperti grup
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey[300]!),
             borderRadius: BorderRadius.circular(8),
@@ -458,8 +487,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
           child: Column(
             children: List.generate(_keperluanPinjamanList.length, (index) {
               final keperluan = _keperluanPinjamanList[index];
-              int keperluanId = keperluan.id ?? index; // Fallback ID
-
+              int keperluanId = keperluan.id ?? index;
               return CheckboxListTile(
                 title: Text(
                   keperluan.nama ?? 'Keperluan ${index + 1}',
@@ -469,45 +497,29 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                   ),
                 ),
                 value: _selectedKeperluanIds.contains(keperluanId),
-                onChanged: (bool? value) {
-                  setState(() {
-                    if (value == true) {
-                      _selectedKeperluanIds.add(keperluanId);
-                    } else {
-                      _selectedKeperluanIds.remove(keperluanId);
-                    }
-                  });
-                  // Validate form again implicitly if needed, or rely on Next button validation
-                  // _formKeyStep1.currentState?.validate();
-                },
+                onChanged:
+                    (bool? value) => setState(() {
+                      if (value == true)
+                        _selectedKeperluanIds.add(keperluanId);
+                      else
+                        _selectedKeperluanIds.remove(keperluanId);
+                    }),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 8,
                   vertical: 0,
-                ), // Padding lebih kecil
+                ),
                 controlAffinity: ListTileControlAffinity.leading,
-                activeColor:
-                    Colors.green, // Atau Theme.of(context).primaryColor
+                activeColor: AppColors.primaryLight,
                 dense: true,
-                // Tambahkan visual divider antar item
                 visualDensity: VisualDensity.compact,
-                // Beri border bawah untuk setiap item kecuali yang terakhir
-                // Jika ingin, uncomment ini dan hapus border Container luar
-                //  decoration: BoxDecoration(
-                //    border: index < _keperluanPinjamanList.length - 1
-                //        ? Border(bottom: BorderSide(color: Colors.grey[200]!, width: 1))
-                //        : null,
-                //  ),
               );
             }),
           ),
         ),
-        // Tambahkan pesan validasi di bawah grup checkbox jika diperlukan
-        // Namun validasi utama ada di _validateStep1
       ],
     );
   }
 
-  // Barang inputs (Build Widget - Tidak berubah)
   Widget _buildBarangInputs() {
     return Column(
       children: [
@@ -515,125 +527,187 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
           controller: _jenisBarangController,
           labelText: 'Jenis Barang',
           hintText: 'Masukkan jenis barang',
-          icon: Icons.category_outlined, // Ganti ikon
-          validator: (value) {
-            if (_selectedJenisPinjaman == 3 &&
-                (value == null || value.isEmpty)) {
-              return 'Masukkan jenis barang';
-            }
-            return null;
-          },
+          icon: Icons.category_outlined,
+          validator:
+              (value) =>
+                  (_selectedJenisPinjaman == 3 &&
+                          (value == null || value.isEmpty))
+                      ? 'Masukkan jenis barang'
+                      : null,
         ),
         const SizedBox(height: 16),
         _buildTextField(
           controller: _merkTypeController,
           labelText: 'Merk/Type',
           hintText: 'Masukkan merk/type',
-          icon: Icons.branding_watermark_outlined, // Ganti ikon
-          validator: (value) {
-            if (_selectedJenisPinjaman == 3 &&
-                (value == null || value.isEmpty)) {
-              return 'Masukkan merk/type';
-            }
-            return null;
-          },
+          icon: Icons.branding_watermark_outlined,
+          validator:
+              (value) =>
+                  (_selectedJenisPinjaman == 3 &&
+                          (value == null || value.isEmpty))
+                      ? 'Masukkan merk/type'
+                      : null,
         ),
       ],
     );
   }
 
-  // STEP 2: Jaminan (Widget Build - DIRUBAH: ada tombol Back & Submit)
   Widget _buildStep2Content() {
     return Form(
       key: _formKeyStep2,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.only(
-          bottom: 16,
-        ), // Padding bawah untuk tombol
+        padding: const EdgeInsets.only(bottom: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Informasi Jaminan',
+              'Informasi Jaminan & Pencairan',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-
-            // Jenis Jaminan input
             _buildTextField(
               controller: _jenisJaminanController,
               labelText: 'Jenis Jaminan',
               hintText: 'Contoh: Sertifikat Rumah, BPKB, dll',
-              icon: Icons.security_outlined, // Ganti ikon
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Masukkan jenis jaminan';
-                }
-                return null;
-              },
+              icon: Icons.security_outlined,
+              validator:
+                  (value) =>
+                      (value == null || value.isEmpty)
+                          ? 'Masukkan jenis jaminan'
+                          : null,
             ),
             const SizedBox(height: 16),
-
-            // Keterangan Jaminan input
             _buildTextField(
               controller: _keteranganJaminanController,
               labelText: 'Keterangan Jaminan',
               hintText: 'Detail informasi terkait jaminan',
-              icon: Icons.description_outlined, // Ganti ikon
+              icon: Icons.description_outlined,
               maxLines: 3,
+              validator:
+                  (value) =>
+                      (value == null || value.isEmpty)
+                          ? 'Masukkan keterangan jaminan'
+                          : null,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _perkiraanNilaiController,
+              labelText: 'Perkiraan Nilai Jaminan (Rp)',
+              hintText: 'Masukkan perkiraan nilai',
+              prefixText: 'Rp ',
+              keyboardType: TextInputType.number,
+              icon: Icons.monetization_on_outlined,
               validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Masukkan keterangan jaminan';
-                }
+                if (value == null ||
+                    _getCleanNumber(_perkiraanNilaiController).isEmpty)
+                  return 'Masukkan perkiraan nilai';
+                if (double.tryParse(
+                      _getCleanNumber(_perkiraanNilaiController),
+                    ) ==
+                    null)
+                  return 'Masukkan angka yang valid';
+                if (double.parse(_getCleanNumber(_perkiraanNilaiController)) <=
+                    0)
+                  return 'Nilai harus lebih dari 0';
                 return null;
               },
             ),
             const SizedBox(height: 16),
-
-            // Perkiraan Nilai input
             _buildTextField(
-              controller: _perkiraanNilaiController,
-              labelText: 'Perkiraan Nilai Jaminan (Rp)', // Ganti label
-              hintText: 'Masukkan perkiraan nilai',
-              prefixText: 'Rp ',
+              controller: _noRekeningController,
+              labelText: 'Nomor Rekening Pencairan',
+              hintText: 'Masukkan nomor rekening',
               keyboardType: TextInputType.number,
-              icon: Icons.monetization_on_outlined, // Ganti ikon
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Masukkan perkiraan nilai';
-                }
-                if (int.tryParse(value.replaceAll(RegExp(r'[^\d]'), '')) ==
-                    null) {
-                  return 'Masukkan angka yang valid';
-                }
-                if (int.parse(value.replaceAll(RegExp(r'[^\d]'), '')) <= 0) {
-                  return 'Nilai harus lebih dari 0';
-                }
-                return null;
-              },
+              icon: Icons.account_balance_outlined,
+              validator:
+                  (value) =>
+                      (value == null || value.isEmpty)
+                          ? 'Masukkan nomor rekening'
+                          : null,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _bankController,
+              labelText: 'Nama Bank Pencairan',
+              hintText: 'Contoh: BSI, Mandiri, BCA',
+              icon: Icons.business_outlined,
+              validator:
+                  (value) =>
+                      (value == null || value.isEmpty)
+                          ? 'Masukkan nama bank'
+                          : null,
+            ),
+            const SizedBox(height: 16),
+            _buildDocumentPicker(
+              label: "Upload Slip Gaji (PDF, Opsional)",
+              file: _docSlipGaji,
+              onPick: _pickSlipGaji,
             ),
             const SizedBox(height: 32),
-            // Tombol navigasi Back & Submit di Step 2
-            _buildNavigationButtons(
-              isLastStep: true,
-            ), // Tandai sebagai step terakhir
+            _buildNavigationButtons(isLastStep: true),
           ],
         ),
       ),
     );
   }
 
-  // Hapus fungsi build Step 3
-  /*
-  Widget _buildStep3Content() { ... }
-  */
+  Widget _buildDocumentPicker({
+    required String label,
+    required XFile? file,
+    required VoidCallback onPick,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: onPick,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey[400]!),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.upload_file_outlined, color: AppColors.primaryLight),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    file != null ? file.name : 'Pilih file PDF...',
+                    style: TextStyle(
+                      color: file != null ? Colors.black87 : Colors.grey[600],
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (file != null)
+                  Icon(
+                    Icons.check_circle_outline,
+                    color: AppColors.successLight,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Text(
+            "Maks. 2MB, format .pdf",
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+          ),
+        ),
+      ],
+    );
+  }
 
-  // Hapus fungsi build document upload field
-  /*
-  Widget _buildDocumentUploadField(...) { ... }
-  */
-
-  // Common TextField widget (Build Widget - Ganti Ikon)
   Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,
@@ -642,110 +716,30 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     String? Function(String?)? validator,
     String? prefixText,
     String? suffixText,
-    IconData? icon, // Tetap IconData untuk fleksibilitas
+    IconData? icon,
     int maxLines = 1,
   }) {
     final textTheme = Theme.of(context).textTheme;
-    // Ambil warna dari theme jika memungkinkan
-    final primaryColor = Theme.of(context).primaryColor;
-    final borderColor = Theme.of(
-      context,
-    ).dividerColor.withOpacity(0.5); // Warna border lebih lembut
-
+    final primaryColor = AppColors.primaryLight;
+    final borderColor = Theme.of(context).dividerColor.withOpacity(0.5);
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
         maxLines: maxLines,
-        style: textTheme.bodyLarge, // Style teks input
-        decoration: InputDecoration(
-          labelText: labelText,
-          hintText: hintText,
-          labelStyle: textTheme.labelMedium, // Style label
-          hintStyle: textTheme.bodyMedium?.copyWith(
-            color: Colors.grey[500],
-          ), // Style hint
-          prefixText: prefixText,
-          suffixText: suffixText,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ), // Padding konten
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(
-              12,
-            ), // Radius border lebih besar
-            borderSide: BorderSide(color: borderColor, width: 1),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: borderColor, width: 1),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: primaryColor,
-              width: 1.5,
-            ), // Border fokus lebih tebal
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.red, width: 1),
-          ),
-          focusedErrorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.red, width: 1.5),
-          ),
-          // Gunakan prefixIcon agar padding konsisten
-          prefixIcon:
-              icon != null
-                  ? Padding(
-                    padding: const EdgeInsets.only(left: 12.0, right: 8.0),
-                    child: Icon(icon, size: 20, color: Colors.grey[600]),
-                  )
-                  : null,
-          prefixIconConstraints: const BoxConstraints(
-            minHeight: 40,
-            minWidth: 40,
-          ), // Atur constraint ikon
-        ),
-        validator: validator,
-      ),
-    );
-  }
-
-  // Custom dropdown (Build Widget - Ganti Ikon)
-  Widget _buildDropdown<T>({
-    required T? value,
-    required List<DropdownMenuItem<T>> items,
-    required void Function(T?) onChanged,
-    required String labelText,
-    String? hintText,
-    IconData? icon, // Tetap IconData
-    String? Function(T?)? validator,
-  }) {
-    final textTheme = Theme.of(context).textTheme;
-    final primaryColor = Theme.of(context).primaryColor;
-    final borderColor = Theme.of(context).dividerColor.withOpacity(0.5);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: DropdownButtonFormField<T>(
-        value: value,
-        items: items,
-        onChanged: onChanged,
-        validator: validator,
         style: textTheme.bodyLarge,
         decoration: InputDecoration(
           labelText: labelText,
           hintText: hintText,
           labelStyle: textTheme.labelMedium,
           hintStyle: textTheme.bodyMedium?.copyWith(color: Colors.grey[500]),
+          prefixText: prefixText,
+          suffixText: suffixText,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 0,
+            horizontal: 16,
             vertical: 14,
-          ), // Sesuaikan padding
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: borderColor, width: 1),
@@ -777,21 +771,83 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             minHeight: 40,
             minWidth: 40,
           ),
-          // suffixIcon tidak diperlukan, dropdown button sudah ada arrow default
         ),
-        // icon: SizedBox.shrink(), // Sembunyikan ikon default jika pakai prefixIcon
-        icon: Padding(
-          // Atau style ikon default
-          padding: const EdgeInsets.only(right: 8.0),
-          child: Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
-        ),
-        isExpanded: true,
-        dropdownColor: Colors.white, // Warna background dropdown
+        validator: validator,
       ),
     );
   }
 
-  // Tombol Next (Build Widget - Tidak Berubah)
+  Widget _buildDropdown<T>({
+    required T? value,
+    required List<DropdownMenuItem<T>> items,
+    required void Function(T?) onChanged,
+    required String labelText,
+    String? hintText,
+    IconData? icon,
+    String? Function(T?)? validator,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final primaryColor = AppColors.primaryLight;
+    final borderColor = Theme.of(context).dividerColor.withOpacity(0.5);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: DropdownButtonFormField<T>(
+        value: value,
+        items: items,
+        onChanged: onChanged,
+        validator: validator,
+        style: textTheme.bodyLarge,
+        decoration: InputDecoration(
+          labelText: labelText,
+          hintText: hintText,
+          labelStyle: textTheme.labelMedium,
+          hintStyle: textTheme.bodyMedium?.copyWith(color: Colors.grey[500]),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 0,
+            vertical: 14,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: borderColor, width: 1),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: borderColor, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: primaryColor, width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red, width: 1),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red, width: 1.5),
+          ),
+          prefixIcon:
+              icon != null
+                  ? Padding(
+                    padding: const EdgeInsets.only(left: 12.0, right: 8.0),
+                    child: Icon(icon, size: 20, color: Colors.grey[600]),
+                  )
+                  : null,
+          prefixIconConstraints: const BoxConstraints(
+            minHeight: 40,
+            minWidth: 40,
+          ),
+        ),
+        icon: Padding(
+          padding: const EdgeInsets.only(right: 8.0),
+          child: Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
+        ),
+        isExpanded: true,
+        dropdownColor: Colors.white,
+      ),
+    );
+  }
+
   Widget _buildNextButton() {
     final textTheme = Theme.of(context).textTheme;
     return SizedBox(
@@ -799,31 +855,28 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
       child: ElevatedButton(
         onPressed: _nextStep,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green, // Atau Theme.of(context).primaryColor
+          backgroundColor: AppColors.primaryLight,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
         ),
         child: Text(
-          "Berikutnya", // Ganti teks "Next"
+          "Berikutnya",
           style: textTheme.titleMedium?.copyWith(
             color: Colors.white,
             fontWeight: FontWeight.bold,
-          ), // Tebalkan teks
+          ),
         ),
       ),
     );
   }
 
-  // Tombol Navigasi Back & Next/Submit (Build Widget - Tidak Berubah)
   Widget _buildNavigationButtons({bool isLastStep = false}) {
     final textTheme = Theme.of(context).textTheme;
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Tombol Back (OutlinedButton agar tidak terlalu dominan)
         OutlinedButton(
           onPressed: _prevStep,
           style: OutlinedButton.styleFrom(
@@ -831,32 +884,39 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-            side: BorderSide(color: Colors.grey[400]!), // Warna border
+            side: BorderSide(color: Colors.grey[400]!),
           ),
           child: Text(
-            "Kembali", // Ganti teks
+            "Kembali",
             style: textTheme.titleMedium?.copyWith(color: Colors.black54),
           ),
         ),
-        // Tombol Next/Submit
         ElevatedButton(
-          onPressed:
-              _nextStep, // Fungsi _nextStep akan handle submit di step terakhir
+          onPressed: _isSubmitting ? null : _nextStep,
           style: ElevatedButton.styleFrom(
-            backgroundColor:
-                Colors.green, // Atau Theme.of(context).primaryColor
+            backgroundColor: AppColors.primaryLight,
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: Text(
-            isLastStep ? "Ajukan Pinjaman" : "Berikutnya", // Ganti teks submit
-            style: textTheme.titleMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          child:
+              _isSubmitting
+                  ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                  : Text(
+                    isLastStep ? "Ajukan Pinjaman" : "Berikutnya",
+                    style: textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
         ),
       ],
     );

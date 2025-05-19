@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Import untuk SystemChrome
 import 'package:camera/camera.dart';
+import 'package:image_picker/image_picker.dart'; // Import ImagePicker
+// Asumsi AppColors ada di theme.dart atau ganti dengan Colors.
+import '../../../theme.dart'; // Sesuaikan path jika perlu
 
 class CameraScreen extends StatefulWidget {
   final List<CameraDescription> cameras;
@@ -16,16 +19,15 @@ class _CameraScreenState extends State<CameraScreen> {
   late CameraController _controller;
   late Future<void> _initializeControllerFuture;
   bool _isTakingPicture = false;
+  bool _isPickingImage = false; // State untuk loading saat memilih dari galeri
   XFile? _capturedImageFile;
 
-  // Definisikan warna utama Anda di sini agar mudah diubah jika perlu
-  final Color primaryColor = Colors.green; // Warna hijau tema Anda
-  final Color accentColor =
-      Colors.white; // Warna aksen (misal untuk teks di atas tombol hijau)
-  final Color secondaryButtonColor =
-      Colors.white; // Warna untuk tombol sekunder
-  final Color secondaryButtonTextColor =
-      Colors.green; // Warna teks untuk tombol sekunder
+  final ImagePicker _picker = ImagePicker(); // Instance ImagePicker
+
+  final Color primaryColor = AppColors.primaryLight;
+  final Color accentColor = Colors.white;
+  final Color secondaryButtonColor = Colors.white;
+  final Color secondaryButtonTextColor = AppColors.primaryLight;
 
   @override
   void initState() {
@@ -37,7 +39,7 @@ class _CameraScreenState extends State<CameraScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Tidak ada kamera yang ditemukan.")),
+            const SnackBar(content: Text("Tidak ada kamera yang ditemukan.")),
           );
           Navigator.pop(context);
         }
@@ -48,17 +50,19 @@ class _CameraScreenState extends State<CameraScreen> {
       widget.cameras[0],
       ResolutionPreset.high,
       enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
     );
     _initializeControllerFuture = _controller.initialize().catchError((e) {
       print("Error initializing camera: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Gagal menginisialisasi kamera: ${e.description ?? e.toString()}",
-            ),
-          ),
-        );
+        String errorMessage = "Gagal menginisialisasi kamera.";
+        if (e is CameraException) {
+          errorMessage =
+              "Gagal menginisialisasi kamera: ${e.description ?? e.code}";
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(errorMessage)));
         Navigator.pop(context);
       }
     });
@@ -75,26 +79,67 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Future<void> _takePicture() async {
-    if (_isTakingPicture || !_controller.value.isInitialized) return;
+    if (_isTakingPicture || !_controller.value.isInitialized || _isPickingImage)
+      return;
 
     try {
-      setState(() {
-        _isTakingPicture = true;
-      });
+      setState(() => _isTakingPicture = true);
       await _initializeControllerFuture;
-      XFile pictureFile = await _controller.takePicture();
-      setState(() {
-        _capturedImageFile = pictureFile;
-      });
+
+      final XFile pictureFile = await _controller.takePicture();
+
+      if (mounted) {
+        setState(() {
+          _capturedImageFile = pictureFile;
+          // _isTakingPicture akan direset saat UI berubah ke preview foto atau _retakePhoto
+        });
+      }
     } catch (e) {
       print("Error taking picture: $e");
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal mengambil gambar: $e')));
-        setState(() {
-          _isTakingPicture = false;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengambil gambar: ${e.toString()}')),
+        );
+        setState(() => _isTakingPicture = false);
+      }
+    }
+    // Tidak perlu setState _isTakingPicture = false di sini jika _capturedImageFile sudah di-set,
+    // karena UI akan berganti ke mode preview.
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    if (_isPickingImage || _isTakingPicture)
+      return; // Jangan proses jika sudah ada aksi lain
+
+    try {
+      setState(() => _isPickingImage = true);
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80, // Kualitas gambar bisa disesuaikan
+        maxWidth: 1024, // Batasi ukuran gambar jika perlu
+      );
+
+      if (pickedFile != null) {
+        if (mounted) {
+          setState(() {
+            _capturedImageFile = pickedFile;
+            _isPickingImage = false;
+          });
+        }
+      } else {
+        // User membatalkan pemilihan gambar
+        if (mounted) {
+          setState(() => _isPickingImage = false);
+        }
+        print('Pemilihan gambar dari galeri dibatalkan.');
+      }
+    } catch (e) {
+      print("Error picking image from gallery: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memilih gambar: ${e.toString()}')),
+        );
+        setState(() => _isPickingImage = false);
       }
     }
   }
@@ -109,10 +154,12 @@ class _CameraScreenState extends State<CameraScreen> {
     setState(() {
       _capturedImageFile = null;
       _isTakingPicture = false;
+      _isPickingImage = false;
     });
   }
 
   Widget _buildKtpOverlay(BuildContext context) {
+    // ... (Implementasi _buildKtpOverlay tetap sama) ...
     final Size screenSize = MediaQuery.of(context).size;
     const double ktpAspectRatio = 1.586 / 1.0;
     final double overlayWidth = screenSize.width * 0.85;
@@ -123,12 +170,7 @@ class _CameraScreenState extends State<CameraScreen> {
         width: overlayWidth,
         height: overlayHeight,
         decoration: BoxDecoration(
-          border: Border.all(
-            color: Colors.white.withOpacity(
-              0.8,
-            ), // Border overlay KTP tetap putih
-            width: 3.0,
-          ),
+          border: Border.all(color: Colors.white.withOpacity(0.8), width: 3.0),
           borderRadius: BorderRadius.circular(8.0),
           boxShadow: [
             BoxShadow(
@@ -154,31 +196,45 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Widget _buildFullscreenCameraPreview() {
-    if (!_controller.value.isInitialized) {
-      return Container(color: Colors.black);
+    // ... (Implementasi _buildFullscreenCameraPreview tetap sama) ...
+    if (!_controller.value.isInitialized ||
+        _controller.value.previewSize == null) {
+      return const Center(child: CircularProgressIndicator());
     }
-    return SizedBox.expand(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          child: AspectRatio(
-            aspectRatio: _controller.value.aspectRatio,
-            child: CameraPreview(_controller),
-          ),
-        ),
+    return FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: _controller.value.previewSize!.height,
+        height: _controller.value.previewSize!.width,
+        child: CameraPreview(_controller),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // ... (Bagian awal build method tetap sama) ...
     if (widget.cameras.isEmpty) {
-      // Ini akan jarang terjadi jika pengecekan di initState bekerja,
-      // tapi sebagai fallback.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.pop(context);
       });
-      return Scaffold(body: Center(child: Text("Kamera tidak tersedia.")));
+      return Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          title: const Text(
+            "Kamera Tidak Tersedia",
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.black,
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: const Center(
+          child: Text(
+            "Tidak ada kamera yang ditemukan.",
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      );
     }
 
     final screenPadding = MediaQuery.of(context).padding;
@@ -196,14 +252,14 @@ class _CameraScreenState extends State<CameraScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
+                            const Text(
                               "Gagal memuat kamera.",
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 18,
                               ),
                             ),
-                            SizedBox(height: 10),
+                            const SizedBox(height: 10),
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: primaryColor,
@@ -218,6 +274,7 @@ class _CameraScreenState extends State<CameraScreen> {
                         ),
                       );
                     }
+                    // --- UI untuk Tampilan Kamera Aktif ---
                     return Stack(
                       children: [
                         Positioned.fill(child: _buildFullscreenCameraPreview()),
@@ -231,12 +288,12 @@ class _CameraScreenState extends State<CameraScreen> {
                               borderRadius: BorderRadius.circular(30),
                               onTap: () => Navigator.pop(context),
                               child: Container(
-                                padding: EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: Colors.black.withOpacity(0.3),
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(
+                                child: const Icon(
                                   Icons.close,
                                   color: Colors.white,
                                   size: 28,
@@ -245,35 +302,76 @@ class _CameraScreenState extends State<CameraScreen> {
                             ),
                           ),
                         ),
+                        // --- Tombol Kontrol Kamera di Bawah ---
                         Positioned(
                           bottom: screenPadding.bottom + 24.0,
                           left: 0,
                           right: 0,
-                          child: Align(
-                            alignment: Alignment.center,
-                            child: FloatingActionButton(
-                              onPressed: _isTakingPicture ? null : _takePicture,
-                              backgroundColor:
-                                  Colors.white, // Tombol capture tetap putih
-                              elevation: 4.0,
-                              child:
-                                  _isTakingPicture
-                                      ? SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.grey,
-                                          strokeWidth: 3,
-                                        ),
-                                      )
-                                      : Icon(
-                                        Icons.camera_alt,
-                                        color: Colors.black,
-                                        size: 28,
-                                      ), // Icon hitam
-                            ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // Tombol Pilih dari Galeri
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.3),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.photo_library_outlined,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
+                                  onPressed:
+                                      _isTakingPicture || _isPickingImage
+                                          ? null
+                                          : _pickImageFromGallery,
+                                  tooltip: 'Pilih dari Galeri',
+                                  padding: const EdgeInsets.all(12),
+                                ),
+                              ),
+                              // Tombol Ambil Foto (Shutter)
+                              FloatingActionButton(
+                                onPressed:
+                                    _isTakingPicture || _isPickingImage
+                                        ? null
+                                        : _takePicture,
+                                backgroundColor: Colors.white,
+                                elevation: 4.0,
+                                child:
+                                    _isTakingPicture
+                                        ? const SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.grey,
+                                            strokeWidth: 3,
+                                          ),
+                                        )
+                                        : const Icon(
+                                          Icons.camera_alt,
+                                          color: Colors.black,
+                                          size: 32,
+                                        ), // Icon lebih besar
+                              ),
+                              // Spacer atau tombol lain jika ada (misal, switch camera)
+                              SizedBox(
+                                width: 48 + 24,
+                              ), // Lebar IconButton + padding agar simetris
+                            ],
                           ),
                         ),
+                        // Indikator loading untuk _isPickingImage (jika diperlukan, bisa di tengah layar)
+                        if (_isPickingImage)
+                          Container(
+                            color: Colors.black.withOpacity(0.5),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: primaryColor,
+                              ),
+                            ),
+                          ),
                       ],
                     );
                   } else {
@@ -284,11 +382,18 @@ class _CameraScreenState extends State<CameraScreen> {
                 },
               )
               : Column(
+                // Tampilan setelah foto diambil/dipilih (preview)
+                // ... (Bagian preview foto dan tombol "Ambil Ulang" / "Pakai Foto" tetap sama) ...
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        screenPadding.top + 16,
+                        16,
+                        16,
+                      ),
                       child: Image.file(
                         File(_capturedImageFile!.path),
                         fit: BoxFit.contain,
@@ -307,48 +412,40 @@ class _CameraScreenState extends State<CameraScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         ElevatedButton.icon(
-                          // Mengganti OutlinedButton menjadi ElevatedButton
                           icon: Icon(
                             Icons.replay,
                             color: secondaryButtonTextColor,
-                          ), // Warna icon hijau
+                          ),
                           label: Text(
                             "Ambil Ulang",
                             style: TextStyle(
                               color: secondaryButtonTextColor,
                               fontSize: 16,
                             ),
-                          ), // Warna teks hijau
+                          ),
                           onPressed: _retakePhoto,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                secondaryButtonColor, // Latar putih
-                            padding: EdgeInsets.symmetric(
+                            backgroundColor: secondaryButtonColor,
+                            padding: const EdgeInsets.symmetric(
                               horizontal: 24,
                               vertical: 12,
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30),
                             ),
-                            side: BorderSide(
-                              color: primaryColor,
-                              width: 1.5,
-                            ), // Border hijau (opsional)
+                            side: BorderSide(color: primaryColor, width: 1.5),
                           ),
                         ),
                         ElevatedButton.icon(
-                          icon: Icon(
-                            Icons.check_circle,
-                            color: accentColor,
-                          ), // Icon putih
+                          icon: Icon(Icons.check_circle, color: accentColor),
                           label: Text(
                             "Pakai Foto",
                             style: TextStyle(fontSize: 16, color: accentColor),
-                          ), // Teks putih
+                          ),
                           onPressed: _usePhoto,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor, // Latar hijau
-                            padding: EdgeInsets.symmetric(
+                            backgroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(
                               horizontal: 24,
                               vertical: 12,
                             ),
