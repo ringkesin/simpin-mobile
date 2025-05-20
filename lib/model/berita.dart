@@ -1,6 +1,6 @@
 // Model untuk satu item berita/konten
 class BeritaItem {
-  final int id;
+  final String? id;
   final int contentTypeId;
   final String? thumbnailPath; // Bisa null jika API memungkinkan
   final String title;
@@ -25,7 +25,7 @@ class BeritaItem {
 
   factory BeritaItem.fromJson(Map<String, dynamic> json) {
     return BeritaItem(
-      id: json['t_content_id'] as int? ?? 0, // Default 0 jika null
+      id: json['t_content_id'] as String?, // Default 0 jika null
       contentTypeId: json['p_content_type_id'] as int? ?? 0,
       thumbnailPath: json['thumbnail_path'] as String?,
       title:
@@ -76,7 +76,7 @@ class BeritaData {
               print("Error: Item in content list is not a Map: $itemJson");
               // Contoh fallback: return BeritaItem default atau lewati item ini
               return BeritaItem(
-                id: -1,
+                id: '',
                 contentTypeId: -1,
                 title: 'Invalid Item',
                 text: '',

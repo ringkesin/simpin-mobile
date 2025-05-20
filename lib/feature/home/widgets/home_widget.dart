@@ -10,33 +10,13 @@ import 'package:kkba_mobile/model/berita.dart';
 import 'package:kkba_mobile/feature/pencairan/screens/pencairan.dart';
 
 // Widget: Header
-class HeaderWidget extends StatelessWidget {
-  const HeaderWidget({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
-        Text(
-          "Welcome, Alwi Ghozali",
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class BannerWidget extends StatelessWidget {
-  final bool isLoading; // Keseluruhan loading state untuk banner
+  final bool isLoading;
   final String? username;
   final String? nomorAnggota;
-  final String? usernameError; // Error spesifik untuk username
-  final String? nomorAnggotaError; // Error spesifik untuk nomor anggota
+  final String? usernameError;
+  final String? nomorAnggotaError;
   final VoidCallback? onGenerateQr;
 
   const BannerWidget({
@@ -53,35 +33,48 @@ class BannerWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final TextTheme textTheme = theme.textTheme;
-    // final ColorScheme colorScheme = theme.colorScheme; // Jika diperlukan
+    final screenWidth = MediaQuery.of(context).size.width;
 
-    // --- Logika Tampilan Username ---
     String displayUsername;
     TextStyle usernameStyle =
-        textTheme.bodyLarge?.copyWith(color: Colors.white.withOpacity(0.9)) ??
-        const TextStyle(color: Colors.white70, fontSize: 16);
+        textTheme.bodyLarge?.copyWith(
+          color: Colors.white.withOpacity(0.95),
+          fontWeight: FontWeight.w500,
+        ) ??
+        const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        );
 
     if (isLoading) {
-      // Jika banner secara keseluruhan sedang loading
       displayUsername = 'Memuat Nama...';
       usernameStyle = usernameStyle.copyWith(
         color: Colors.white.withOpacity(0.7),
       );
     } else if (usernameError != null) {
-      // Jika ada error spesifik untuk username
-      displayUsername = usernameError!; // Tampilkan pesan error username
-      usernameStyle = usernameStyle.copyWith(color: AppColors.warningLight);
+      displayUsername = usernameError!;
+      usernameStyle = usernameStyle.copyWith(
+        color: AppColors.warningLight,
+        fontWeight: FontWeight.bold,
+      );
     } else {
-      // Jika tidak loading dan tidak ada error username
-      displayUsername = username?.isNotEmpty ?? false ? username! : 'Pengguna';
+      displayUsername =
+          username?.isNotEmpty ?? false ? username! : 'Pengguna Terhormat';
     }
 
-    // --- Logika Tampilan nomorAnggota ---
     Widget nomorAnggotaWidget;
-    final nomorAnggotaTextStyle =
+    final nomorAnggotaBaseStyle =
         textTheme.headlineSmall?.copyWith(
           color: Colors.white,
           fontWeight: FontWeight.bold,
+          shadows: [
+            Shadow(
+              blurRadius: 2.0,
+              color: Colors.black.withOpacity(0.3),
+              offset: Offset(1, 1),
+            ),
+          ],
         ) ??
         const TextStyle(
           color: Colors.white,
@@ -90,32 +83,37 @@ class BannerWidget extends StatelessWidget {
         );
 
     if (isLoading) {
-      // Jika banner secara keseluruhan sedang loading
       nomorAnggotaWidget = Text(
         'Memuat No. Anggota...',
-        style: nomorAnggotaTextStyle.copyWith(
+        style: nomorAnggotaBaseStyle.copyWith(
           color: Colors.white.withOpacity(0.8),
           fontWeight: FontWeight.normal,
           fontSize: 18,
         ),
       );
     } else if (nomorAnggotaError != null) {
-      // Jika ada error spesifik untuk nomor anggota
       nomorAnggotaWidget = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline, color: AppColors.warningLight, size: 20),
+          Icon(
+            Icons.error_outline,
+            color: AppColors.warningLight.withOpacity(0.9),
+            size: 20,
+          ),
           const SizedBox(width: 8),
           Expanded(
-            // Agar teks error tidak overflow
             child: Text(
-              nomorAnggotaError!, // Tampilkan pesan error nomor anggota
+              nomorAnggotaError!,
               style:
-                  textTheme.bodyLarge?.copyWith(
-                    color: AppColors.warningLight,
-                    fontWeight: FontWeight.w500,
+                  textTheme.bodyMedium?.copyWith(
+                    color: AppColors.warningLight.withOpacity(0.9),
+                    fontWeight: FontWeight.w600,
                   ) ??
-                  TextStyle(color: AppColors.warningLight, fontSize: 16),
+                  TextStyle(
+                    color: AppColors.warningLight,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
               overflow: TextOverflow.ellipsis,
               maxLines: 2,
             ),
@@ -123,116 +121,144 @@ class BannerWidget extends StatelessWidget {
         ],
       );
     } else if (nomorAnggota == null || nomorAnggota!.isEmpty) {
-      // Jika tidak ada error, tapi data kosong
       nomorAnggotaWidget = Text(
         'No. Anggota Tidak Tersedia',
-        style: nomorAnggotaTextStyle.copyWith(
-          fontSize: 18,
+        style: nomorAnggotaBaseStyle.copyWith(
+          fontSize: 16,
           fontWeight: FontWeight.normal,
-          color: Colors.white.withOpacity(0.7),
+          color: Colors.white.withOpacity(0.75),
         ),
       );
     } else {
-      // Jika tidak loading, tidak ada error, dan data ada
-      nomorAnggotaWidget = Text(nomorAnggota!, style: nomorAnggotaTextStyle);
+      nomorAnggotaWidget = Text(nomorAnggota!, style: nomorAnggotaBaseStyle);
     }
 
-    // Kunci untuk AnimatedSwitcher, agar transisi terjadi saat state relevan berubah
     final String animatedSwitcherKey =
         isLoading
-            ? 'loading'
-            : '${nomorAnggotaError ?? nomorAnggota ?? "empty"}';
+            ? 'loading_banner'
+            : 'data_banner_${nomorAnggotaError ?? nomorAnggota ?? "empty"}';
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          colors: [AppColors.primaryDark, AppColors.primaryLight],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryDark.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+    // --- PENYESUAIAN ASPECT RATIO ---
+    // Nilai yang lebih besar akan membuat banner lebih "pendek" untuk lebar yang sama.
+    // Anda mungkin perlu menyesuaikan ini berdasarkan aspek rasio aktual gambar Card.png Anda.
+    // Jika Card.png Anda memiliki rasio ~1.58 (seperti kartu kredit),
+    // menggunakan nilai yang lebih besar dari itu akan memotong bagian atas/bawah gambar
+    // jika fit adalah BoxFit.cover, atau menambahkan letterbox jika fit adalah contain.
+    // Mari kita coba nilai yang sedikit lebih besar dari 1.6 untuk mengurangi tinggi.
+    const double imageAspectRatio =
+        1.85; // Coba nilai ini, atau sesuaikan dengan rasio gambar Anda
+
+    double iconSize = (screenWidth * 0.1).clamp(35.0, 50.0);
+
+    return Card(
+      elevation: 6.0,
+      margin: EdgeInsets.zero,
+      // --- PERUBAHAN WARNA BACKGROUND CARD ---
+      color:
+          AppColors
+              .primaryDark, // Warna hijau tua sebagai fallback atau jika gambar transparan
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.antiAlias,
+      child: AspectRatio(
+        aspectRatio: imageAspectRatio,
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: const AssetImage(
+                'assets/images/Card.png',
+              ), // Pastikan path ini benar
+              fit: BoxFit.cover,
+              colorFilter: ColorFilter.mode(
+                Colors.black.withOpacity(
+                  0.10,
+                ), // Sedikit dikurangi opacity overlay
+                BlendMode.darken,
+              ),
+            ),
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    displayUsername,
-                    style: usernameStyle,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: screenWidth * 0.055, // Sedikit disesuaikan
+              vertical: screenWidth * 0.035, // Sedikit disesuaikan
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        displayUsername,
+                        style: usernameStyle.copyWith(
+                          shadows: [
+                            Shadow(
+                              blurRadius: 2.0,
+                              color: Colors.black.withOpacity(0.5),
+                              offset: Offset(1, 1),
+                            ), // Shadow lebih jelas
+                          ],
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      // const SizedBox(height: 2), // Spasi disesuaikan
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        key: ValueKey<String>(animatedSwitcherKey),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: nomorAnggotaWidget,
+                        ),
+                        transitionBuilder: (child, animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    key: ValueKey<String>(
-                      animatedSwitcherKey,
-                    ), // Kunci yang diperbarui
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: nomorAnggotaWidget,
+                ),
+                const SizedBox(width: 10), // Sedikit dikurangi
+                if (onGenerateQr != null)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(
+                        0.25,
+                      ), // Sedikit lebih jelas
+                      shape: BoxShape.circle,
                     ),
-                    transitionBuilder: (child, animation) {
-                      return FadeTransition(opacity: animation, child: child);
-                    },
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.qr_code_2_rounded,
+                        color: Colors.white.withOpacity(0.98), // Lebih opaque
+                        size: iconSize,
+                        semanticLabel: 'Tampilkan QR Code',
+                      ),
+                      onPressed:
+                          (isLoading ||
+                                  nomorAnggotaError != null ||
+                                  nomorAnggota == null ||
+                                  nomorAnggota!.isEmpty)
+                              ? null
+                              : onGenerateQr,
+                      tooltip: 'Tampilkan QR Code No. Anggota',
+                      splashRadius:
+                          iconSize *
+                          0.6, // Splash radius relatif terhadap ukuran ikon
+                      padding: const EdgeInsets.all(10),
+                    ),
                   ),
-                ],
-              ),
+              ],
             ),
-            const SizedBox(width: 12),
-            IconButton(
-              icon: Icon(
-                Icons.qr_code_scanner,
-                color: Colors.white.withOpacity(0.9),
-                size: 50,
-              ),
-              // Tombol QR dinonaktifkan jika sedang loading, ada error nomor anggota, atau nomor anggota tidak ada
-              onPressed:
-                  (isLoading ||
-                          nomorAnggotaError != null ||
-                          nomorAnggota == null ||
-                          nomorAnggota!.isEmpty)
-                      ? null
-                      : onGenerateQr,
-              tooltip: 'Tampilkan QR Code No. Anggota',
-              splashRadius: 24,
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
-}
-
-Widget _buildActionButton(IconData icon, String label) {
-  return Column(
-    children: [
-      Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.2),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 24),
-      ),
-      const SizedBox(height: 4),
-      Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
-    ],
-  );
 }
 
 // Widget: Categories
@@ -417,13 +443,13 @@ class CategoryItem extends StatelessWidget {
 }
 
 // Widget: Recent Transactions
+// Widget: BeritaListWidget (MODIFIED for responsiveness)
 class BeritaListWidget extends StatelessWidget {
   final List<BeritaItem> beritaList;
 
   const BeritaListWidget({Key? key, required this.beritaList})
     : super(key: key);
 
-  // Fungsi helper format tanggal (tetap sama)
   String _formatDisplayDate(String dateString) {
     try {
       final DateTime dateTime = DateTime.parse(dateString);
@@ -436,12 +462,10 @@ class BeritaListWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final screenWidth = MediaQuery.of(context).size.width;
 
-    // --- BATASI JUMLAH BERITA MENJADI MAKSIMAL 5 ---
     final limitedBeritaList = beritaList.take(5).toList();
-    // ----------------------------------------------
 
-    // Handle jika list berita (setelah dibatasi) kosong
     if (limitedBeritaList.isEmpty) {
       return Center(
         child: Padding(
@@ -454,12 +478,34 @@ class BeritaListWidget extends StatelessWidget {
       );
     }
 
-    // Tentukan lebar untuk setiap kartu berita dalam list horizontal
-    const double cardWidth = 280.0; // Sesuaikan lebar kartu sesuai keinginan
-    // Tentukan tinggi untuk area list horizontal
-    // Perkiraan: (Lebar Kartu / Rasio Aspek Gambar) + Padding Teks + Tinggi Teks
-    // Contoh: (280 / (16/9)) + 12 + 12 + (20 * 2) + 6 + (14*1)  ~= 158 + 24 + 40 + 6 + 14 ~= 242
-    const double horizontalListHeight = 260.0; // Sesuaikan tinggi ini
+    // --- Kalkulasi Responsif untuk Kartu Berita ---
+    double responsiveCardWidth;
+    if (screenWidth < 380) {
+      // Layar sangat sempit
+      responsiveCardWidth =
+          screenWidth * 0.85; // Hampir penuh, mungkin 1 kartu terlihat jelas
+    } else if (screenWidth < 600) {
+      // Layar sempit (umumnya mobile portrait)
+      responsiveCardWidth = screenWidth * 0.75; // Sekitar 1.3 kartu terlihat
+    } else if (screenWidth < 900) {
+      // Layar medium (tablet portrait / mobile landscape lebar)
+      responsiveCardWidth = screenWidth * 0.45; // Sekitar 2 kartu terlihat
+    } else {
+      // Layar lebar
+      responsiveCardWidth = screenWidth * 0.3; // Sekitar 3 kartu terlihat
+    }
+    // Batasan lebar kartu
+    responsiveCardWidth = responsiveCardWidth.clamp(220.0, 320.0);
+
+    // Perkiraan tinggi untuk teks dan padding di dalam kartu
+    const double textPaddingAndHeight =
+        12.0 + (20.0 * 2) + 6.0 + 14.0 + 12.0; // Total sekitar 84
+
+    // Hitung tinggi gambar berdasarkan rasio aspek 16/9
+    final double imageHeight = responsiveCardWidth / (16 / 9);
+    // Tinggi total untuk list horizontal
+    final double responsiveHorizontalListHeight =
+        imageHeight + textPaddingAndHeight + 8; // +8 untuk sedikit margin kartu
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -472,32 +518,23 @@ class BeritaListWidget extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-
-        // --- AREA LIST HORIZONTAL ---
         SizedBox(
-          height:
-              horizontalListHeight, // Beri tinggi tetap untuk list horizontal
+          height: responsiveHorizontalListHeight,
           child: ListView.builder(
-            scrollDirection: Axis.horizontal, // Atur scroll ke horizontal
-            itemCount:
-                limitedBeritaList.length, // Gunakan list yang sudah dibatasi
-            padding: const EdgeInsets.symmetric(
-              horizontal: 4.0,
-            ), // Padding awal/akhir list
+            scrollDirection: Axis.horizontal,
+            itemCount: limitedBeritaList.length,
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
             itemBuilder: (context, index) {
               final berita = limitedBeritaList[index];
-              // Buat widget untuk setiap item berita
               return Padding(
-                // Beri jarak antar kartu di list horizontal
-                padding: const EdgeInsets.only(
-                  right: 12.0,
-                ), // Jarak kanan antar item
+                padding: const EdgeInsets.only(right: 12.0),
                 child: SizedBox(
-                  // Beri lebar tetap untuk setiap item
-                  width: cardWidth,
+                  width: responsiveCardWidth, // Menggunakan lebar responsif
                   child: Card(
-                    elevation: 3.0,
-                    margin: EdgeInsets.zero, // Margin diatur oleh Padding luar
+                    elevation: 2.0, // Sedikit dikurangi
+                    margin: const EdgeInsets.symmetric(
+                      vertical: 4,
+                    ), // Margin vertikal kecil untuk bayangan
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12.0),
                     ),
@@ -505,13 +542,11 @@ class BeritaListWidget extends StatelessWidget {
                     child: InkWell(
                       onTap: () {
                         print("Berita tapped: ${berita.id} - ${berita.title}");
-                        // TODO: Navigasi ke detail
+                        // TODO: Navigasi ke detail berita
                       },
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // --- Gambar Thumbnail ---
-                          // AspectRatio akan menyesuaikan tinggi gambar berdasarkan lebar kartu
                           AspectRatio(
                             aspectRatio: 16 / 9,
                             child:
@@ -540,7 +575,6 @@ class BeritaListWidget extends StatelessWidget {
                                       },
                                     )
                                     : Container(
-                                      // Placeholder jika tidak ada gambar
                                       color: Colors.grey[200],
                                       child: Icon(
                                         Icons.image_not_supported_outlined,
@@ -549,17 +583,15 @@ class BeritaListWidget extends StatelessWidget {
                                       ),
                                     ),
                           ),
-
-                          // --- Teks (Judul & Tanggal) ---
-                          // Expanded diperlukan agar Padding mengisi sisa ruang vertikal
-                          // dan teks tidak overflow jika tinggi kartu terbatas
                           Expanded(
+                            // Penting agar teks tidak overflow jika kartu lebih tinggi dari konten teks
                             child: Padding(
                               padding: const EdgeInsets.all(12.0),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisAlignment:
-                                    MainAxisAlignment.start, // Mulai dari atas
+                                    MainAxisAlignment
+                                        .start, // Atau MainAxisAlignment.spaceBetween jika ingin tanggal di bawah
                                 children: [
                                   Text(
                                     berita.title,
@@ -591,7 +623,6 @@ class BeritaListWidget extends StatelessWidget {
             },
           ),
         ),
-        // --- AKHIR AREA LIST HORIZONTAL ---
       ],
     );
   }

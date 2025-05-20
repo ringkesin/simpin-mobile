@@ -4,14 +4,18 @@ import 'package:file_picker/file_picker.dart'; // Import file_picker
 import 'package:image_picker/image_picker.dart'; // Untuk XFile
 import 'package:step_progress_indicator/step_progress_indicator.dart';
 import 'package:intl/intl.dart'; // Untuk DateFormat dan NumberFormat
-
+import 'package:shared_preferences/shared_preferences.dart';
 // --- Ganti dengan path import yang benar ---
 import '../../../service/api_service.dart';
 import '../../../model/jenis_pinjaman.dart'; // Asumsi model ini ada
 import '../../../model/keperluan_pinjaman.dart'; // Asumsi model ini ada
+import '../../../model/tenor_response.dart'; // Asumsi model ini ada
+import '../../../model/simulasi_pinjaman_response.dart'; // Asumsi model ini ada
+
 // Jika Anda memiliki model untuk p_anggota_id atau data user, impor di sini
 // import '../../../model/user_data_model.dart';
 import '../../../theme.dart';
+
 // -----------------------------------------
 
 class FormWizardScreen extends StatefulWidget {
@@ -29,11 +33,11 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
   final _formKeyStep2 = GlobalKey<FormState>();
 
   // Form data - Step 1
-  int? _selectedJenisPinjaman;
+  int? _selectedJenisPinjamanId;
   final _jenisBarangController = TextEditingController();
   final _merkTypeController = TextEditingController();
-  final _hargaController = TextEditingController(); // Untuk ra_jumlah_pinjaman
-  final _tenorCicilanController = TextEditingController();
+  final _hargaController = TextEditingController();
+  int? _selectedTenor;
   final _biayaAdminController = TextEditingController();
   final Set<int> _selectedKeperluanIds = {};
 
@@ -47,18 +51,26 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
 
   List<JenisPinjamanModel> _jenisPinjamanList = [];
   List<KeperluanPinjamanModel> _keperluanPinjamanList = [];
-  bool _isLoading = false;
+  List<TenorItem> _availableTenors =
+      []; // Menggunakan TenorItem dari model Anda
+
+  bool _isLoadingJenisPinjaman = false;
+  bool _isLoadingKeperluan = false;
+  bool _isLoadingTenors = false;
+  bool _isLoadingSimulasi = false;
   bool _isSubmitting = false;
 
-  // --- PERBAIKAN: Buat instance ApiService ---
-  final ApiService _apiService = ApiService();
+  double? _simulasiBiayaAdmin;
+  // String? _simulasiCicilanPerBulan;
 
+  final ApiService _apiService = ApiService();
   final PageController _pageController = PageController();
 
   @override
   void initState() {
     super.initState();
     _fetchJenisPinjaman();
+    _hargaController.addListener(_onJumlahPinjamanOrTenorChanged);
     _hargaController.addListener(_formatRupiahInputHarga);
     _perkiraanNilaiController.addListener(_formatRupiahInputNilaiJaminan);
     _biayaAdminController.addListener(_formatRupiahInputBiayaAdmin);
@@ -69,11 +81,11 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     _hargaController.removeListener(_formatRupiahInputHarga);
     _perkiraanNilaiController.removeListener(_formatRupiahInputNilaiJaminan);
     _biayaAdminController.removeListener(_formatRupiahInputBiayaAdmin);
+    _hargaController.removeListener(_onJumlahPinjamanOrTenorChanged);
 
     _jenisBarangController.dispose();
     _merkTypeController.dispose();
     _hargaController.dispose();
-    _tenorCicilanController.dispose();
     _biayaAdminController.dispose();
     _jenisJaminanController.dispose();
     _keteranganJaminanController.dispose();
@@ -99,7 +111,6 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
         decimalDigits: 0,
       );
       String formatted = formatter.format(value);
-
       if (controller.text != formatted) {
         controller.value = TextEditingValue(
           text: formatted,
@@ -115,36 +126,137 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
   void _formatRupiahInputNilaiJaminan() =>
       _formatRupiah(_perkiraanNilaiController);
   void _formatRupiahInputBiayaAdmin() => _formatRupiah(_biayaAdminController);
-
-  String _getCleanNumber(TextEditingController controller) {
-    return controller.text.replaceAll(RegExp(r'[^\d]'), '');
-  }
+  String _getCleanNumber(TextEditingController controller) =>
+      controller.text.replaceAll(RegExp(r'[^\d]'), '');
 
   Future<void> _fetchJenisPinjaman() async {
-    setState(() => _isLoading = true);
+    setState(() => _isLoadingJenisPinjaman = true);
     try {
-      // --- PERBAIKAN: Panggil melalui instance _apiService ---
       final data = await _apiService.getMasterJenisPinjaman();
-      setState(() => _jenisPinjamanList = data);
+      if (mounted) setState(() => _jenisPinjamanList = data);
     } catch (e) {
       _showErrorSnackBar('Gagal memuat jenis pinjaman: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoadingJenisPinjaman = false);
     }
   }
 
   Future<void> _fetchKeperluanPinjaman() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    setState(() => _isLoadingKeperluan = true);
     try {
-      // --- PERBAIKAN: Panggil melalui instance _apiService ---
       final data = await _apiService.getMasterKeperluanPinjaman();
-      if (!mounted) return;
-      setState(() => _keperluanPinjamanList = data);
+      print('ini data jeniskeperluan $data');
+      if (mounted) setState(() => _keperluanPinjamanList = data);
     } catch (e) {
       _showErrorSnackBar('Gagal memuat keperluan pinjaman: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoadingKeperluan = false);
+    }
+  }
+
+  Future<void> _fetchAvailableTenors(int jenisPinjamanId) async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingTenors = true;
+      _availableTenors = [];
+      _selectedTenor = null;
+      _biayaAdminController.clear();
+      _simulasiBiayaAdmin = null;
+    });
+    try {
+      final tenors = await _apiService.getAvailableTenors(
+        jenisPinjamanId: jenisPinjamanId,
+      );
+      if (mounted) {
+        setState(() => _availableTenors = tenors);
+      }
+    } catch (e) {
+      _showErrorSnackBar('Gagal memuat tenor: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingTenors = false);
+    }
+  }
+
+  Future<void> _fetchSimulasiPinjaman() async {
+    if (_selectedJenisPinjamanId == null ||
+        _selectedTenor == null ||
+        _hargaController.text.isEmpty) {
+      if (_simulasiBiayaAdmin != null ||
+          _biayaAdminController.text.isNotEmpty) {
+        if (mounted)
+          setState(() {
+            _biayaAdminController.clear();
+            _simulasiBiayaAdmin = null;
+          });
+      }
+      return;
+    }
+
+    final String cleanJumlah = _getCleanNumber(_hargaController);
+    if (cleanJumlah.isEmpty) return;
+    final double? jumlahPinjamanDouble = double.tryParse(cleanJumlah);
+
+    if (jumlahPinjamanDouble == null || jumlahPinjamanDouble <= 0) return;
+    final int jumlahPinjaman = jumlahPinjamanDouble.toInt();
+
+    if (!mounted) return;
+    setState(() => _isLoadingSimulasi = true);
+    try {
+      final SimulasiResult simulasiData = await _apiService
+          .postSimulasiPinjaman(
+            jenisPinjamanId: _selectedJenisPinjamanId!,
+            tenor: _selectedTenor!,
+            jumlahPinjaman: jumlahPinjaman,
+          );
+      if (mounted) {
+        setState(() {
+          _simulasiBiayaAdmin =
+              (simulasiData.biayaAdminRp != null &&
+                      simulasiData.biayaAdminRp! > 0)
+                  ? simulasiData.biayaAdminRp!.toDouble()
+                  : simulasiData.biayaAdmin;
+
+          if (_simulasiBiayaAdmin != null) {
+            final formatter = NumberFormat.currency(
+              locale: 'id_ID',
+              symbol: '',
+              decimalDigits: 0,
+            );
+            _biayaAdminController.text = formatter.format(_simulasiBiayaAdmin);
+          } else {
+            _biayaAdminController.clear();
+            _showErrorSnackBar("Biaya admin tidak ditemukan dari simulasi.");
+          }
+        });
+      }
+    } catch (e) {
+      _showErrorSnackBar('Gagal mendapatkan simulasi biaya admin: $e');
+      if (mounted) {
+        setState(() {
+          _biayaAdminController.clear();
+          _simulasiBiayaAdmin = null;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingSimulasi = false);
+    }
+  }
+
+  void _onJumlahPinjamanOrTenorChanged() {
+    if (_selectedJenisPinjamanId != null &&
+        _selectedTenor != null &&
+        _hargaController.text.isNotEmpty) {
+      _fetchSimulasiPinjaman();
+    } else {
+      if (_biayaAdminController.text.isNotEmpty ||
+          _simulasiBiayaAdmin != null) {
+        if (mounted)
+          setState(() {
+            _biayaAdminController.clear();
+            _simulasiBiayaAdmin = null;
+          });
+      }
     }
   }
 
@@ -172,17 +284,32 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
 
   void _onJenisPinjamanChanged(int? value) {
     setState(() {
-      _selectedJenisPinjaman = value;
+      _selectedJenisPinjamanId = value;
       _selectedKeperluanIds.clear();
       _keperluanPinjamanList = [];
+      _availableTenors = [];
+      _selectedTenor = null;
+      _biayaAdminController.clear();
+      _simulasiBiayaAdmin = null;
+
       if (value != 3) {
         _jenisBarangController.clear();
         _merkTypeController.clear();
+      }
+      if (value != null) {
+        _fetchAvailableTenors(value);
       }
       if (value == 1 || value == 2) {
         _fetchKeperluanPinjaman();
       }
     });
+  }
+
+  void _onTenorChanged(int? value) {
+    setState(() {
+      _selectedTenor = value;
+    });
+    _onJumlahPinjamanOrTenorChanged();
   }
 
   Future<void> _pickSlipGaji() async {
@@ -191,12 +318,8 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
         type: FileType.custom,
         allowedExtensions: ['pdf'],
       );
-
       if (result != null && result.files.single.path != null) {
-        setState(() {
-          // FilePicker mengembalikan path, kita buat XFile darinya
-          _docSlipGaji = XFile(result.files.single.path!);
-        });
+        setState(() => _docSlipGaji = XFile(result.files.single.path!));
         _showSuccessSnackBar(
           'Slip gaji berhasil dipilih: ${result.files.single.name}',
         );
@@ -211,9 +334,19 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
 
   bool _validateStep1() {
     if (_formKeyStep1.currentState?.validate() ?? false) {
-      if ((_selectedJenisPinjaman == 1 || _selectedJenisPinjaman == 2) &&
+      if ((_selectedJenisPinjamanId == 1 || _selectedJenisPinjamanId == 2) &&
           _selectedKeperluanIds.isEmpty) {
         _showErrorSnackBar('Pilih minimal satu keperluan pinjaman');
+        return false;
+      }
+      if (_selectedTenor == null) {
+        _showErrorSnackBar('Tenor cicilan wajib dipilih.');
+        return false;
+      }
+      if (_simulasiBiayaAdmin == null && _biayaAdminController.text.isEmpty) {
+        _showErrorSnackBar(
+          'Biaya admin belum didapatkan dari simulasi. Pastikan jumlah dan tenor terisi.',
+        );
         return false;
       }
       return true;
@@ -221,9 +354,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     return false;
   }
 
-  bool _validateStep2() {
-    return _formKeyStep2.currentState?.validate() ?? false;
-  }
+  bool _validateStep2() => _formKeyStep2.currentState?.validate() ?? false;
 
   void _nextStep() {
     if (_currentStep == 0) {
@@ -258,41 +389,50 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
       );
       return;
     }
+    if (_selectedTenor == null || _simulasiBiayaAdmin == null) {
+      _showErrorSnackBar(
+        "Data tenor atau biaya admin belum lengkap. Silakan periksa kembali.",
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
-
     try {
-      const int pAnggotaIdPlaceholder =
-          1276; // GANTI INI dengan ID Anggota yang dinamis
+      final prefs = await SharedPreferences.getInstance();
+      final int? pAnggotaId = prefs.getInt("p_anggota_id_key");
+      if (pAnggotaId == null) {
+        throw Exception("ID Anggota tidak ditemukan. Silakan login ulang.");
+      }
 
-      // --- PERBAIKAN: Panggil submitLoanApplication melalui instance _apiService jika non-static ---
-      // Jika submitLoanApplication di ApiService adalah static, maka ApiService.submitLoanApplication(...) sudah benar.
-      // Jika non-static, gunakan _apiService.submitLoanApplication(...)
-      // Untuk contoh ini, kita asumsikan submitLoanApplication adalah static sesuai definisi di ApiService sebelumnya.
-      final Map<String, dynamic>
-      response = await ApiService.submitLoanApplication(
-        pAnggotaId: pAnggotaIdPlaceholder,
-        pJenisPinjamanId: _selectedJenisPinjaman!,
-        pPinjamanKeperluanIds:
-            (_selectedJenisPinjaman == 1 || _selectedJenisPinjaman == 2)
-                ? _selectedKeperluanIds.toList()
-                : null,
-        jenisBarang:
-            _selectedJenisPinjaman == 3 ? _jenisBarangController.text : null,
-        merkType: _selectedJenisPinjaman == 3 ? _merkTypeController.text : null,
-        tenor: int.parse(_tenorCicilanController.text),
-        raJumlahPinjaman: double.parse(_getCleanNumber(_hargaController)),
-        biayaAdmin: double.parse(_getCleanNumber(_biayaAdminController)),
-        jaminan: _jenisJaminanController.text,
-        jaminanKeterangan: _keteranganJaminanController.text,
-        jaminanPerkiraanNilai: double.parse(
-          _getCleanNumber(_perkiraanNilaiController),
-        ),
-        noRekening: _noRekeningController.text,
-        bank: _bankController.text,
-        docSlipGaji: _docSlipGaji,
-      );
-
+      final Map<String, dynamic> response =
+          await ApiService.submitLoanApplication(
+            pAnggotaId: pAnggotaId,
+            pJenisPinjamanId: _selectedJenisPinjamanId!,
+            pPinjamanKeperluanIds:
+                (_selectedJenisPinjamanId == 1 || _selectedJenisPinjamanId == 2)
+                    ? _selectedKeperluanIds
+                        .where((id) => id != null)
+                        .cast<int>()
+                        .toList() // Filter null dan cast ke int
+                    : null,
+            jenisBarang:
+                _selectedJenisPinjamanId == 3
+                    ? _jenisBarangController.text
+                    : null,
+            merkType:
+                _selectedJenisPinjamanId == 3 ? _merkTypeController.text : null,
+            tenor: _selectedTenor!,
+            raJumlahPinjaman: double.parse(_getCleanNumber(_hargaController)),
+            biayaAdmin: _simulasiBiayaAdmin!,
+            jaminan: _jenisJaminanController.text,
+            jaminanKeterangan: _keteranganJaminanController.text,
+            jaminanPerkiraanNilai: double.parse(
+              _getCleanNumber(_perkiraanNilaiController),
+            ),
+            noRekening: _noRekeningController.text,
+            bank: _bankController.text,
+            docSlipGaji: _docSlipGaji,
+          );
       if (mounted) {
         if (response['success'] == true) {
           _showSuccessSnackBar(
@@ -314,9 +454,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             : 'Terjadi kesalahan.',
       );
     } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-      }
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -327,11 +465,10 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            if (_currentStep > 0) {
+            if (_currentStep > 0)
               _prevStep();
-            } else {
+            else
               Navigator.pop(context);
-            }
           },
         ),
         title: const Text('Form Pengajuan Pinjaman'),
@@ -377,29 +514,36 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             ),
             const SizedBox(height: 16),
             _buildDropdown<int>(
-              value: _selectedJenisPinjaman,
+              value: _selectedJenisPinjamanId,
               items:
-                  _jenisPinjamanList
-                      .map(
-                        (jenis) => DropdownMenuItem<int>(
-                          value: jenis.id,
-                          child: Text(jenis.nama ?? 'Tidak Bernama'),
-                        ),
-                      )
-                      .toList(),
-              onChanged: _onJenisPinjamanChanged,
+                  _isLoadingJenisPinjaman
+                      ? []
+                      : _jenisPinjamanList
+                          .map(
+                            (jenis) => DropdownMenuItem<int>(
+                              value: jenis.id,
+                              child: Text(jenis.nama),
+                            ),
+                          )
+                          .toList(),
+              onChanged:
+                  _isLoadingJenisPinjaman ? null : _onJenisPinjamanChanged,
               labelText: 'Jenis Pinjaman',
-              hintText: 'Pilih jenis pinjaman',
+              hintText:
+                  _isLoadingJenisPinjaman
+                      ? 'Memuat...'
+                      : 'Pilih jenis pinjaman',
               icon: Icons.account_balance_wallet_outlined,
               validator:
                   (value) => value == null ? 'Pilih jenis pinjaman' : null,
             ),
             const SizedBox(height: 20),
-            if (_selectedJenisPinjaman == 1 || _selectedJenisPinjaman == 2)
+            if (_selectedJenisPinjamanId == 1 || _selectedJenisPinjamanId == 2)
               _buildKeperluanPinjamanCheckboxes()
-            else if (_selectedJenisPinjaman == 3)
+            else if (_selectedJenisPinjamanId == 3)
               _buildBarangInputs(),
-            if (_selectedJenisPinjaman != null) ...[
+
+            if (_selectedJenisPinjamanId != null) ...[
               const SizedBox(height: 20),
               _buildTextField(
                 controller: _hargaController,
@@ -419,39 +563,80 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              _buildTextField(
-                controller: _biayaAdminController,
-                labelText: 'Biaya Admin (Rp)',
-                hintText: 'Masukkan biaya admin',
-                prefixText: 'Rp ',
-                keyboardType: TextInputType.number,
-                icon: Icons.attach_money_outlined,
-                validator: (value) {
-                  if (value == null ||
-                      _getCleanNumber(_biayaAdminController).isEmpty)
-                    return 'Masukkan biaya admin';
-                  if (double.tryParse(_getCleanNumber(_biayaAdminController)) ==
-                      null)
-                    return 'Masukkan angka yang valid';
-                  return null;
-                },
-              ),
+
+              if (_isLoadingTenors)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20.0),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_availableTenors.isNotEmpty)
+                _buildDropdown<int?>(
+                  value: _selectedTenor,
+                  items:
+                      _availableTenors
+                          .map(
+                            (item) => DropdownMenuItem<int?>(
+                              value: item.tenor, // item.tenor sudah int?
+                              child: Text(
+                                '${item.tenor ?? '?'} bulan',
+                              ), // Menggunakan item.tenor langsung
+                            ),
+                          )
+                          .toList(),
+                  onChanged: _onTenorChanged,
+                  labelText: 'Tenor Cicilan',
+                  hintText: 'Pilih tenor',
+                  icon: Icons.calendar_today_outlined,
+                  validator:
+                      (value) => value == null ? 'Pilih tenor cicilan' : null,
+                )
+              else if (_selectedJenisPinjamanId != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0, top: 8.0),
+                  child: Text(
+                    "Tenor tidak tersedia untuk jenis pinjaman ini.",
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ),
               const SizedBox(height: 16),
-              _buildTextField(
-                controller: _tenorCicilanController,
-                labelText: 'Tenor Cicilan (bulan)',
-                hintText: 'Masukkan tenor',
-                suffixText: 'bulan',
-                keyboardType: TextInputType.number,
-                icon: Icons.calendar_today_outlined,
-                validator: (value) {
-                  if (value == null || value.isEmpty)
-                    return 'Masukkan tenor cicilan';
-                  if (int.tryParse(value) == null)
-                    return 'Masukkan angka yang valid';
-                  if (int.parse(value) <= 0) return 'Tenor harus lebih dari 0';
-                  return null;
-                },
+              Stack(
+                children: [
+                  _buildTextField(
+                    controller: _biayaAdminController,
+                    labelText: 'Biaya Admin (Rp)',
+                    hintText:
+                        _isLoadingSimulasi
+                            ? 'Menghitung...'
+                            : 'Akan terisi setelah simulasi',
+                    prefixText: 'Rp ',
+                    keyboardType: TextInputType.number,
+                    icon: Icons.attach_money_outlined,
+                    readOnly: true,
+                    validator: (value) {
+                      if (_simulasiBiayaAdmin == null &&
+                          (value == null ||
+                              _getCleanNumber(_biayaAdminController).isEmpty)) {
+                        return 'Biaya admin belum disimulasikan';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (_isLoadingSimulasi)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.white.withOpacity(0.1),
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 40.0),
+                        child: const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 32),
               _buildNextButton(),
@@ -463,13 +648,65 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
   }
 
   Widget _buildKeperluanPinjamanCheckboxes() {
-    if (_isLoading && _keperluanPinjamanList.isEmpty)
-      return const Center(child: CircularProgressIndicator());
-    if (!_isLoading &&
-        _keperluanPinjamanList.isEmpty &&
-        _selectedJenisPinjaman != null)
-      return const Text("Tidak ada data keperluan.");
-    if (_keperluanPinjamanList.isEmpty) return const SizedBox.shrink();
+    // --- PERBAIKAN DI SINI ---
+    // Selalu render judul dan container, lalu handle state di dalamnya
+    Widget checkboxContent;
+    if (_isLoadingKeperluan) {
+      checkboxContent = const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    } else {
+      final validKeperluanList =
+          _keperluanPinjamanList
+              .where((kp) => kp.id != null && kp.nama != null)
+              .toList();
+      if (validKeperluanList.isEmpty) {
+        checkboxContent = const Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            "Tidak ada data keperluan untuk jenis pinjaman ini.",
+            textAlign: TextAlign.center,
+          ),
+        );
+      } else {
+        checkboxContent = Column(
+          children:
+              validKeperluanList.map((keperluan) {
+                final int keperluanId = keperluan.id!;
+                final String keperluanNama = keperluan.nama!;
+
+                return CheckboxListTile(
+                  title: Text(
+                    keperluanNama,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  value: _selectedKeperluanIds.contains(keperluanId),
+                  onChanged:
+                      (bool? value) => setState(() {
+                        if (value == true)
+                          _selectedKeperluanIds.add(keperluanId);
+                        else
+                          _selectedKeperluanIds.remove(keperluanId);
+                      }),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 0,
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  activeColor: AppColors.primaryLight,
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                );
+              }).toList(),
+        );
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -484,37 +721,8 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             border: Border.all(color: Colors.grey[300]!),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Column(
-            children: List.generate(_keperluanPinjamanList.length, (index) {
-              final keperluan = _keperluanPinjamanList[index];
-              int keperluanId = keperluan.id ?? index;
-              return CheckboxListTile(
-                title: Text(
-                  keperluan.nama ?? 'Keperluan ${index + 1}',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                value: _selectedKeperluanIds.contains(keperluanId),
-                onChanged:
-                    (bool? value) => setState(() {
-                      if (value == true)
-                        _selectedKeperluanIds.add(keperluanId);
-                      else
-                        _selectedKeperluanIds.remove(keperluanId);
-                    }),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 0,
-                ),
-                controlAffinity: ListTileControlAffinity.leading,
-                activeColor: AppColors.primaryLight,
-                dense: true,
-                visualDensity: VisualDensity.compact,
-              );
-            }),
-          ),
+          child:
+              checkboxContent, // Menampilkan konten yang sudah di-handle state-nya
         ),
       ],
     );
@@ -530,7 +738,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
           icon: Icons.category_outlined,
           validator:
               (value) =>
-                  (_selectedJenisPinjaman == 3 &&
+                  (_selectedJenisPinjamanId == 3 &&
                           (value == null || value.isEmpty))
                       ? 'Masukkan jenis barang'
                       : null,
@@ -543,7 +751,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
           icon: Icons.branding_watermark_outlined,
           validator:
               (value) =>
-                  (_selectedJenisPinjaman == 3 &&
+                  (_selectedJenisPinjamanId == 3 &&
                           (value == null || value.isEmpty))
                       ? 'Masukkan merk/type'
                       : null,
@@ -718,6 +926,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     String? suffixText,
     IconData? icon,
     int maxLines = 1,
+    bool readOnly = false, // Parameter readOnly ditambahkan
   }) {
     final textTheme = Theme.of(context).textTheme;
     final primaryColor = AppColors.primaryLight;
@@ -729,6 +938,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
         keyboardType: keyboardType,
         maxLines: maxLines,
         style: textTheme.bodyLarge,
+        readOnly: readOnly, // Digunakan di sini
         decoration: InputDecoration(
           labelText: labelText,
           hintText: hintText,
@@ -780,7 +990,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
   Widget _buildDropdown<T>({
     required T? value,
     required List<DropdownMenuItem<T>> items,
-    required void Function(T?) onChanged,
+    required void Function(T?)? onChanged, // Dibuat nullable
     required String labelText,
     String? hintText,
     IconData? icon,
@@ -794,7 +1004,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
       child: DropdownButtonFormField<T>(
         value: value,
         items: items,
-        onChanged: onChanged,
+        onChanged: onChanged, // Digunakan di sini
         validator: validator,
         style: textTheme.bodyLarge,
         decoration: InputDecoration(

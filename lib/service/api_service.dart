@@ -630,7 +630,7 @@ class ApiService {
       print("ApiService: Fetching list berita from $endpoint");
       // 3. Kirim request dengan options (yang mungkin berisi header)
       final response = await _dio.get(endpoint, options: requestOptions);
-
+      print('ini data ${response.data}');
       if (response.statusCode == 200) {
         return BeritaResponse.fromJson(response.data as Map<String, dynamic>);
       } else {
