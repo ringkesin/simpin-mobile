@@ -5,13 +5,14 @@ import 'package:image_picker/image_picker.dart'; // Untuk XFile
 import 'package:step_progress_indicator/step_progress_indicator.dart';
 import 'package:intl/intl.dart'; // Untuk DateFormat dan NumberFormat
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 // --- Ganti dengan path import yang benar ---
 import '../../../service/api_service.dart';
 import '../../../model/jenis_pinjaman.dart'; // Asumsi model ini ada
 import '../../../model/keperluan_pinjaman.dart'; // Asumsi model ini ada
 import '../../../model/tenor_response.dart'; // Asumsi model ini ada
 import '../../../model/simulasi_pinjaman_response.dart'; // Asumsi model ini ada
-
+import 'package:path_provider/path_provider.dart';
 // Jika Anda memiliki model untuk p_anggota_id atau data user, impor di sini
 // import '../../../model/user_data_model.dart';
 import '../../../theme.dart';
@@ -31,6 +32,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
 
   final _formKeyStep1 = GlobalKey<FormState>();
   final _formKeyStep2 = GlobalKey<FormState>();
+  bool _step1PassedInitialValidation = false; // <-- TAMBAHKAN INI
 
   // Form data - Step 1
   int? _selectedJenisPinjamanId;
@@ -146,12 +148,18 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     setState(() => _isLoadingKeperluan = true);
     try {
       final data = await _apiService.getMasterKeperluanPinjaman();
-      print('ini data jeniskeperluan $data');
+      print('[fetchKeperluanPinjaman] Data diterima: $data');
       if (mounted) setState(() => _keperluanPinjamanList = data);
     } catch (e) {
       _showErrorSnackBar('Gagal memuat keperluan pinjaman: $e');
     } finally {
+      print(
+        '[fetchKeperluanPinjaman] Sebelum setState(false) - _isLoadingKeperluan: $_isLoadingKeperluan',
+      );
       if (mounted) setState(() => _isLoadingKeperluan = false);
+      print(
+        '[fetchKeperluanPinjaman] Sesudah setState(false) - _isLoadingKeperluan: $_isLoadingKeperluan',
+      );
     }
   }
 
@@ -224,9 +232,13 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
               decimalDigits: 0,
             );
             _biayaAdminController.text = formatter.format(_simulasiBiayaAdmin);
+            print(
+              'DEBUG: Simulasi berhasil, _simulasiBiayaAdmin: $_simulasiBiayaAdmin, _biayaAdminController.text: ${_biayaAdminController.text}',
+            );
           } else {
             _biayaAdminController.clear();
             _showErrorSnackBar("Biaya admin tidak ditemukan dari simulasi.");
+            print('DEBUG: Simulasi GAGAL, _simulasiBiayaAdmin adalah null');
           }
         });
       }
@@ -238,6 +250,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
           _simulasiBiayaAdmin = null;
         });
       }
+      print('DEBUG: Error saat fetchSimulasiPinjaman: $e');
     } finally {
       if (mounted) setState(() => _isLoadingSimulasi = false);
     }
@@ -312,11 +325,36 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     _onJumlahPinjamanOrTenorChanged();
   }
 
+  Future<String?> _getDownloadDirectoryPath() async {
+    Directory? downloadsDirectory;
+    try {
+      List<Directory>? dirs = await getExternalStorageDirectories(
+        type: StorageDirectory.downloads,
+      );
+      if (dirs != null && dirs.isNotEmpty) {
+        downloadsDirectory = dirs.first;
+        print('DEBUG: Download directory found: ${downloadsDirectory.path}');
+        return downloadsDirectory.path;
+      } else {
+        print('DEBUG: Download directory list is null or empty.');
+      }
+    } catch (e) {
+      print("DEBUG: Error getting download directory: $e");
+    }
+    return null;
+  }
+
   Future<void> _pickSlipGaji() async {
+    String? initialDirPath = await _getDownloadDirectoryPath();
+    print(
+      'DEBUG: Path yang akan digunakan untuk initialDirectory _pickSlipGaji: $initialDirPath',
+    );
+
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
+        initialDirectory: initialDirPath,
       );
       if (result != null && result.files.single.path != null) {
         setState(() => _docSlipGaji = XFile(result.files.single.path!));
@@ -332,38 +370,92 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     }
   }
 
+  // --- FUNGSI VALIDASI DENGAN PRINT DEBUG ---
   bool _validateStep1() {
-    if (_formKeyStep1.currentState?.validate() ?? false) {
-      if ((_selectedJenisPinjamanId == 1 || _selectedJenisPinjamanId == 2) &&
-          _selectedKeperluanIds.isEmpty) {
-        _showErrorSnackBar('Pilih minimal satu keperluan pinjaman');
-        return false;
+    print('DEBUG Validasi Step1: Memulai validasi...');
+    bool formIsValid = _formKeyStep1.currentState?.validate() ?? false;
+    print(
+      'DEBUG Validasi Step1: _formKeyStep1.currentState.validate() => $formIsValid',
+    );
+
+    if (formIsValid) {
+      // Cek Keperluan Pinjaman
+      if ((_selectedJenisPinjamanId == 1 || _selectedJenisPinjamanId == 2)) {
+        bool keperluanIsValid = _selectedKeperluanIds.isNotEmpty;
+        print(
+          'DEBUG Validasi Step1: Keperluan Pinjaman (ID 1/2) Valid => $keperluanIsValid (_selectedKeperluanIds: $_selectedKeperluanIds)',
+        );
+        if (!keperluanIsValid) {
+          _showErrorSnackBar('Pilih minimal satu keperluan pinjaman');
+          return false;
+        }
       }
-      if (_selectedTenor == null) {
+
+      // Cek Tenor
+      bool tenorIsValid = _selectedTenor != null;
+      print(
+        'DEBUG Validasi Step1: Tenor Valid => $tenorIsValid (_selectedTenor: $_selectedTenor)',
+      );
+      if (!tenorIsValid) {
         _showErrorSnackBar('Tenor cicilan wajib dipilih.');
         return false;
       }
-      if (_simulasiBiayaAdmin == null && _biayaAdminController.text.isEmpty) {
+
+      // Cek Biaya Admin dari Simulasi
+      // Kondisi asli: (_simulasiBiayaAdmin == null && _biayaAdminController.text.isEmpty) -> GAGAL jika TRUE
+      bool biayaAdminProblem =
+          (_simulasiBiayaAdmin == null && _biayaAdminController.text.isEmpty);
+      print(
+        'DEBUG Validasi Step1: Cek Masalah Biaya Admin => biayaAdminProblem: $biayaAdminProblem (_simulasiBiayaAdmin: $_simulasiBiayaAdmin, _biayaAdminController.text: "${_biayaAdminController.text}")',
+      );
+      if (biayaAdminProblem) {
         _showErrorSnackBar(
           'Biaya admin belum didapatkan dari simulasi. Pastikan jumlah dan tenor terisi.',
         );
         return false;
       }
-      return true;
+
+      print('DEBUG Validasi Step1: Semua pengecekan kustom Lolos.');
+      return true; // Semua validasi kustom lolos
+    } else {
+      // formIsValid adalah false
+      _showErrorSnackBar(
+        'Lengkapi semua field yang wajib diisi pada Langkah 1 (biasanya ditandai merah).',
+      );
+      print('DEBUG Validasi Step1: Gagal karena _formKeyStep1 tidak valid.');
+      return false; // Validasi form gagal
     }
-    return false;
   }
 
-  bool _validateStep2() => _formKeyStep2.currentState?.validate() ?? false;
+  bool _validateStep2() {
+    print('DEBUG Validasi Step2: Memulai validasi...');
+    bool formIsValid = _formKeyStep2.currentState?.validate() ?? false;
+    print(
+      'DEBUG Validasi Step2: _formKeyStep2.currentState.validate() => $formIsValid',
+    );
+    if (!formIsValid) {
+      _showErrorSnackBar(
+        'Lengkapi semua field yang wajib diisi pada Langkah 2 (biasanya ditandai merah).',
+      );
+      print('DEBUG Validasi Step2: Gagal karena _formKeyStep2 tidak valid.');
+    }
+    return formIsValid;
+  }
+  // --- AKHIR FUNGSI VALIDASI DENGAN PRINT DEBUG ---
 
   void _nextStep() {
     if (_currentStep == 0) {
       if (_validateStep1()) {
+        _step1PassedInitialValidation =
+            true; // <-- Tandai bahwa validasi awal berhasil
         setState(() => _currentStep++);
         _pageController.nextPage(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );
+      } else {
+        _step1PassedInitialValidation =
+            false; // <-- Tandai gagal jika validasi awal gagal
       }
     } else if (_currentStep == 1) {
       if (_validateStep2()) {
@@ -383,15 +475,108 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
   }
 
   Future<void> _submitForm() async {
-    if (!_validateStep1() || !_validateStep2()) {
+    print('DEBUG SubmitForm: Memulai proses submit...');
+
+    // Print nilai controller Step 1 sebelum validasi ulang
+    print(
+      'DEBUG SubmitForm: Nilai _selectedJenisPinjamanId SEBELUM validasi ulang: $_selectedJenisPinjamanId',
+    );
+    print(
+      'DEBUG SubmitForm: Nilai _jenisBarangController.text SEBELUM validasi ulang: ${_jenisBarangController.text}',
+    );
+    print(
+      'DEBUG SubmitForm: Nilai _merkTypeController.text SEBELUM validasi ulang: ${_merkTypeController.text}',
+    );
+    print(
+      'DEBUG SubmitForm: Nilai _hargaController.text SEBELUM validasi ulang: ${_hargaController.text}',
+    );
+    print(
+      'DEBUG SubmitForm: Nilai _selectedTenor SEBELUM validasi ulang: $_selectedTenor',
+    );
+    print(
+      'DEBUG SubmitForm: Nilai _biayaAdminController.text SEBELUM validasi ulang: ${_biayaAdminController.text}',
+    );
+    print(
+      'DEBUG SubmitForm: Nilai _selectedKeperluanIds SEBELUM validasi ulang: $_selectedKeperluanIds',
+    );
+    print(
+      'DEBUG SubmitForm: Nilai _simulasiBiayaAdmin SEBELUM validasi ulang: $_simulasiBiayaAdmin',
+    );
+
+    bool step1IsValid;
+    if (_step1PassedInitialValidation) {
+      print(
+        'DEBUG SubmitForm: Langkah 1 sudah pernah divalidasi berhasil. Hanya cek kondisi kustom.',
+      );
+      // Hanya jalankan pemeriksaan kustom, karena _formKeyStep1.currentState.validate() bermasalah saat dipanggil ulang
+      bool keperluanIsValid = true;
+      if ((_selectedJenisPinjamanId == 1 || _selectedJenisPinjamanId == 2)) {
+        keperluanIsValid = _selectedKeperluanIds.isNotEmpty;
+        print(
+          'DEBUG SubmitForm (Recheck Kustom): Keperluan Valid => $keperluanIsValid',
+        );
+      }
+      bool tenorIsValid = _selectedTenor != null;
+      print('DEBUG SubmitForm (Recheck Kustom): Tenor Valid => $tenorIsValid');
+      bool biayaAdminProblem =
+          (_simulasiBiayaAdmin == null && _biayaAdminController.text.isEmpty);
+      print(
+        'DEBUG SubmitForm (Recheck Kustom): Biaya Admin Problem => $biayaAdminProblem',
+      );
+
+      step1IsValid = keperluanIsValid && tenorIsValid && !biayaAdminProblem;
+
+      if (!step1IsValid) {
+        if (!keperluanIsValid)
+          _showErrorSnackBar(
+            'Pilih minimal satu keperluan pinjaman (pengecekan ulang).',
+          );
+        else if (!tenorIsValid)
+          _showErrorSnackBar('Tenor cicilan wajib dipilih (pengecekan ulang).');
+        else if (biayaAdminProblem)
+          _showErrorSnackBar(
+            'Biaya admin belum didapatkan dari simulasi (pengecekan ulang).',
+          );
+      }
+    } else {
+      // Jika _step1PassedInitialValidation adalah false (artinya belum pernah lolos, atau kembali dari step 2)
+      print(
+        'DEBUG SubmitForm: Langkah 1 belum pernah divalidasi berhasil atau direset. Lakukan validasi penuh.',
+      );
+      step1IsValid =
+          _validateStep1(); // Lakukan validasi penuh (termasuk formKey.validate())
+    }
+
+    print(
+      'DEBUG SubmitForm: Hasil _validateStep1 (setelah logika baru): $step1IsValid',
+    );
+
+    bool step2IsValid = _validateStep2(); // Validasi ulang Step 2
+    print('DEBUG SubmitForm: Hasil _validateStep2(): $step2IsValid');
+
+    if (!step1IsValid) {
       _showErrorSnackBar(
-        "Harap lengkapi semua data yang diperlukan di setiap langkah.",
+        "Pengecekan ulang: Harap lengkapi semua data yang diperlukan di Langkah 1.",
+      );
+      // Opsional: kembali ke step 1
+      // _pageController.jumpToPage(0);
+      // if (mounted) setState(() => _currentStep = 0);
+      return;
+    }
+    if (!step2IsValid) {
+      _showErrorSnackBar(
+        "Pengecekan ulang: Harap lengkapi semua data yang diperlukan di Langkah 2.",
       );
       return;
     }
+
+    // Pengecekan tambahan yang sudah ada di kode Anda
     if (_selectedTenor == null || _simulasiBiayaAdmin == null) {
       _showErrorSnackBar(
-        "Data tenor atau biaya admin belum lengkap. Silakan periksa kembali.",
+        "Data tenor atau biaya admin belum lengkap (pengecekan di submit). Silakan periksa kembali.",
+      );
+      print(
+        'DEBUG SubmitForm: Gagal karena _selectedTenor atau _simulasiBiayaAdmin null. Tenor: $_selectedTenor, BiayaAdmin: $_simulasiBiayaAdmin',
       );
       return;
     }
@@ -399,7 +584,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     setState(() => _isSubmitting = true);
     try {
       final prefs = await SharedPreferences.getInstance();
-      final int? pAnggotaId = prefs.getInt("p_anggota_id_key");
+      final int? pAnggotaId = prefs.getInt("p_anggota_id");
       if (pAnggotaId == null) {
         throw Exception("ID Anggota tidak ditemukan. Silakan login ulang.");
       }
@@ -413,7 +598,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                     ? _selectedKeperluanIds
                         .where((id) => id != null)
                         .cast<int>()
-                        .toList() // Filter null dan cast ke int
+                        .toList()
                     : null,
             jenisBarang:
                 _selectedJenisPinjamanId == 3
@@ -453,6 +638,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             ? e.toString().replaceFirst("Exception: ", "")
             : 'Terjadi kesalahan.',
       );
+      print('DEBUG SubmitForm: Exception saat submit: $e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -534,8 +720,17 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                       ? 'Memuat...'
                       : 'Pilih jenis pinjaman',
               icon: Icons.account_balance_wallet_outlined,
-              validator:
-                  (value) => value == null ? 'Pilih jenis pinjaman' : null,
+              validator: (value) {
+                String? errorMessage;
+                if (value == null) {
+                  errorMessage = 'Pilih jenis pinjaman';
+                }
+                // HAPUS _getCallerMethodName() dari sini:
+                print(
+                  'DEBUG Validator JenisPinjaman: value=$value, error="$errorMessage"',
+                );
+                return errorMessage;
+              },
             ),
             const SizedBox(height: 20),
             if (_selectedJenisPinjamanId == 1 || _selectedJenisPinjamanId == 2)
@@ -553,13 +748,21 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                 keyboardType: TextInputType.number,
                 icon: Icons.monetization_on_outlined,
                 validator: (value) {
+                  String? errorMessage;
                   if (value == null ||
-                      _getCleanNumber(_hargaController).isEmpty)
-                    return 'Masukkan jumlah pengajuan';
-                  if (double.tryParse(_getCleanNumber(_hargaController)) ==
-                      null)
-                    return 'Masukkan angka yang valid';
-                  return null;
+                      _getCleanNumber(_hargaController).isEmpty) {
+                    errorMessage = 'Masukkan jumlah pengajuan';
+                  } else if (double.tryParse(
+                        _getCleanNumber(_hargaController),
+                      ) ==
+                      null) {
+                    errorMessage = 'Masukkan angka yang valid';
+                  }
+                  // HAPUS _getCallerMethodName() dari sini:
+                  print(
+                    'DEBUG Validator Harga: value="$value", clean="${_getCleanNumber(_hargaController)}", error="$errorMessage"',
+                  );
+                  return errorMessage;
                 },
               ),
               const SizedBox(height: 16),
@@ -578,10 +781,8 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                       _availableTenors
                           .map(
                             (item) => DropdownMenuItem<int?>(
-                              value: item.tenor, // item.tenor sudah int?
-                              child: Text(
-                                '${item.tenor ?? '?'} bulan',
-                              ), // Menggunakan item.tenor langsung
+                              value: item.tenor,
+                              child: Text('${item.tenor ?? '?'} bulan'),
                             ),
                           )
                           .toList(),
@@ -589,8 +790,17 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                   labelText: 'Tenor Cicilan',
                   hintText: 'Pilih tenor',
                   icon: Icons.calendar_today_outlined,
-                  validator:
-                      (value) => value == null ? 'Pilih tenor cicilan' : null,
+                  validator: (value) {
+                    String? errorMessage;
+                    if (value == null) {
+                      errorMessage = 'Pilih tenor cicilan';
+                    }
+                    // HAPUS _getCallerMethodName() dari sini:
+                    print(
+                      'DEBUG Validator TenorCicilan: value=$value, error="$errorMessage"',
+                    );
+                    return errorMessage;
+                  },
                 )
               else if (_selectedJenisPinjamanId != null)
                 Padding(
@@ -615,12 +825,17 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                     icon: Icons.attach_money_outlined,
                     readOnly: true,
                     validator: (value) {
+                      String? errorMessage;
                       if (_simulasiBiayaAdmin == null &&
                           (value == null ||
                               _getCleanNumber(_biayaAdminController).isEmpty)) {
-                        return 'Biaya admin belum disimulasikan';
+                        errorMessage = 'Biaya admin belum disimulasikan';
                       }
-                      return null;
+                      // HAPUS _getCallerMethodName() dari sini:
+                      print(
+                        'DEBUG Validator BiayaAdmin: value="$value", _simulasiBiayaAdmin=$_simulasiBiayaAdmin, error="$errorMessage"',
+                      );
+                      return errorMessage;
                     },
                   ),
                   if (_isLoadingSimulasi)
@@ -639,7 +854,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                 ],
               ),
               const SizedBox(height: 32),
-              _buildNextButton(),
+              _buildNextButton(), // Tombol "Berikutnya" di Step 1
             ],
           ],
         ),
@@ -648,8 +863,9 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
   }
 
   Widget _buildKeperluanPinjamanCheckboxes() {
-    // --- PERBAIKAN DI SINI ---
-    // Selalu render judul dan container, lalu handle state di dalamnya
+    print(
+      '[_buildKeperluanPinjamanCheckboxes] Isi _keperluanPinjamanList: $_keperluanPinjamanList',
+    );
     Widget checkboxContent;
     if (_isLoadingKeperluan) {
       checkboxContent = const Center(
@@ -671,10 +887,14 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             textAlign: TextAlign.center,
           ),
         );
+        print('ini validKeperluan $_keperluanPinjamanList');
       } else {
         checkboxContent = Column(
           children:
               validKeperluanList.map((keperluan) {
+                print(
+                  '[_buildKeperluanPinjamanCheckboxes] Isi validKeperluanList: $validKeperluanList',
+                );
                 final int keperluanId = keperluan.id!;
                 final String keperluanNama = keperluan.nama!;
 
@@ -721,8 +941,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             border: Border.all(color: Colors.grey[300]!),
             borderRadius: BorderRadius.circular(8),
           ),
-          child:
-              checkboxContent, // Menampilkan konten yang sudah di-handle state-nya
+          child: checkboxContent,
         ),
       ],
     );
@@ -736,12 +955,18 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
           labelText: 'Jenis Barang',
           hintText: 'Masukkan jenis barang',
           icon: Icons.category_outlined,
-          validator:
-              (value) =>
-                  (_selectedJenisPinjamanId == 3 &&
-                          (value == null || value.isEmpty))
-                      ? 'Masukkan jenis barang'
-                      : null,
+          validator: (value) {
+            String? errorMessage;
+            if (_selectedJenisPinjamanId == 3 &&
+                (value == null || value.isEmpty)) {
+              errorMessage = 'Masukkan jenis barang';
+            }
+            // HAPUS _getCallerMethodName() dari sini:
+            print(
+              'DEBUG Validator JenisBarang: value="$value", _selectedJenisPinjamanId=$_selectedJenisPinjamanId, error="$errorMessage"',
+            );
+            return errorMessage;
+          },
         ),
         const SizedBox(height: 16),
         _buildTextField(
@@ -749,12 +974,18 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
           labelText: 'Merk/Type',
           hintText: 'Masukkan merk/type',
           icon: Icons.branding_watermark_outlined,
-          validator:
-              (value) =>
-                  (_selectedJenisPinjamanId == 3 &&
-                          (value == null || value.isEmpty))
-                      ? 'Masukkan merk/type'
-                      : null,
+          validator: (value) {
+            String? errorMessage;
+            if (_selectedJenisPinjamanId == 3 &&
+                (value == null || value.isEmpty)) {
+              errorMessage = 'Masukkan merk/type';
+            }
+            // HAPUS _getCallerMethodName() dari sini:
+            print(
+              'DEBUG Validator MerkType: value="$value", _selectedJenisPinjamanId=$_selectedJenisPinjamanId, error="$errorMessage"',
+            );
+            return errorMessage;
+          },
         ),
       ],
     );
@@ -852,7 +1083,9 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
               onPick: _pickSlipGaji,
             ),
             const SizedBox(height: 32),
-            _buildNavigationButtons(isLastStep: true),
+            _buildNavigationButtons(
+              isLastStep: true,
+            ), // Tombol di Step 2 (termasuk "Ajukan Pinjaman")
           ],
         ),
       ),
@@ -926,7 +1159,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     String? suffixText,
     IconData? icon,
     int maxLines = 1,
-    bool readOnly = false, // Parameter readOnly ditambahkan
+    bool readOnly = false,
   }) {
     final textTheme = Theme.of(context).textTheme;
     final primaryColor = AppColors.primaryLight;
@@ -938,7 +1171,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
         keyboardType: keyboardType,
         maxLines: maxLines,
         style: textTheme.bodyLarge,
-        readOnly: readOnly, // Digunakan di sini
+        readOnly: readOnly,
         decoration: InputDecoration(
           labelText: labelText,
           hintText: hintText,
@@ -990,7 +1223,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
   Widget _buildDropdown<T>({
     required T? value,
     required List<DropdownMenuItem<T>> items,
-    required void Function(T?)? onChanged, // Dibuat nullable
+    required void Function(T?)? onChanged,
     required String labelText,
     String? hintText,
     IconData? icon,
@@ -1004,7 +1237,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
       child: DropdownButtonFormField<T>(
         value: value,
         items: items,
-        onChanged: onChanged, // Digunakan di sini
+        onChanged: onChanged,
         validator: validator,
         style: textTheme.bodyLarge,
         decoration: InputDecoration(
@@ -1102,7 +1335,12 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
           ),
         ),
         ElevatedButton(
-          onPressed: _isSubmitting ? null : _nextStep,
+          onPressed:
+              _isSubmitting
+                  ? null
+                  : (isLastStep
+                      ? _submitForm
+                      : _nextStep), // Menggunakan _submitForm jika isLastStep
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primaryLight,
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
@@ -1111,7 +1349,8 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             ),
           ),
           child:
-              _isSubmitting
+              _isSubmitting &&
+                      isLastStep // Tampilkan loading hanya saat submit di step terakhir
                   ? const SizedBox(
                     height: 18,
                     width: 18,

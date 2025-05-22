@@ -1,5 +1,5 @@
 import 'dart:ffi';
-
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:kkba_mobile/model/anggota_profile.dart';
@@ -1802,26 +1802,24 @@ class ApiService {
   static Future<Map<String, dynamic>> submitLoanApplication({
     required int pAnggotaId,
     required int pJenisPinjamanId,
-    List<int>? pPinjamanKeperluanIds, // Opsional, tergantung pJenisPinjamanId
-    String? jenisBarang, // Opsional, tergantung pJenisPinjamanId
-    String? merkType, // Opsional, tergantung pJenisPinjamanId
-    required int tenor, // Asumsi integer untuk bulan
-    required double raJumlahPinjaman, // Asumsi double untuk jumlah
-    required double biayaAdmin, // Asumsi double
+    List<int>? pPinjamanKeperluanIds,
+    String? jenisBarang,
+    String? merkType,
+    required int tenor,
+    required double raJumlahPinjaman,
+    required double biayaAdmin,
     required String jaminan,
     required String jaminanKeterangan,
-    required double jaminanPerkiraanNilai, // Asumsi double
+    required double jaminanPerkiraanNilai,
     required String noRekening,
     required String bank,
-    XFile? docSlipGaji, // File PDF opsional
+    XFile? docSlipGaji,
   }) async {
-    final String endpoint = "/api/pinjaman/pengajuan"; // Sesuaikan jika berbeda
+    final String endpoint = "/api/pinjaman/pengajuan";
 
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final String? token = prefs.getString(
-        "token",
-      ); // Ambil token untuk autentikasi
+      final String? token = prefs.getString("token");
 
       if (token == null || token.isEmpty) {
         throw Exception(
@@ -1829,9 +1827,9 @@ class ApiService {
         );
       }
 
-      Map<String, dynamic> fields = {
-        "p_anggota_id":
-            pAnggotaId.toString(), // API mungkin mengharapkan string
+      // Pisahkan field yang nilainya tunggal
+      Map<String, dynamic> singleValueFields = {
+        "p_anggota_id": pAnggotaId.toString(),
         "p_jenis_pinjaman_id": pJenisPinjamanId.toString(),
         "tenor": tenor.toString(),
         "ra_jumlah_pinjaman": raJumlahPinjaman.toString(),
@@ -1843,20 +1841,8 @@ class ApiService {
         "bank": bank,
       };
 
-      // Logika kondisional untuk p_pinjaman_keperluan_ids atau jenis_barang & merk_type
-      if (pJenisPinjamanId == 1 || pJenisPinjamanId == 2) {
-        if (pPinjamanKeperluanIds == null || pPinjamanKeperluanIds.isEmpty) {
-          throw Exception(
-            "Untuk jenis pinjaman ini, keperluan pinjaman wajib diisi.",
-          );
-        }
-        // Mengirim array di FormData dengan Dio:
-        // Dio akan mengirimkannya sebagai p_pinjaman_keperluan_ids[]=id1&p_pinjaman_keperluan_ids[]=id2 dst.
-        // atau p_pinjaman_keperluan_ids[0]=id1&p_pinjaman_keperluan_ids[1]=id2 jika backend mendukung.
-        // Cara paling umum adalah mengirim list langsung.
-        fields["p_pinjaman_keperluan_ids"] =
-            pPinjamanKeperluanIds.map((id) => id.toString()).toList();
-      } else if (pJenisPinjamanId == 3) {
+      // Tambahkan field kondisional yang nilainya tunggal
+      if (pJenisPinjamanId == 3) {
         if (jenisBarang == null ||
             jenisBarang.isEmpty ||
             merkType == null ||
@@ -1865,27 +1851,54 @@ class ApiService {
             "Untuk jenis pinjaman ini, jenis barang dan merk/tipe wajib diisi.",
           );
         }
-        fields["jenis_barang"] = jenisBarang;
-        fields["merk_type"] = merkType;
+        singleValueFields["jenis_barang"] = jenisBarang;
+        singleValueFields["merk_type"] = merkType;
+      } else if (pJenisPinjamanId == 1 || pJenisPinjamanId == 2) {
+        // pPinjamanKeperluanIds akan ditangani secara khusus di bawah
+        if (pPinjamanKeperluanIds == null || pPinjamanKeperluanIds.isEmpty) {
+          throw Exception(
+            "Untuk jenis pinjaman ini, keperluan pinjaman wajib diisi.",
+          );
+        }
       } else {
-        // Handle jenis pinjaman lain jika ada, atau throw error jika tidak valid
         throw Exception("Jenis pinjaman tidak valid: $pJenisPinjamanId");
       }
 
-      FormData formData = FormData.fromMap(fields);
+      FormData formData = FormData.fromMap(singleValueFields);
 
-      // Tambahkan file slip gaji jika ada
+      // --- PERUBAHAN UTAMA DI SINI ---
+      // Tangani p_pinjaman_keperluan_ids secara khusus untuk memastikan format array
+      if ((pJenisPinjamanId == 1 || pJenisPinjamanId == 2) &&
+          pPinjamanKeperluanIds != null &&
+          pPinjamanKeperluanIds.isNotEmpty) {
+        // Mengirim setiap ID sebagai field terpisah dengan nama 'p_pinjaman_keperluan_ids[]'
+        // Ini adalah cara umum agar backend (misalnya PHP) mengenalinya sebagai array.
+        for (int id in pPinjamanKeperluanIds) {
+          formData.fields.add(
+            MapEntry('p_pinjaman_keperluan_ids[]', id.toString()),
+          );
+        }
+        // Jika backend Anda mengharapkan format p_pinjaman_keperluan_ids[0], p_pinjaman_keperluan_ids[1], dst.
+        // Anda bisa menggunakan loop dengan index:
+        // for (int i = 0; i < pPinjamanKeperluanIds.length; i++) {
+        //   formData.fields.add(MapEntry('p_pinjaman_keperluan_ids[$i]', pPinjamanKeperluanIds[i].toString()));
+        // }
+      }
+      // --- AKHIR PERUBAHAN UTAMA ---
+
       if (docSlipGaji != null) {
         String fileName = docSlipGaji.path.split('/').last;
         formData.files.add(
           MapEntry(
-            "doc_slip_gaji", // Pastikan nama field ini sesuai dengan API backend
+            "doc_slip_gaji",
             await MultipartFile.fromFile(docSlipGaji.path, filename: fileName),
           ),
         );
       }
 
-      print("ApiService: Mengirim FormData untuk pengajuan pinjaman:");
+      print(
+        "ApiService: Mengirim FormData untuk pengajuan pinjaman (setelah modifikasi p_pinjaman_keperluan_ids):",
+      );
       formData.fields.forEach((field) {
         print("  Field: ${field.key} = ${field.value}");
       });
@@ -1911,6 +1924,7 @@ class ApiService {
         },
       );
 
+      // ... sisa kode handling response Anda ...
       if (response.data != null && response.data is Map<String, dynamic>) {
         if (response.data['success'] == true ||
             response.statusCode == 200 ||
@@ -1920,6 +1934,7 @@ class ApiService {
           );
           return response.data as Map<String, dynamic>;
         } else {
+          // ... (error handling yang sudah ada)
           String serverMessage =
               response.data['message'] ?? 'Gagal mengajukan pinjaman.';
           if (response.data['errors'] != null &&
@@ -1948,6 +1963,7 @@ class ApiService {
         );
       }
     } on DioException catch (e) {
+      // ... (error handling DioException Anda yang sudah ada) ...
       print('DioException saat submitLoanApplication: ${e.message}');
       String errorMessage =
           'Gagal mengajukan pinjaman. Status: ${e.response?.statusCode ?? 'N/A'}';
@@ -1976,18 +1992,17 @@ class ApiService {
           errorMessage =
               'Gagal mengajukan pinjaman: ${e.response?.data.toString()} (Status: ${e.response?.statusCode})';
         }
-        if (e.response?.statusCode == 401) {
+        // ... (sisa if statusCode)
+        if (e.response?.statusCode == 400 &&
+            errorMessage.contains("p_pinjaman_keperluan_ids") &&
+            errorMessage.contains("must be an array")) {
           errorMessage =
-              'Unauthorized: Token tidak valid atau kadaluwarsa. (Status: 401)';
-        } else if (e.response?.statusCode == 422) {
-          errorMessage =
-              'Data pengajuan tidak valid (Status: 422). ${errorMessage.contains("Detail:") ? "" : "Periksa kembali data yang Anda masukkan."}';
+              "API Error: p_pinjaman_keperluan_ids harus berupa array. (Status: 400)";
         } else if (e.response?.statusCode == 400) {
           errorMessage =
               'Permintaan pengajuan tidak valid (Status: 400). ${errorMessage.contains("Detail:") ? "" : "Pastikan semua field yang dibutuhkan API telah diisi dengan benar."}';
         }
       } else {
-        // ... (Error handling DioExceptionType yang serupa) ...
         throw Exception(
           'Gagal terhubung ke server atau terjadi kesalahan jaringan: ${e.message}',
         );

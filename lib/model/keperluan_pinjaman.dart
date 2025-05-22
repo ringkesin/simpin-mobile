@@ -6,7 +6,7 @@ class KeperluanPinjamanModel {
 
   factory KeperluanPinjamanModel.fromJson(Map<String, dynamic> json) {
     return KeperluanPinjamanModel(
-      id: json['p_keperluan_pinjaman_id'],
+      id: json['p_pinjaman_keperluan_id'],
       nama: json['keperluan'],
     );
   }
