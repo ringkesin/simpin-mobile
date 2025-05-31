@@ -75,14 +75,13 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     _hargaController.addListener(_onJumlahPinjamanOrTenorChanged);
     _hargaController.addListener(_formatRupiahInputHarga);
     _perkiraanNilaiController.addListener(_formatRupiahInputNilaiJaminan);
-    _biayaAdminController.addListener(_formatRupiahInputBiayaAdmin);
   }
 
   @override
   void dispose() {
     _hargaController.removeListener(_formatRupiahInputHarga);
     _perkiraanNilaiController.removeListener(_formatRupiahInputNilaiJaminan);
-    _biayaAdminController.removeListener(_formatRupiahInputBiayaAdmin);
+    // _biayaAdminController.removeListener(_formatRupiahInputBiayaAdmin);
     _hargaController.removeListener(_onJumlahPinjamanOrTenorChanged);
 
     _jenisBarangController.dispose();
@@ -127,7 +126,7 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
   void _formatRupiahInputHarga() => _formatRupiah(_hargaController);
   void _formatRupiahInputNilaiJaminan() =>
       _formatRupiah(_perkiraanNilaiController);
-  void _formatRupiahInputBiayaAdmin() => _formatRupiah(_biayaAdminController);
+  // void _formatRupiahInputBiayaAdmin() => _formatRupiah(_biayaAdminController);
   String _getCleanNumber(TextEditingController controller) =>
       controller.text.replaceAll(RegExp(r'[^\d]'), '');
 
@@ -192,11 +191,12 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
         _hargaController.text.isEmpty) {
       if (_simulasiBiayaAdmin != null ||
           _biayaAdminController.text.isNotEmpty) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _biayaAdminController.clear();
-            _simulasiBiayaAdmin = null;
+            _simulasiBiayaAdmin = null; // Sekarang ini adalah persentase
           });
+        }
       }
       return;
     }
@@ -206,39 +206,56 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
     final double? jumlahPinjamanDouble = double.tryParse(cleanJumlah);
 
     if (jumlahPinjamanDouble == null || jumlahPinjamanDouble <= 0) return;
+    // jumlahPinjaman (int) masih ada jika diperlukan untuk referensi lain,
+    // tapi tidak untuk menghitung _simulasiBiayaAdmin di sini lagi.
     final int jumlahPinjaman = jumlahPinjamanDouble.toInt();
 
     if (!mounted) return;
     setState(() => _isLoadingSimulasi = true);
     try {
-      final SimulasiResult simulasiData = await _apiService
-          .postSimulasiPinjaman(
-            jenisPinjamanId: _selectedJenisPinjamanId!,
-            tenor: _selectedTenor!,
-            jumlahPinjaman: jumlahPinjaman,
-          );
+      final SimulasiResult
+      simulasiData = await _apiService.postSimulasiPinjaman(
+        jenisPinjamanId: _selectedJenisPinjamanId!,
+        tenor: _selectedTenor!,
+        jumlahPinjaman:
+            jumlahPinjaman, // Jumlah pinjaman tetap dikirim untuk API simulasi
+      );
+
+      // Cetak dulu nilai mentah dari API
+      print(
+        'DEBUG: Nilai mentah simulasiData.biayaAdmin dari API: ${simulasiData.biayaAdmin}',
+      );
+
       if (mounted) {
         setState(() {
-          _simulasiBiayaAdmin =
-              (simulasiData.biayaAdminRp != null &&
-                      simulasiData.biayaAdminRp! > 0)
-                  ? simulasiData.biayaAdminRp!.toDouble()
-                  : simulasiData.biayaAdmin;
+          if (simulasiData.biayaAdmin != null) {
+            double actualPercentageFromApi = simulasiData.biayaAdmin!;
+            // Contoh: jika API mengirim 1.5 untuk 1.5% -> actualPercentageFromApi = 1.5
 
-          if (_simulasiBiayaAdmin != null) {
-            final formatter = NumberFormat.currency(
-              locale: 'id_ID',
-              symbol: '',
-              decimalDigits: 0,
-            );
-            _biayaAdminController.text = formatter.format(_simulasiBiayaAdmin);
+            // 1. Simpan persentase langsung ke _simulasiBiayaAdmin
+            _simulasiBiayaAdmin =
+                actualPercentageFromApi; // Menyimpan persentase, misal 1.5
+
+            // // 2. Atur teks untuk UI Controller (menampilkan angka persentase)
+            _biayaAdminController.text = actualPercentageFromApi
+                .toStringAsFixed((actualPercentageFromApi % 1 == 0) ? 0 : 1);
+            // 2. Atur teks untuk UI Controller (menampilkan angka persentase)
+            // _biayaAdminController.text = '1.5';
             print(
-              'DEBUG: Simulasi berhasil, _simulasiBiayaAdmin: $_simulasiBiayaAdmin, _biayaAdminController.text: ${_biayaAdminController.text}',
+              'DEBUG: Simulasi Selesai. '
+              'API biayaAdmin (nilai % diterima): $actualPercentageFromApi, '
+              'UI TxtCtrlr (angka % ditampilkan): "${_biayaAdminController.text}", '
+              'Stored _simulasiBiayaAdmin (sekarang persentase): $_simulasiBiayaAdmin',
             );
           } else {
             _biayaAdminController.clear();
-            _showErrorSnackBar("Biaya admin tidak ditemukan dari simulasi.");
-            print('DEBUG: Simulasi GAGAL, _simulasiBiayaAdmin adalah null');
+            _simulasiBiayaAdmin = null;
+            _showErrorSnackBar(
+              "Data persentase biaya admin tidak ditemukan dari simulasi.",
+            );
+            print(
+              'DEBUG: Simulasi GAGAL, simulasiData.biayaAdmin (persentase) adalah null',
+            );
           }
         });
       }
@@ -403,10 +420,10 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
 
       // Cek Biaya Admin dari Simulasi
       // Kondisi asli: (_simulasiBiayaAdmin == null && _biayaAdminController.text.isEmpty) -> GAGAL jika TRUE
-      bool biayaAdminProblem =
-          (_simulasiBiayaAdmin == null && _biayaAdminController.text.isEmpty);
+      bool biayaAdminProblem = _simulasiBiayaAdmin == null;
+
       print(
-        'DEBUG Validasi Step1: Cek Masalah Biaya Admin => biayaAdminProblem: $biayaAdminProblem (_simulasiBiayaAdmin: $_simulasiBiayaAdmin, _biayaAdminController.text: "${_biayaAdminController.text}")',
+        'DEBUG Validasi Step1: Cek Masalah Biaya Admin => biayaAdminProblem: $biayaAdminProblem (_simulasiBiayaAdmin (Rp): $_simulasiBiayaAdmin, _biayaAdminController.text (UI %): "${_biayaAdminController.text}")',
       );
       if (biayaAdminProblem) {
         _showErrorSnackBar(
@@ -815,25 +832,26 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                 children: [
                   _buildTextField(
                     controller: _biayaAdminController,
-                    labelText: 'Biaya Admin (Rp)',
+                    labelText: 'Biaya Admin', // Ubah label jika perlu
                     hintText:
                         _isLoadingSimulasi
                             ? 'Menghitung...'
                             : 'Akan terisi setelah simulasi',
-                    prefixText: 'Rp ',
-                    keyboardType: TextInputType.number,
-                    icon: Icons.attach_money_outlined,
+                    // prefixText: 'Rp ', // HAPUS ATAU GANTI INI
+                    suffixText: '%', // TAMBAHKAN INI
+                    keyboardType:
+                        TextInputType.number, // Meskipun readOnly, ini relevan
+                    icon:
+                        Icons.percent_outlined, // Ganti ikon menjadi persentase
                     readOnly: true,
                     validator: (value) {
                       String? errorMessage;
-                      if (_simulasiBiayaAdmin == null &&
-                          (value == null ||
-                              _getCleanNumber(_biayaAdminController).isEmpty)) {
+                      // Validasi tetap berdasarkan apakah _simulasiBiayaAdmin (nilai Rupiah) sudah dihitung
+                      if (_simulasiBiayaAdmin == null) {
                         errorMessage = 'Biaya admin belum disimulasikan';
                       }
-                      // HAPUS _getCallerMethodName() dari sini:
                       print(
-                        'DEBUG Validator BiayaAdmin: value="$value", _simulasiBiayaAdmin=$_simulasiBiayaAdmin, error="$errorMessage"',
+                        'DEBUG Validator BiayaAdmin (UI Persen): value="$value", _simulasiBiayaAdmin (Rp)=$_simulasiBiayaAdmin, error="$errorMessage"',
                       );
                       return errorMessage;
                     },

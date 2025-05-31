@@ -17,6 +17,8 @@ import '../model/pengajuan_pencairan.dart';
 import '../model/list_pengajuan.dart';
 import '../model/base_response.dart';
 import '../model/mutasi_tabungan_response.dart';
+import '../model/pinjaman_list.dart';
+import '../model/tagihan_anggota.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
@@ -2016,6 +2018,431 @@ class ApiService {
       throw Exception(
         'Terjadi kesalahan tidak terduga saat mengajukan pinjaman: $e',
       );
+    }
+  }
+
+  static Future<PinjamanListResponse> getListPengajuanPinjaman({
+    int page = 1,
+    int? pStatusPengajuanId, // Opsional
+    int? pJenisPinjamanId, // Opsional
+    String?
+    pPinjamanKeperluanId, // Opsional, dan tetap String karena payload Anda "2"
+    int? month, // Opsional
+    int? year, // Opsional
+  }) async {
+    final String endpoint = "/api/pinjaman/list";
+
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString("token");
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Sesi tidak valid. Silakan login kembali.');
+      }
+
+      // Membuat map untuk queryParameters, hanya menambahkan jika tidak null
+      Map<String, dynamic> queryParameters = {'page': page};
+      if (pStatusPengajuanId != null) {
+        queryParameters['p_status_pengajuan_id'] = pStatusPengajuanId;
+      }
+      if (pJenisPinjamanId != null) {
+        queryParameters['p_jenis_pinjaman_id'] = pJenisPinjamanId;
+      }
+      if (pPinjamanKeperluanId != null && pPinjamanKeperluanId.isNotEmpty) {
+        // Pastikan tidak string kosong juga
+        queryParameters['p_pinjaman_keperluan_id'] = pPinjamanKeperluanId;
+      }
+      if (month != null) {
+        queryParameters['month'] = month;
+      }
+      if (year != null) {
+        queryParameters['year'] = year;
+      }
+
+      print(
+        'ApiService: Mengambil daftar pinjaman dengan filter: $queryParameters',
+      );
+      final Response response = await _dio.post(
+        endpoint,
+        queryParameters: queryParameters, // Mengirim parameter filter
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.data != null && response.data is Map<String, dynamic>) {
+        print(
+          'ApiService: Respons diterima dari $endpoint: ${response.statusCode}',
+        );
+        return PinjamanListResponse.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+      } else {
+        print('ApiService: Respons tidak valid dari $endpoint');
+        throw Exception(
+          'Gagal mengambil daftar pinjaman: Respons tidak valid dari server.',
+        );
+      }
+    } on DioException catch (e) {
+      print(
+        'ApiService: DioException saat getListPengajuanPinjaman: ${e.message}',
+      );
+      if (e.response != null) {
+        print('ApiService: DioException response data: ${e.response?.data}');
+        String errorMessage =
+            e.response?.data?['message'] ?? 'Gagal mengambil data dari server.';
+        if (e.response?.statusCode == 401) {
+          errorMessage = 'Sesi berakhir atau tidak valid. Silakan login ulang.';
+        }
+        throw Exception('$errorMessage (Status: ${e.response?.statusCode})');
+      } else {
+        throw Exception(
+          'Gagal terhubung ke server atau terjadi kesalahan jaringan: ${e.message}',
+        );
+      }
+    } catch (e) {
+      print('ApiService: Error umum saat getListPengajuanPinjaman: $e');
+      throw Exception('Terjadi kesalahan tidak terduga: $e');
+    }
+  }
+
+  static Future<List<MasterStatusPengajuanSimpleModel>>
+  getMasterStatusPengajuan() async {
+    final String endpoint = "/api/master/status-pengajuan-pinjaman";
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString("token");
+
+      Options? options;
+      if (token != null && token.isNotEmpty) {
+        options = Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        );
+      } else {
+        options = Options(headers: {'Accept': 'application/json'});
+        print(
+          "ApiService: Warning - Token tidak ditemukan untuk getMasterStatusPengajuan. Mencoba tanpa token.",
+        );
+        // throw Exception('Sesi tidak valid untuk mengambil data master.'); // Uncomment jika token wajib
+      }
+
+      print(
+        'ApiService: Mengambil daftar master status pengajuan dari $endpoint',
+      );
+      final Response response = await _dio.get(endpoint, options: options);
+
+      if (response.data != null && response.data is Map<String, dynamic>) {
+        print(
+          'ApiService: Respons master status pengajuan diterima: ${response.statusCode}',
+        );
+
+        // --- PERBAIKAN UTAMA DI SINI ---
+        // Gunakan StatusPengajuanMasterListResponse untuk mem-parsing seluruh objek JSON
+        StatusPengajuanMasterListResponse listResponse =
+            StatusPengajuanMasterListResponse.fromJson(
+              response.data as Map<String, dynamic>,
+            );
+
+        if (listResponse.success) {
+          // Kembalikan list status pengajuan dari dalam objek data
+          return listResponse.statusPengajuan;
+        } else {
+          throw Exception(
+            listResponse.message ??
+                'Gagal mengambil data status pengajuan dari API.',
+          );
+        }
+        // --- AKHIR PERBAIKAN UTAMA ---
+      } else {
+        throw Exception(
+          'Gagal mengambil master status pengajuan: Respons tidak valid dari server.',
+        );
+      }
+    } on DioException catch (e) {
+      print(
+        'ApiService: DioException saat getMasterStatusPengajuan: ${e.message}',
+      );
+      if (e.response != null) {
+        print(
+          'ApiService: DioException response data (master status): ${e.response?.data}',
+        );
+        String errorMessage =
+            (e.response?.data as Map<String, dynamic>?)?['message']
+                as String? ?? // Akses message dengan aman
+            'Gagal mengambil data master status.';
+        if (e.response?.statusCode == 401) {
+          errorMessage = 'Sesi berakhir atau tidak valid. Silakan login ulang.';
+        }
+        // Anda bisa menambahkan parsing error yang lebih detail dari e.response?.data jika ada
+        throw Exception('$errorMessage (Status: ${e.response?.statusCode})');
+      } else {
+        throw Exception(
+          'Gagal terhubung ke server atau terjadi kesalahan jaringan (master status): ${e.message}',
+        );
+      }
+    } catch (e) {
+      print('ApiService: Error umum saat getMasterStatusPengajuan: $e');
+      throw Exception(
+        'Terjadi kesalahan tidak terduga saat mengambil master status: $e',
+      );
+    }
+  }
+
+  Future<TagihanAnggotaResponse> getTagihanByAnggota({
+    int? bulan, // Opsional
+    int? tahun, // Opsional
+    int? pAnggotaId, // Opsional
+  }) async {
+    const String endpoint = '/api/tagihan/anggota';
+    String? authToken;
+
+    try {
+      authToken = await _getAuthToken();
+
+      if (authToken == null || authToken.isEmpty) {
+        print(
+          "[ApiService.getTagihanByAnggota] ERROR: Auth Token is required.",
+        );
+        // Anda bisa melempar error atau mengembalikan response error default
+        throw Exception("Sesi tidak valid. Silakan login kembali.");
+      }
+
+      print("[ApiService.getTagihanByAnggota] Using Auth Token.");
+
+      // Membuat payload dinamis, hanya menyertakan field yang tidak null
+      Map<String, dynamic> payload = {};
+      if (bulan != null) {
+        payload['bulan'] = bulan;
+      }
+      if (tahun != null) {
+        payload['tahun'] = tahun;
+      }
+      if (pAnggotaId != null) {
+        payload['p_anggota_id'] = pAnggotaId;
+      }
+      // Jika semua optional, dan payload kosong, API mungkin tetap mengembalikan sesuatu
+      // atau Anda bisa menambahkan logika untuk kasus payload kosong jika diperlukan.
+      // Untuk saat ini, kita kirim payload apa adanya (bisa kosong).
+
+      print(
+        "[ApiService.getTagihanByAnggota] Submitting to $endpoint with payload: $payload",
+      );
+
+      final response = await _dio.post(
+        // Asumsi endpoint ini menggunakan metode POST
+        endpoint,
+        data:
+            payload.isNotEmpty
+                ? payload
+                : null, // Kirim null jika payload kosong, atau {} tergantung API
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $authToken',
+            'Accept': 'application/json',
+            if (payload.isNotEmpty) 'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      print(
+        "[ApiService.getTagihanByAnggota] Response status: ${response.statusCode}",
+      );
+      // print("[ApiService.getTagihanByAnggota] Response data: ${response.data}"); // Hati-hati jika data besar
+
+      if (response.statusCode == 200) {
+        if (response.data is Map<String, dynamic>) {
+          return TagihanAnggotaResponse.fromJson(
+            response.data as Map<String, dynamic>,
+          );
+        } else {
+          print(
+            "[ApiService.getTagihanByAnggota] ERROR: Unexpected response data format.",
+          );
+          throw Exception(
+            "Format respons server tidak valid untuk data tagihan.",
+          );
+        }
+      } else {
+        // Dio biasanya sudah throw error untuk status non-2xx
+        String message = "Gagal memuat data tagihan.";
+        if (response.data is Map<String, dynamic> &&
+            (response.data as Map<String, dynamic>)['message'] != null) {
+          message = (response.data as Map<String, dynamic>)['message'];
+        }
+        print(
+          "[ApiService.getTagihanByAnggota] ERROR: Failed with status ${response.statusCode}. Message: $message",
+        );
+        throw Exception("$message (Status: ${response.statusCode})");
+      }
+    } on DioException catch (e) {
+      print("[ApiService.getTagihanByAnggota] DioException caught!");
+      print("  -> DioException Type: ${e.type}");
+      print("  -> Request URL: ${e.requestOptions.uri}");
+      print("  -> Request Payload: ${e.requestOptions.data}");
+      if (e.response != null) {
+        print("  -> Response Status: ${e.response?.statusCode}");
+        print("  -> Response Data: ${e.response?.data}");
+      } else {
+        print("  -> No response from server.");
+      }
+      print("  -> DioException Message: ${e.message}");
+
+      String errorMessage = "Gagal mengambil data tagihan.";
+      if (e.response?.statusCode == 401) {
+        errorMessage =
+            "Sesi Anda telah berakhir atau token tidak valid. Silakan login kembali.";
+      } else if (e.response?.data is Map<String, dynamic>) {
+        final responseData = e.response!.data as Map<String, dynamic>;
+        errorMessage = responseData['message'] as String? ?? errorMessage;
+        if (e.response?.statusCode == 422 &&
+            responseData['errors'] is Map<String, dynamic>) {
+          final errors = responseData['errors'] as Map<String, dynamic>;
+          if (errors.isNotEmpty) {
+            final firstErrorField = errors.keys.first;
+            final firstErrorMessage =
+                (errors[firstErrorField] as List).isNotEmpty
+                    ? (errors[firstErrorField] as List).first
+                    : "Data tidak valid.";
+            errorMessage = "Validasi gagal: $firstErrorMessage";
+          }
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = "Koneksi timeout. Periksa jaringan Anda dan coba lagi.";
+      } else if (e.type == DioExceptionType.unknown ||
+          e.type == DioExceptionType.connectionError) {
+        errorMessage =
+            "Koneksi internet bermasalah atau server tidak dapat dijangkau.";
+      }
+      throw Exception(errorMessage);
+    } catch (e) {
+      print("[ApiService.getTagihanByAnggota] General Exception caught: $e");
+      throw Exception("Terjadi kesalahan sistem: $e");
+    }
+  }
+
+  Future<TagihanAnggotaResponse> getTagihanByNomorPinjaman({
+    required String nomorPinjaman, // Parameter wajib
+    int? bulan, // Opsional
+    int? tahun, // Opsional
+  }) async {
+    const String endpoint = '/api/tagihan/pinjaman'; // Endpoint baru
+    String? authToken;
+
+    try {
+      authToken = await _getAuthToken();
+
+      if (authToken == null || authToken.isEmpty) {
+        print(
+          "[ApiService.getTagihanByNomorPinjaman] ERROR: Auth Token is required.",
+        );
+        throw Exception("Sesi tidak valid. Silakan login kembali.");
+      }
+
+      print("[ApiService.getTagihanByNomorPinjaman] Using Auth Token.");
+
+      // Membuat payload dinamis
+      Map<String, dynamic> payload = {
+        'nomor_pinjaman': nomorPinjaman, // Parameter wajib
+      };
+      if (bulan != null) {
+        payload['bulan'] = bulan;
+      }
+      if (tahun != null) {
+        payload['tahun'] = tahun;
+      }
+
+      print(
+        "[ApiService.getTagihanByNomorPinjaman] Submitting to $endpoint with payload: $payload",
+      );
+
+      final response = await _dio.post(
+        // Asumsi endpoint ini juga menggunakan metode POST
+        endpoint,
+        data: payload,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $authToken',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      print(
+        "[ApiService.getTagihanByNomorPinjaman] Response status: ${response.statusCode}",
+      );
+
+      if (response.statusCode == 200) {
+        if (response.data is Map<String, dynamic>) {
+          // Menggunakan model yang sama karena struktur respons identik
+          return TagihanAnggotaResponse.fromJson(
+            response.data as Map<String, dynamic>,
+          );
+        } else {
+          print(
+            "[ApiService.getTagihanByNomorPinjaman] ERROR: Unexpected response data format.",
+          );
+          throw Exception(
+            "Format respons server tidak valid untuk data tagihan pinjaman.",
+          );
+        }
+      } else {
+        String message = "Gagal memuat data tagihan pinjaman.";
+        if (response.data is Map<String, dynamic> &&
+            (response.data as Map<String, dynamic>)['message'] != null) {
+          message = (response.data as Map<String, dynamic>)['message'];
+        }
+        print(
+          "[ApiService.getTagihanByNomorPinjaman] ERROR: Failed with status ${response.statusCode}. Message: $message",
+        );
+        throw Exception("$message (Status: ${response.statusCode})");
+      }
+    } on DioException catch (e) {
+      print("[ApiService.getTagihanByNomorPinjaman] DioException caught!");
+      // ... (logging error DioException yang detail seperti pada metode getTagihanByAnggota) ...
+
+      String errorMessage = "Gagal mengambil data tagihan pinjaman.";
+      if (e.response?.statusCode == 401) {
+        errorMessage =
+            "Sesi Anda telah berakhir atau token tidak valid. Silakan login kembali.";
+      } else if (e.response?.data is Map<String, dynamic>) {
+        final responseData = e.response!.data as Map<String, dynamic>;
+        errorMessage = responseData['message'] as String? ?? errorMessage;
+        if (e.response?.statusCode == 422 &&
+            responseData['errors'] is Map<String, dynamic>) {
+          final errors = responseData['errors'] as Map<String, dynamic>;
+          if (errors.isNotEmpty) {
+            final firstErrorField = errors.keys.first;
+            final firstErrorMessage =
+                (errors[firstErrorField] as List).isNotEmpty
+                    ? (errors[firstErrorField] as List).first
+                    : "Data tidak valid.";
+            errorMessage = "Validasi gagal: $firstErrorMessage";
+          }
+        }
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = "Koneksi timeout. Periksa jaringan Anda dan coba lagi.";
+      } else if (e.type == DioExceptionType.unknown ||
+          e.type == DioExceptionType.connectionError) {
+        errorMessage =
+            "Koneksi internet bermasalah atau server tidak dapat dijangkau.";
+      }
+      throw Exception(errorMessage);
+    } catch (e) {
+      print(
+        "[ApiService.getTagihanByNomorPinjaman] General Exception caught: $e",
+      );
+      throw Exception("Terjadi kesalahan sistem: $e");
     }
   }
 }

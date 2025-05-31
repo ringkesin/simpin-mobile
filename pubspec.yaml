@@ -84,6 +84,7 @@ flutter:
     - assets/images/logokkba.png
     - assets/images/logosplash.png
     - assets/images/Card.png
+    - assets/images/logokkba_header.png
 
  
 flutter_native_splash:

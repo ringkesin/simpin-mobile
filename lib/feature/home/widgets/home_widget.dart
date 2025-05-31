@@ -1,16 +1,19 @@
+// home_widget.dart
 import 'package:flutter/material.dart';
+// ... other imports from your original home_widget.dart (keep them)
+import 'package:kkba_mobile/feature/list_pinjaman/screens/list_pinjaman.dart';
 import 'package:kkba_mobile/feature/shu/screens/shu.dart';
 import 'package:kkba_mobile/feature/simulasi_pinjaman/screens/simulasi_pinjaman.dart';
 import 'package:kkba_mobile/feature/tabungan/screens/tabungan.dart';
 import '../../form_pinjaman/screens/form_pinjaman.dart';
-import '../../../theme.dart';
-import '../../../page_wrapper.dart';
+import '../../../theme.dart'; // Assuming this path is correct
 import 'package:intl/intl.dart';
 import 'package:kkba_mobile/model/berita.dart';
 import 'package:kkba_mobile/feature/pencairan/screens/pencairan.dart';
+import 'dart:math' as math;
 
-// Widget: Header
-
+// Widget: Banner (Modified)
+// Widget: Banner (Modified)
 class BannerWidget extends StatelessWidget {
   final bool isLoading;
   final String? username;
@@ -18,6 +21,7 @@ class BannerWidget extends StatelessWidget {
   final String? usernameError;
   final String? nomorAnggotaError;
   final VoidCallback? onGenerateQr;
+  final VoidCallback? onKeanggotaanTap;
 
   const BannerWidget({
     Key? key,
@@ -27,6 +31,7 @@ class BannerWidget extends StatelessWidget {
     this.usernameError,
     this.nomorAnggotaError,
     this.onGenerateQr,
+    this.onKeanggotaanTap,
   }) : super(key: key);
 
   @override
@@ -34,98 +39,91 @@ class BannerWidget extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final TextTheme textTheme = theme.textTheme;
     final screenWidth = MediaQuery.of(context).size.width;
+    // Perkirakan tinggi banner berdasarkan rasio aspek umum kartu (misal 85.6mm × 53.98mm ≈ 1.586)
+    // Anda bisa menyesuaikan multiplier ini agar pas dengan Card.png Anda
+    final double cardHeight =
+        screenWidth * 0.52; // Contoh, ini akan membuat kartu cukup tinggi
 
+    // --- Penentuan Teks dan Style untuk Nama Pengguna ---
     String displayUsername;
     TextStyle usernameStyle =
-        textTheme.bodyLarge?.copyWith(
-          color: Colors.white.withOpacity(0.95),
-          fontWeight: FontWeight.w500,
-        ) ??
-        const TextStyle(
-          color: Colors.white,
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-        );
-
-    if (isLoading) {
-      displayUsername = 'Memuat Nama...';
-      usernameStyle = usernameStyle.copyWith(
-        color: Colors.white.withOpacity(0.7),
-      );
-    } else if (usernameError != null) {
-      displayUsername = usernameError!;
-      usernameStyle = usernameStyle.copyWith(
-        color: AppColors.warningLight,
-        fontWeight: FontWeight.bold,
-      );
-    } else {
-      displayUsername =
-          username?.isNotEmpty ?? false ? username! : 'Pengguna Terhormat';
-    }
-
-    Widget nomorAnggotaWidget;
-    final nomorAnggotaBaseStyle =
         textTheme.headlineSmall?.copyWith(
           color: Colors.white,
           fontWeight: FontWeight.bold,
           shadows: [
             Shadow(
-              blurRadius: 2.0,
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withOpacity(0.4),
+              blurRadius: 3,
               offset: Offset(1, 1),
             ),
           ],
         ) ??
         const TextStyle(
           color: Colors.white,
-          fontSize: 24,
+          fontSize: 20,
           fontWeight: FontWeight.bold,
         );
 
     if (isLoading) {
+      displayUsername = 'Memuat Nama...';
+      usernameStyle = usernameStyle.copyWith(
+        color: Colors.white.withOpacity(0.8),
+        fontSize: 18,
+      );
+    } else if (usernameError != null) {
+      displayUsername = usernameError!;
+      usernameStyle = usernameStyle.copyWith(
+        color: AppColors.errorLight,
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
+      );
+    } else {
+      displayUsername =
+          username?.isNotEmpty ?? false ? username! : 'Nama Tidak Tersedia';
+    }
+
+    // --- Penentuan Teks dan Style untuk Nomor Anggota ---
+    Widget nomorAnggotaWidget;
+    final nomorAnggotaBaseStyle =
+        textTheme.titleMedium?.copyWith(
+          color: Colors.white.withOpacity(0.95),
+          fontWeight: FontWeight.w500,
+          shadows: [
+            Shadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 2,
+              offset: Offset(0.5, 0.5),
+            ),
+          ],
+        ) ??
+        TextStyle(
+          color: Colors.white.withOpacity(0.95),
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        );
+
+    if (isLoading) {
       nomorAnggotaWidget = Text(
-        'Memuat No. Anggota...',
+        'Memuat...',
         style: nomorAnggotaBaseStyle.copyWith(
-          color: Colors.white.withOpacity(0.8),
-          fontWeight: FontWeight.normal,
-          fontSize: 18,
+          fontSize: 14,
+          color: Colors.white.withOpacity(0.7),
         ),
       );
     } else if (nomorAnggotaError != null) {
-      nomorAnggotaWidget = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.error_outline,
-            color: AppColors.warningLight.withOpacity(0.9),
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              nomorAnggotaError!,
-              style:
-                  textTheme.bodyMedium?.copyWith(
-                    color: AppColors.warningLight.withOpacity(0.9),
-                    fontWeight: FontWeight.w600,
-                  ) ??
-                  TextStyle(
-                    color: AppColors.warningLight,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
-            ),
-          ),
-        ],
+      nomorAnggotaWidget = Text(
+        nomorAnggotaError!,
+        style: nomorAnggotaBaseStyle.copyWith(
+          fontSize: 12,
+          color: AppColors.errorLight,
+          fontWeight: FontWeight.w600,
+        ),
       );
     } else if (nomorAnggota == null || nomorAnggota!.isEmpty) {
       nomorAnggotaWidget = Text(
-        'No. Anggota Tidak Tersedia',
+        'N/A',
         style: nomorAnggotaBaseStyle.copyWith(
-          fontSize: 16,
-          fontWeight: FontWeight.normal,
+          fontSize: 14,
           color: Colors.white.withOpacity(0.75),
         ),
       );
@@ -133,308 +131,145 @@ class BannerWidget extends StatelessWidget {
       nomorAnggotaWidget = Text(nomorAnggota!, style: nomorAnggotaBaseStyle);
     }
 
-    final String animatedSwitcherKey =
-        isLoading
-            ? 'loading_banner'
-            : 'data_banner_${nomorAnggotaError ?? nomorAnggota ?? "empty"}';
+    double qrIconContainerSize = (cardHeight * 0.4).clamp(
+      50.0,
+      65.0,
+    ); // Ukuran QR relatif terhadap tinggi kartu
 
-    // --- PENYESUAIAN ASPECT RATIO ---
-    // Nilai yang lebih besar akan membuat banner lebih "pendek" untuk lebar yang sama.
-    // Anda mungkin perlu menyesuaikan ini berdasarkan aspek rasio aktual gambar Card.png Anda.
-    // Jika Card.png Anda memiliki rasio ~1.58 (seperti kartu kredit),
-    // menggunakan nilai yang lebih besar dari itu akan memotong bagian atas/bawah gambar
-    // jika fit adalah BoxFit.cover, atau menambahkan letterbox jika fit adalah contain.
-    // Mari kita coba nilai yang sedikit lebih besar dari 1.6 untuk mengurangi tinggi.
-    const double imageAspectRatio =
-        1.85; // Coba nilai ini, atau sesuaikan dengan rasio gambar Anda
+    return SizedBox(
+      // Menggunakan SizedBox untuk mengontrol tinggi BannerWidget secara eksplisit
+      height: cardHeight,
+      width: double.infinity, // Mengambil lebar penuh dari parent
+      child: Card(
+        elevation: 6.0,
+        clipBehavior:
+            Clip.antiAlias, // Penting agar gambar tidak keluar dari rounded corners
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18.0),
+        ),
+        margin: EdgeInsets.zero, // Card tidak memberi margin sendiri
+        child: Stack(
+          // Menggunakan Stack untuk menumpuk gambar dan konten
+          fit: StackFit.expand, // Membuat Stack mengisi Card
+          children: [
+            // Lapisan 1: Gambar Latar Belakang Penuh
+            Image.asset(
+              'assets/images/Card.png',
+              fit: BoxFit.cover, // Memastikan gambar menutupi seluruh area Card
+            ),
 
-    double iconSize = (screenWidth * 0.1).clamp(35.0, 50.0);
-
-    return Card(
-      elevation: 6.0,
-      margin: EdgeInsets.zero,
-      // --- PERUBAHAN WARNA BACKGROUND CARD ---
-      color:
-          AppColors
-              .primaryDark, // Warna hijau tua sebagai fallback atau jika gambar transparan
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.antiAlias,
-      child: AspectRatio(
-        aspectRatio: imageAspectRatio,
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: const AssetImage(
-                'assets/images/Card.png',
-              ), // Pastikan path ini benar
-              fit: BoxFit.cover,
-              colorFilter: ColorFilter.mode(
-                Colors.black.withOpacity(
-                  0.10,
-                ), // Sedikit dikurangi opacity overlay
-                BlendMode.darken,
+            // Lapisan 2: Konten (Nama, No Anggota, Tombol)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 18.0,
               ),
-            ),
-          ),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.055, // Sedikit disesuaikan
-              vertical: screenWidth * 0.035, // Sedikit disesuaikan
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment:
+                    MainAxisAlignment
+                        .spaceBetween, // Mendorong tombol keanggotaan ke bawah
+                children: [
+                  // Bagian atas: Nama dan Nomor Anggota (tanpa QR di sini)
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         displayUsername,
-                        style: usernameStyle.copyWith(
-                          shadows: [
-                            Shadow(
-                              blurRadius: 2.0,
-                              color: Colors.black.withOpacity(0.5),
-                              offset: Offset(1, 1),
-                            ), // Shadow lebih jelas
-                          ],
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                        style: usernameStyle,
                         maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      // const SizedBox(height: 2), // Spasi disesuaikan
+                      SizedBox(height: 4),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
-                        key: ValueKey<String>(animatedSwitcherKey),
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: nomorAnggotaWidget,
                         ),
-                        transitionBuilder: (child, animation) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: child,
-                          );
-                        },
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 10), // Sedikit dikurangi
-                if (onGenerateQr != null)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(
-                        0.25,
-                      ), // Sedikit lebih jelas
-                      shape: BoxShape.circle,
+
+                  // Bagian bawah: Tombol Keanggotaan
+                  if (onKeanggotaanTap != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: ElevatedButton.icon(
+                        onPressed: onKeanggotaanTap,
+                        icon: Icon(
+                          Icons.card_membership_rounded,
+                          size: 18,
+                          color: AppColors.primaryLight,
+                        ),
+                        label: Text(
+                          'Keanggotaan',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryLight,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white.withOpacity(0.95),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18.0,
+                            vertical: 10.0,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20.0),
+                          ),
+                          elevation: 2,
+                        ),
+                      ),
                     ),
-                    child: IconButton(
-                      icon: Icon(
+                ],
+              ),
+            ),
+
+            // Lapisan 3: Tombol QR di tengah kanan secara vertikal
+            if (onGenerateQr != null)
+              Positioned(
+                right: 18.0, // Jarak dari kanan
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  // Untuk memusatkan QR secara vertikal
+                  child: InkWell(
+                    onTap:
+                        (isLoading ||
+                                nomorAnggotaError != null ||
+                                nomorAnggota == null ||
+                                nomorAnggota!.isEmpty)
+                            ? null
+                            : onGenerateQr,
+                    borderRadius: BorderRadius.circular(
+                      qrIconContainerSize / 2,
+                    ),
+                    child: Container(
+                      width: qrIconContainerSize,
+                      height: qrIconContainerSize,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.92),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 7,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
                         Icons.qr_code_2_rounded,
-                        color: Colors.white.withOpacity(0.98), // Lebih opaque
-                        size: iconSize,
+                        color: AppColors.primaryLight,
+                        size: qrIconContainerSize * 0.55,
                         semanticLabel: 'Tampilkan QR Code',
                       ),
-                      onPressed:
-                          (isLoading ||
-                                  nomorAnggotaError != null ||
-                                  nomorAnggota == null ||
-                                  nomorAnggota!.isEmpty)
-                              ? null
-                              : onGenerateQr,
-                      tooltip: 'Tampilkan QR Code No. Anggota',
-                      splashRadius:
-                          iconSize *
-                          0.6, // Splash radius relatif terhadap ukuran ikon
-                      padding: const EdgeInsets.all(10),
                     ),
                   ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Widget: Categories
-// Widget: Categories (MODIFIED childAspectRatio)
-class CategoriesWidget extends StatelessWidget {
-  const CategoriesWidget({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final brightness = Theme.of(context).brightness;
-    final isDarkMode = brightness == Brightness.dark;
-    final textTheme = Theme.of(context).textTheme;
-
-    final List<Map<String, dynamic>> categories = [
-      {"icon": Icons.calculate_outlined, "label": "Simulasi Pinjaman"},
-      {"icon": Icons.description_outlined, "label": "Pengajuan Pinjaman"},
-      {"icon": Icons.info_outline, "label": "Info SHU"},
-      {"icon": Icons.person_outline, "label": "Info Profil"},
-      {"icon": Icons.savings_outlined, "label": "Info Tabungan"},
-      {"icon": Icons.paid_outlined, "label": "Pencairan Tabungan"},
-    ];
-
-    // Determine crossAxisCount based on screen width
-    int crossAxisCount = screenWidth > 700 ? 4 : 3;
-    if (screenWidth < 380 && categories.length > 4) {
-      crossAxisCount = 3;
-    }
-
-    // Adjust childAspectRatio to give more height to items
-    // Smaller value means taller items relative to their width.
-    // Let's try even smaller values if 0.9/0.85 was not enough.
-    double childAspectRatio = 0.8; // Dikurangi dari 0.9
-    if (screenWidth < 420) {
-      // Penyesuaian breakpoint untuk layar yang lebih sempit
-      childAspectRatio =
-          0.75; // Dikurangi dari 0.85, memberi lebih banyak tinggi
-    }
-    if (screenWidth < 360) {
-      // Untuk layar yang sangat sempit
-      childAspectRatio = 0.7;
-    }
-
-    return GridView.builder(
-      itemCount: categories.length,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        childAspectRatio:
-            childAspectRatio, // Menggunakan nilai yang lebih kecil
-        crossAxisSpacing: 12,
-        mainAxisSpacing:
-            16, // Sedikit ditambah dari 12 untuk ruang vertikal antar baris
-      ),
-      itemBuilder: (context, index) {
-        final category = categories[index];
-        return CategoryItem(
-          category: category,
-          isDarkMode: isDarkMode,
-          textTheme: textTheme,
-          onTap: () {
-            _navigateToPage(context, index);
-          },
-        );
-      },
-    );
-  }
-
-  void _navigateToPage(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SimulasiPinjamanScreen()),
-        );
-        break;
-      case 1:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const FormWizardScreen()),
-        );
-        break;
-      case 2:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ShuPage()),
-        );
-        break;
-      case 3:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ShuPage()),
-        );
-        break;
-      case 4:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const TabunganPage()),
-        );
-        break;
-      case 5:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const PencairanTabunganScreen()),
-        );
-        break;
-    }
-  }
-}
-
-class CategoryItem extends StatelessWidget {
-  const CategoryItem({
-    Key? key,
-    required this.category,
-    required this.isDarkMode,
-    required this.textTheme,
-    required this.onTap,
-  }) : super(key: key);
-
-  final Map<String, dynamic> category;
-  final bool isDarkMode;
-  final TextTheme textTheme;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        // Padding vertikal bisa sedikit dikurangi jika childAspectRatio sangat kecil
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        decoration: BoxDecoration(
-          color:
-              isDarkMode
-                  ? AppColors.primaryDark.withOpacity(0.15)
-                  : AppColors.primaryLight.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDarkMode ? Colors.white12 : Colors.black12,
-            width: 0.5,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 24, // Sedikit dikurangi jika ruang sangat terbatas
-              backgroundColor:
-                  isDarkMode
-                      ? AppColors.primaryLight.withOpacity(0.1)
-                      : AppColors.primaryDark.withOpacity(0.05),
-              child: Icon(
-                category['icon'],
-                color:
-                    isDarkMode ? AppColors.primaryLight : AppColors.primaryDark,
-                size: 26, // Ukuran ikon sedikit disesuaikan
+                ),
               ),
-            ),
-            const SizedBox(
-              height: 8,
-            ), // Spasi antara ikon dan teks sedikit dikurangi
-            Text(
-              category['label'],
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.labelMedium?.copyWith(
-                color: isDarkMode ? Colors.grey[300] : Colors.black87,
-                fontWeight: FontWeight.w500,
-                height:
-                    1.2, // Menambah sedikit line-height jika teks 2 baris terlalu rapat
-              ),
-            ),
           ],
         ),
       ),
@@ -442,8 +277,13 @@ class CategoryItem extends StatelessWidget {
   }
 }
 
-// Widget: Recent Transactions
-// Widget: BeritaListWidget (MODIFIED for responsiveness)
+// Widget: Categories (This can be removed or commented out if not used elsewhere)
+// class CategoriesWidget extends StatelessWidget { ... }
+// For this solution, we are building the menus directly in home_screen.dart,
+// so CategoriesWidget as it was is no longer needed here. If you use it on other screens, keep it.
+
+// Widget: BeritaListWidget (Keep as is, or adjust styling if needed)
+// The existing BeritaListWidget is quite good. We'll ensure its title is handled in home_screen.dart
 class BeritaListWidget extends StatelessWidget {
   final List<BeritaItem> beritaList;
 
@@ -453,9 +293,10 @@ class BeritaListWidget extends StatelessWidget {
   String _formatDisplayDate(String dateString) {
     try {
       final DateTime dateTime = DateTime.parse(dateString);
-      return DateFormat('dd MMMM yyyy', 'id_ID').format(dateTime);
+      // Format tanggal seperti "21 Mei 2025"
+      return DateFormat('dd MMM yyyy', 'id_ID').format(dateTime);
     } catch (e) {
-      return dateString;
+      return dateString; // fallback
     }
   }
 
@@ -478,152 +319,171 @@ class BeritaListWidget extends StatelessWidget {
       );
     }
 
-    // --- Kalkulasi Responsif untuk Kartu Berita ---
-    double responsiveCardWidth;
-    if (screenWidth < 380) {
-      // Layar sangat sempit
-      responsiveCardWidth =
-          screenWidth * 0.85; // Hampir penuh, mungkin 1 kartu terlihat jelas
-    } else if (screenWidth < 600) {
-      // Layar sempit (umumnya mobile portrait)
-      responsiveCardWidth = screenWidth * 0.75; // Sekitar 1.3 kartu terlihat
-    } else if (screenWidth < 900) {
-      // Layar medium (tablet portrait / mobile landscape lebar)
-      responsiveCardWidth = screenWidth * 0.45; // Sekitar 2 kartu terlihat
-    } else {
-      // Layar lebar
-      responsiveCardWidth = screenWidth * 0.3; // Sekitar 3 kartu terlihat
-    }
-    // Batasan lebar kartu
-    responsiveCardWidth = responsiveCardWidth.clamp(220.0, 320.0);
+    // Penyesuaian ukuran kartu berita agar lebih mirip dengan gambar
+    double responsiveCardWidth = (screenWidth * 0.55).clamp(180.0, 220.0);
+    // Tinggi kartu bisa dibuat lebih proporsional dengan gambar yang full
+    // Misal, rasio 3:4 (lebar:tinggi) atau sesuaikan dengan preferensi Anda
+    double responsiveCardHeight =
+        responsiveCardWidth * 1.15; // Contoh rasio tinggi
 
-    // Perkiraan tinggi untuk teks dan padding di dalam kartu
-    const double textPaddingAndHeight =
-        12.0 + (20.0 * 2) + 6.0 + 14.0 + 12.0; // Total sekitar 84
-
-    // Hitung tinggi gambar berdasarkan rasio aspek 16/9
-    final double imageHeight = responsiveCardWidth / (16 / 9);
-    // Tinggi total untuk list horizontal
-    final double responsiveHorizontalListHeight =
-        imageHeight + textPaddingAndHeight + 8; // +8 untuk sedikit margin kartu
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-          child: Text(
-            "Berita Terbaru",
-            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: responsiveHorizontalListHeight,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: limitedBeritaList.length,
-            padding: const EdgeInsets.symmetric(horizontal: 4.0),
-            itemBuilder: (context, index) {
-              final berita = limitedBeritaList[index];
-              return Padding(
-                padding: const EdgeInsets.only(right: 12.0),
-                child: SizedBox(
-                  width: responsiveCardWidth, // Menggunakan lebar responsif
-                  child: Card(
-                    elevation: 2.0, // Sedikit dikurangi
-                    margin: const EdgeInsets.symmetric(
-                      vertical: 4,
-                    ), // Margin vertikal kecil untuk bayangan
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () {
-                        print("Berita tapped: ${berita.id} - ${berita.title}");
-                        // TODO: Navigasi ke detail berita
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child:
-                                (berita.thumbnailPath != null &&
-                                        berita.thumbnailPath!.isNotEmpty)
-                                    ? Image.network(
-                                      berita.thumbnailPath!,
-                                      fit: BoxFit.cover,
-                                      loadingBuilder: (ctx, child, progress) {
-                                        if (progress == null) return child;
-                                        return const Center(
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        );
-                                      },
-                                      errorBuilder: (ctx, error, stackTrace) {
-                                        return Container(
-                                          color: Colors.grey[200],
-                                          child: Icon(
-                                            Icons.broken_image_outlined,
-                                            color: Colors.grey[400],
-                                            size: 40,
-                                          ),
-                                        );
-                                      },
-                                    )
-                                    : Container(
-                                      color: Colors.grey[200],
-                                      child: Icon(
-                                        Icons.image_not_supported_outlined,
-                                        color: Colors.grey[400],
-                                        size: 40,
-                                      ),
-                                    ),
+    return SizedBox(
+      height:
+          responsiveCardHeight + 8, // Tambah sedikit padding untuk shadow Card
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: limitedBeritaList.length,
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+        itemBuilder: (context, index) {
+          final berita = limitedBeritaList[index];
+          return Padding(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: SizedBox(
+              width: responsiveCardWidth,
+              height: responsiveCardHeight, // Terapkan tinggi kartu
+              child: Card(
+                elevation: 3.0,
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    14.0,
+                  ), // Radius lebih besar
+                ),
+                clipBehavior:
+                    Clip.antiAlias, // Penting untuk efek gambar penuh dan gradasi
+                child: InkWell(
+                  onTap: () {
+                    print("Berita tapped: ${berita.id} - ${berita.title}");
+                    // TODO: Navigasi ke detail berita
+                  },
+                  child: Stack(
+                    fit: StackFit.expand, // Membuat Stack mengisi penuh Card
+                    children: [
+                      // Lapisan 1: Gambar Berita (Full)
+                      (berita.thumbnailPath != null &&
+                              berita.thumbnailPath!.isNotEmpty)
+                          ? Image.network(
+                            berita.thumbnailPath!,
+                            fit: BoxFit.cover, // Gambar mengisi penuh
+                            loadingBuilder: (ctx, child, progress) {
+                              if (progress == null) return child;
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              );
+                            },
+                            errorBuilder: (ctx, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[300],
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  color: Colors.grey[500],
+                                  size: 40,
+                                ),
+                              );
+                            },
+                          )
+                          : Container(
+                            color: Colors.grey[300],
+                            child: Icon(
+                              Icons.image_not_supported_outlined,
+                              color: Colors.grey[500],
+                              size: 40,
+                            ),
                           ),
-                          Expanded(
-                            // Penting agar teks tidak overflow jika kartu lebih tinggi dari konten teks
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment:
-                                    MainAxisAlignment
-                                        .start, // Atau MainAxisAlignment.spaceBetween jika ingin tanggal di bawah
-                                children: [
-                                  Text(
-                                    berita.title,
-                                    style: textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    _formatDisplayDate(berita.validFrom),
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: Colors.grey[600],
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+
+                      // Lapisan 2: Gradasi Gelap di Bawah
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withOpacity(
+                                  0.05,
+                                ), // Mulai sedikit gelap
+                                Colors.black.withOpacity(
+                                  0.75,
+                                ), // Lebih gelap di bawah
+                              ],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              stops: [
+                                0.4,
+                                0.6,
+                                1.0,
+                              ], // Kontrol penyebaran gradasi
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Lapisan 3: Teks (Tanggal dan Judul)
+                      Positioned(
+                        bottom: 10.0,
+                        left: 10.0,
+                        right: 10.0,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Tanggal Berita
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6.0,
+                                vertical: 2.0,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryLight.withOpacity(
+                                  0.85,
+                                ), // Warna background tanggal (misal: hijau tema)
+                                borderRadius: BorderRadius.circular(4.0),
+                              ),
+                              child: Text(
+                                _formatDisplayDate(berita.validFrom),
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: Colors.white,
+                                  fontSize:
+                                      9.5, // Ukuran font tanggal lebih kecil
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(height: 6.0),
+                            // Judul Berita
+                            Text(
+                              berita.title,
+                              style: textTheme.titleMedium?.copyWith(
+                                // Bisa juga titleSmall
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15, // Sesuaikan ukuran font judul
+                                height: 1.25, // Line height
+                                shadows: [
+                                  // Tambahkan shadow tipis agar lebih terbaca
+                                  Shadow(
+                                    color: Colors.black.withOpacity(0.5),
+                                    blurRadius: 2,
+                                    offset: Offset(0, 1),
                                   ),
                                 ],
                               ),
+                              maxLines: 2, // Batasi judul menjadi 2 baris
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-              );
-            },
-          ),
-        ),
-      ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

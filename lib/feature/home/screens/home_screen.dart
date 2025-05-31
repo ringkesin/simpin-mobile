@@ -1,14 +1,24 @@
 // feature/home/screens/home_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:kkba_mobile/feature/tagihan/screens/tagihan_screens.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:kkba_mobile/page_wrapper.dart'; // Asumsi path benar
-import 'package:kkba_mobile/theme.dart'; // Asumsi path benar
+import 'package:kkba_mobile/page_wrapper.dart';
+import 'package:kkba_mobile/theme.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../service/api_service.dart';
 import 'package:kkba_mobile/model/berita.dart';
-import '../widgets/home_widget.dart'; // Pastikan BannerWidget ada di sini atau diimport terpisah
+import '../widgets/home_widget.dart'; // BannerWidget and BeritaListWidget are here
+
+// --- Import Screens for Navigation ---
+import 'package:kkba_mobile/feature/simulasi_pinjaman/screens/simulasi_pinjaman.dart';
+import 'package:kkba_mobile/feature/form_pinjaman/screens/form_pinjaman.dart';
+import 'package:kkba_mobile/feature/list_pinjaman/screens/list_pinjaman.dart'; // Assuming this exists for "Riwayat Pinjaman"
+// import 'package:kkba_mobile/feature/riwayat_tagihan/screens/riwayat_tagihan.dart'; // Create this screen
+import 'package:kkba_mobile/feature/tabungan/screens/tabungan.dart'; // For "Mutasi Tabungan" / "Info Tabungan"
+import 'package:kkba_mobile/feature/pencairan/screens/pencairan.dart'; // For "Form Pencairan Tabungan"
+// import 'package:kkba_mobile/feature/riwayat_pencairan/screens/riwayat_pencairan.dart'; // Create this screen
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -21,10 +31,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _userName;
   String? _nomorAnggota;
 
-  // --- State Loading & Error yang Dimodifikasi ---
-  bool _isLoadingBanner = true; // Untuk loading keseluruhan data banner
-  String? _userNameError; // Error spesifik untuk username
-  String? _nomorAnggotaError; // Error spesifik untuk nomor anggota
+  bool _isLoadingBanner = true;
+  String? _userNameError;
+  String? _nomorAnggotaError;
 
   List<BeritaItem> _beritaList = [];
   bool _isLoadingBerita = true;
@@ -41,8 +50,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _isLoadingBanner = true;
       _isLoadingBerita = true;
-      _userNameError = null; // Reset error spesifik
-      _nomorAnggotaError = null; // Reset error spesifik
+      _userNameError = null;
+      _nomorAnggotaError = null;
       _beritaError = null;
       _userName = null;
       _nomorAnggota = null;
@@ -50,12 +59,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // Jalankan fetch user data dan berita secara paralel
-      // _loadUserData akan menangani _userName, _nomorAnggota, _userNameError, _nomorAnggotaError
-      // _fetchBeritaList akan menangani _beritaList, _beritaError
       await Future.wait([_loadUserData(), _fetchBeritaList()]);
     } catch (e) {
-      // Catch ini untuk error yang tidak terduga/tidak ditangani oleh fungsi di atas
       print("Critical error during initial load: $e");
       if (mounted) {
         setState(() {
@@ -66,7 +71,6 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } finally {
-      // Pastikan semua state loading utama diatur ke false di sini
       if (mounted) {
         setState(() {
           _isLoadingBanner = false;
@@ -77,10 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadUserData() async {
-    // _loadUserName dan _loadNomorAnggota akan memanggil setState
-    // untuk data mereka dan error spesifik mereka masing-masing.
     await Future.wait([_loadUserName(), _loadNomorAnggota()]);
-    // _isLoadingBanner akan diatur ke false di blok finally _loadInitialData
   }
 
   Future<void> _loadUserName() async {
@@ -91,16 +92,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       setState(() {
         _userName = name;
-        if (name == null || name.isEmpty) {
-          // Anda bisa memilih untuk menampilkan "Pengguna" di BannerWidget
-          // atau menampilkan error spesifik di sini.
-          // Untuk konsistensi, jika tidak ada nama, anggap saja "Pengguna".
-          // _userNameError = "Nama pengguna tidak ditemukan.";
-          _userNameError =
-              null; // Jika null/empty dianggap bukan error, tapi state data
-        } else {
-          _userNameError = null;
-        }
+        _userNameError =
+            (name == null || name.isEmpty)
+                ? null
+                : null; // Null if empty is not an error for display
       });
     } catch (e) {
       print("Error loading username: $e");
@@ -120,15 +115,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       setState(() {
         _nomorAnggota = nomorFromPrefs;
-        if (nomorFromPrefs == null || nomorFromPrefs.isEmpty) {
-          // Jika null/empty dianggap bukan error, tapi state data (misal "Tidak Tersedia")
-          // yang akan ditangani BannerWidget
-          _nomorAnggotaError = null;
-          // Jika ingin ini jadi error:
-          // _nomorAnggotaError = "No. anggota tidak ditemukan.";
-        } else {
-          _nomorAnggotaError = null;
-        }
+        _nomorAnggotaError =
+            (nomorFromPrefs == null || nomorFromPrefs.isEmpty)
+                ? null
+                : null; // Null if empty is not an error for display
       });
     } catch (e) {
       print("Error loading nomor anggota: $e");
@@ -142,7 +132,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchBeritaList() async {
     if (!mounted) return;
-    // _isLoadingBerita sudah di-set true di _loadInitialData
     try {
       final response = await _apiService.getListBerita();
       if (!mounted) return;
@@ -166,7 +155,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _beritaError = e.toString().replaceFirst("Exception: ", "");
       });
     }
-    // _isLoadingBerita akan di-set false di blok finally _loadInitialData
   }
 
   void _handleGenerateQr() {
@@ -212,10 +200,295 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // --- Helper method to build individual menu items ---
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required BuildContext context,
+    Color? iconBackgroundColor, // Tambahkan parameter ini
+    Color iconColor =
+        Colors
+            .white, // Warna ikon default (misal putih jika background berwarna)
+    double iconSize = 30.0, // Ukuran ikon default
+    double backgroundIconSize = 70.0, // Ukuran container background ikon
+    double spacing = 8.0,
+    double fontSize = 11.5, // Sedikit diperkecil untuk label agar muat
+  }) {
+    return Expanded(
+      // Menggunakan Expanded agar setiap item mendapat ruang yang sama
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          // Mengatur padding di sini agar tidak terlalu mepet jika label panjang
+          padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 8.0),
+          color:
+              Colors
+                  .transparent, // Untuk memastikan GestureDetector menangkap tap di area kosong
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: backgroundIconSize,
+                height: backgroundIconSize,
+                decoration: BoxDecoration(
+                  color:
+                      iconBackgroundColor ??
+                      Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.1), // Fallback color
+                  borderRadius: BorderRadius.circular(
+                    12.0,
+                  ), // Membuat sudut sedikit melengkung
+                ),
+                child: Icon(icon, size: iconSize, color: iconColor),
+              ),
+              SizedBox(height: spacing),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: fontSize,
+                  color:
+                      AppColors
+                          .secondaryTextLight, // Sesuaikan dengan theme Anda
+                  height: 1.2,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- Placeholder navigation ---
+  void _navigateToPlaceholder(String pageName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Navigasi ke $pageName (Belum diimplementasi)'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    // Example: Navigator.push(context, MaterialPageRoute(builder: (_) => PlaceholderScreen(title: pageName)));
+  }
+
+  Widget _buildPinjamanMenu(BuildContext context) {
+    // Warna-warna ini bisa Anda definisikan di sini atau ambil dari sumber lain
+    // Ini adalah contoh warna yang mungkin mirip dengan gambar Anda
+    final Color simulasiBgColor = Colors.orange.shade50;
+    final Color pengajuanBgColor = Colors.blue.shade50;
+    final Color riwayatPinjamanBgColor = Colors.green.shade50;
+    final Color riwayatTagihanBgColor = Colors.purple.shade50;
+
+    // Warna ikon yang kontras dengan backgroundnya
+    final Color defaultIconColor = Colors.black.withOpacity(0.65);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4.0),
+          child: Text(
+            'Pinjaman',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          // Menggunakan MainAxisAlignment.spaceBetween akan memberi jarak antar item jika tidak pakai Expanded
+          // Jika pakai Expanded, ini tidak terlalu berpengaruh pada spacing utama
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildMenuItem(
+              icon: Icons.calculate_outlined,
+              label: "Simulasi",
+              context: context,
+              iconBackgroundColor: simulasiBgColor,
+              iconColor: defaultIconColor,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SimulasiPinjamanScreen(),
+                    ),
+                  ),
+            ),
+            const SizedBox(
+              width: 8,
+            ), // Memberi sedikit jarak antar item jika Expanded tidak cukup
+            _buildMenuItem(
+              icon: Icons.description_outlined,
+              label: "Form Pengajuan",
+              context: context,
+              iconBackgroundColor: pengajuanBgColor,
+              iconColor: defaultIconColor,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FormWizardScreen()),
+                  ),
+            ),
+            const SizedBox(width: 8),
+            _buildMenuItem(
+              icon: Icons.history_edu_outlined,
+              label: "Riwayat Pinjaman",
+              context: context,
+              iconBackgroundColor: riwayatPinjamanBgColor,
+              iconColor: defaultIconColor,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DaftarPinjamanScreen(),
+                    ),
+                  ),
+            ),
+            const SizedBox(width: 8),
+            _buildMenuItem(
+              icon: Icons.payment_outlined,
+              label: "Riwayat Tagihan",
+              context: context,
+              iconBackgroundColor: riwayatTagihanBgColor,
+              iconColor: defaultIconColor,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TagihanScreen()),
+                  ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabunganMenu(BuildContext context) {
+    // Contoh warna untuk menu tabungan
+    final Color mutasiBgColor = Colors.teal.shade50;
+    final Color pencairanBgColor = Colors.red.shade50;
+    final Color riwayatPencairanBgColor = Colors.indigo.shade50;
+    final Color defaultIconColor = Colors.black.withOpacity(0.65);
+
+    // (Definisikan screenWidth jika digunakan untuk logika kondisional di sini)
+    // final screenWidth = MediaQuery.of(context).size.width;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4.0),
+          child: Text(
+            'Tabungan',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment:
+              MainAxisAlignment
+                  .spaceBetween, // Atau MainAxisAlignment.start jika tidak ingin memaksa penuh
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildMenuItem(
+              icon: Icons.swap_horiz_outlined,
+              label: "Mutasi Tabungan",
+              context: context,
+              iconBackgroundColor: mutasiBgColor,
+              iconColor: defaultIconColor,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TabunganPage()),
+                  ),
+            ),
+            const SizedBox(width: 8),
+            _buildMenuItem(
+              icon: Icons.savings_outlined,
+              label: "Form Pencairan",
+              context: context,
+              iconBackgroundColor: pencairanBgColor,
+              iconColor: defaultIconColor,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PencairanTabunganScreen(),
+                    ),
+                  ),
+            ),
+            const SizedBox(width: 8),
+            _buildMenuItem(
+              icon: Icons.manage_history_outlined,
+              label: "Riwayat Pencairan",
+              context: context,
+              iconBackgroundColor: riwayatPencairanBgColor,
+              iconColor: defaultIconColor,
+              onTap: () => _navigateToPlaceholder("Riwayat Pencairan"),
+            ),
+            // Jika hanya 3 item, dan ingin Row tetap mengambil lebar penuh dengan item yang terdistribusi:
+            // Anda bisa menambahkan Spacer atau Expanded kosong jika ingin item di kiri
+            // atau biarkan seperti ini jika ingin mereka mengelompok di kiri
+            // Untuk 3 item agar setara dengan 4 item di atas (jika itu tujuannya):
+            Expanded(
+              child: Container(),
+            ), // Ini akan mendorong 3 item ke kiri jika MainAxisAlignment.start
+            // Atau memberi ruang kosong jika MainAxisAlignment.spaceBetween dan hanya 3 item
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBeritaSectionTitle(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4.0),
+          child: Text(
+            'Berita Terbaru',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        TextButton(
+          onPressed: () {
+            // TODO: Navigate to full news list screen
+            _navigateToPlaceholder("Semua Berita");
+          },
+          child: Text(
+            'Lihat Semua',
+            style: TextStyle(
+              color: AppColors.primaryLight,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    // Tinggi perkiraan BannerWidget (harus konsisten dengan yang di BannerWidget)
+    final double bannerHeight = screenWidth * 0.52;
+    // Seberapa banyak banner akan "turun" dari header
+    final double bannerOverlap =
+        bannerHeight / 3.5; // Sekitar sepertiga tinggi banner
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.primaryBackgroundLight,
       body: RefreshIndicator(
         onRefresh: _loadInitialData,
         color: AppColors.primaryLight,
@@ -223,84 +496,130 @@ class _HomeScreenState extends State<HomeScreen> {
           slivers: [
             SliverToBoxAdapter(
               child: Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.alternateLight,
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(30.0),
-                    bottomRight: Radius.circular(30.0),
-                  ),
-                ),
-                child: SafeArea(
-                  bottom: false,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                          vertical: 12.0,
+                // Tinggi total area header termasuk bagian yang tertutup overlap banner
+                height:
+                    (screenWidth * 0.3) +
+                    (bannerHeight - bannerOverlap) +
+                    MediaQuery.of(context)
+                        .padding
+                        .top, // Perkiraan tinggi header + bagian banner yg terlihat
+                child: Stack(
+                  children: [
+                    // Lapisan 1: Background Gradasi Header
+                    Positioned.fill(
+                      bottom:
+                          bannerOverlap, // Gradasi berhenti sebelum banner sepenuhnya "turun"
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Color(0xFFFFFFFF), // Atas: Putih
+                              Color(0xFFE2E8F0), // Bawah: #E2E8F0
+                            ],
+                            begin:
+                                Alignment
+                                    .topCenter, // Gradasi dari atas ke bawah
+                            end: Alignment.bottomCenter,
+                          ),
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(30.0),
+                            bottomRight: Radius.circular(30.0),
+                          ),
                         ),
-                        child: Row(
-                          children: [
-                            const CircleAvatar(
-                              backgroundImage: AssetImage(
-                                'assets/images/profile.jpg',
+                      ),
+                    ),
+
+                    // Lapisan 2: Konten Header (Logo, Profile, dll.)
+                    Positioned.fill(
+                      child: SafeArea(
+                        bottom: false,
+                        child: Padding(
+                          padding: const EdgeInsets.only(
+                            left: 16.0,
+                            right: 16.0,
+                            top: 12.0, // Kurangi padding atas sedikit
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Image.asset(
+                                'assets/images/logokkba_header.png',
+                                height: 34,
                               ),
-                              radius: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                // Menampilkan nama dari state, atau "Guest" jika null/kosong dan tidak ada error nama
-                                (_userNameError == null &&
-                                        (_userName?.isNotEmpty ?? false))
-                                    ? 'Welcome, $_userName'
-                                    : (_userNameError != null
-                                        ? 'Welcome, ...'
-                                        : 'Welcome, Guest'),
-                                style: AppTheme.textThemeLight.titleMedium
-                                    ?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
+                              const Spacer(),
+                              const CircleAvatar(
+                                backgroundImage: AssetImage(
+                                  'assets/images/profile.jpg',
+                                ),
+                                radius: 18, // Sedikit lebih kecil
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: Icon(
+                                  Icons.logout_outlined,
+                                  color: AppColors.primaryTextLight.withOpacity(
+                                    0.7,
+                                  ),
+                                  size: 24,
+                                ), // Warna ikon disesuaikan dengan background terang
+                                onPressed:
+                                    () => _navigateToPlaceholder(
+                                      "Logout/Settings",
                                     ),
-                                overflow: TextOverflow.ellipsis,
+                                tooltip: 'Pengaturan',
+                                padding: EdgeInsets.zero,
+                                constraints: BoxConstraints(),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 20.0),
-                        child: BannerWidget(
-                          // Widget dari home_widget.dart
-                          isLoading: _isLoadingBanner,
-                          username: _userName,
-                          nomorAnggota: _nomorAnggota,
-                          usernameError: _userNameError, // Prop baru
-                          nomorAnggotaError: _nomorAnggotaError, // Prop baru
-                          onGenerateQr: _handleGenerateQr,
-                        ),
+                    ),
+
+                    // Lapisan 3: BannerWidget yang overlap
+                    Positioned(
+                      left: 16.0,
+                      right: 16.0,
+                      bottom: 0, // Banner menempel di bawah area Stack ini
+                      height: bannerHeight,
+                      child: BannerWidget(
+                        isLoading: _isLoadingBanner,
+                        username: _userName,
+                        nomorAnggota: _nomorAnggota,
+                        usernameError: _userNameError,
+                        nomorAnggotaError: _nomorAnggotaError,
+                        onGenerateQr: _handleGenerateQr,
+                        onKeanggotaanTap: () {
+                          _navigateToPlaceholder("Halaman Keanggotaan");
+                        },
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
+
+            // Spacer untuk memberi ruang setelah banner yang overlap
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 24 + bannerOverlap * 0.5,
+              ), // Tambahan space setelah banner, disesuaikan dengan overlap
+            ),
+
+            // SliverToBoxAdapter untuk menu dan berita
             SliverToBoxAdapter(
               child: PageWrapper(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 24),
-                    Text(
-                      'Menu Utama',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    CategoriesWidget(), // Widget dari home_widget.dart
-                    const SizedBox(height: 24),
-                    _buildBeritaSection(),
+                    // Tidak perlu SizedBox(height: 24) pertama lagi jika sudah diatur di atas
+                    _buildPinjamanMenu(context),
+                    const SizedBox(height: 28),
+                    _buildTabunganMenu(context),
+                    const SizedBox(height: 28),
+                    _buildBeritaSectionTitle(context),
+                    const SizedBox(height: 12),
+                    _buildBeritaSectionContent(),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -312,7 +631,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBeritaSection() {
+  Widget _buildBeritaSectionContent() {
+    // Renamed from _buildBeritaSection
     if (_isLoadingBerita) {
       return const Center(
         child: Padding(
@@ -340,8 +660,9 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     } else {
       return BeritaListWidget(
+        // From home_widget.dart
         beritaList: _beritaList,
-      ); // Widget dari home_widget.dart
+      );
     }
   }
 }
