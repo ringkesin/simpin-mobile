@@ -30,11 +30,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String? _userName;
   String? _nomorAnggota;
-
+  String? _profilePhotoUrl;
   bool _isLoadingBanner = true;
+  bool _isLoadingProfilePhoto = true;
   String? _userNameError;
   String? _nomorAnggotaError;
-
+  String? _profilePhotoUrlError;
   List<BeritaItem> _beritaList = [];
   bool _isLoadingBerita = true;
   String? _beritaError;
@@ -49,12 +50,15 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() {
       _isLoadingBanner = true;
+      _isLoadingProfilePhoto = true;
       _isLoadingBerita = true;
       _userNameError = null;
       _nomorAnggotaError = null;
+      _profilePhotoUrlError = null;
       _beritaError = null;
       _userName = null;
       _nomorAnggota = null;
+      _profilePhotoUrl = null;
       _beritaList = [];
     });
 
@@ -67,6 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
           _userNameError = _userNameError ?? "Gagal memuat data pengguna.";
           _nomorAnggotaError =
               _nomorAnggotaError ?? "Gagal memuat data pengguna.";
+          _profilePhotoUrlError =
+              _profilePhotoUrlError ?? "Gagal memuat foto profil.";
           _beritaError = _beritaError ?? "Gagal memuat berita awal.";
         });
       }
@@ -75,13 +81,39 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _isLoadingBanner = false;
           _isLoadingBerita = false;
+          _isLoadingProfilePhoto = false;
         });
       }
     }
   }
 
   Future<void> _loadUserData() async {
-    await Future.wait([_loadUserName(), _loadNomorAnggota()]);
+    await Future.wait([
+      _loadUserName(),
+      _loadNomorAnggota(),
+      _loadProfilePhotoUrl(),
+    ]);
+  }
+
+  Future<void> _loadProfilePhotoUrl() async {
+    if (!mounted) return;
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? url = prefs.getString('profile_photo_url');
+      if (!mounted) return;
+      setState(() {
+        _profilePhotoUrl = url;
+        // Tidak set error jika URL kosong, biarkan fallback ke ikon
+        _profilePhotoUrlError = null;
+      });
+    } catch (e) {
+      print("Error loading profile photo URL: $e");
+      if (!mounted) return;
+      setState(() {
+        _profilePhotoUrl = null;
+        _profilePhotoUrlError = "Gagal memuat URL foto profil.";
+      });
+    }
   }
 
   Future<void> _loadUserName() async {
@@ -92,10 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       setState(() {
         _userName = name;
-        _userNameError =
-            (name == null || name.isEmpty)
-                ? null
-                : null; // Null if empty is not an error for display
+        _userNameError = (name == null || name.isEmpty) ? null : null;
       });
     } catch (e) {
       print("Error loading username: $e");
@@ -116,9 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _nomorAnggota = nomorFromPrefs;
         _nomorAnggotaError =
-            (nomorFromPrefs == null || nomorFromPrefs.isEmpty)
-                ? null
-                : null; // Null if empty is not an error for display
+            (nomorFromPrefs == null || nomorFromPrefs.isEmpty) ? null : null;
       });
     } catch (e) {
       print("Error loading nomor anggota: $e");
@@ -200,31 +227,24 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // --- Helper method to build individual menu items ---
   Widget _buildMenuItem({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
     required BuildContext context,
-    Color? iconBackgroundColor, // Tambahkan parameter ini
-    Color iconColor =
-        Colors
-            .white, // Warna ikon default (misal putih jika background berwarna)
-    double iconSize = 30.0, // Ukuran ikon default
-    double backgroundIconSize = 70.0, // Ukuran container background ikon
+    Color? iconBackgroundColor,
+    Color iconColor = Colors.white,
+    double iconSize = 30.0,
+    double backgroundIconSize = 70.0,
     double spacing = 8.0,
-    double fontSize = 11.5, // Sedikit diperkecil untuk label agar muat
+    double fontSize = 11.5,
   }) {
     return Expanded(
-      // Menggunakan Expanded agar setiap item mendapat ruang yang sama
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          // Mengatur padding di sini agar tidak terlalu mepet jika label panjang
           padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 8.0),
-          color:
-              Colors
-                  .transparent, // Untuk memastikan GestureDetector menangkap tap di area kosong
+          color: Colors.transparent,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -235,12 +255,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: BoxDecoration(
                   color:
                       iconBackgroundColor ??
-                      Theme.of(
-                        context,
-                      ).colorScheme.primary.withOpacity(0.1), // Fallback color
-                  borderRadius: BorderRadius.circular(
-                    12.0,
-                  ), // Membuat sudut sedikit melengkung
+                      Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12.0),
                 ),
                 child: Icon(icon, size: iconSize, color: iconColor),
               ),
@@ -250,9 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: fontSize,
-                  color:
-                      AppColors
-                          .secondaryTextLight, // Sesuaikan dengan theme Anda
+                  color: AppColors.secondaryTextLight,
                   height: 1.2,
                 ),
                 maxLines: 2,
@@ -265,7 +279,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- Placeholder navigation ---
   void _navigateToPlaceholder(String pageName) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -273,25 +286,22 @@ class _HomeScreenState extends State<HomeScreen> {
         behavior: SnackBarBehavior.floating,
       ),
     );
-    // Example: Navigator.push(context, MaterialPageRoute(builder: (_) => PlaceholderScreen(title: pageName)));
   }
 
   Widget _buildPinjamanMenu(BuildContext context) {
-    // Warna-warna ini bisa Anda definisikan di sini atau ambil dari sumber lain
-    // Ini adalah contoh warna yang mungkin mirip dengan gambar Anda
     final Color simulasiBgColor = Colors.orange.shade50;
     final Color pengajuanBgColor = Colors.blue.shade50;
     final Color riwayatPinjamanBgColor = Colors.green.shade50;
     final Color riwayatTagihanBgColor = Colors.purple.shade50;
-
-    // Warna ikon yang kontras dengan backgroundnya
     final Color defaultIconColor = Colors.black.withOpacity(0.65);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4.0),
+          padding: const EdgeInsets.only(
+            left: 4.0,
+          ), // Padding judul menu, relatif terhadap margin utama
           child: Text(
             'Pinjaman',
             style: Theme.of(
@@ -301,9 +311,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 16),
         Row(
-          // Menggunakan MainAxisAlignment.spaceBetween akan memberi jarak antar item jika tidak pakai Expanded
-          // Jika pakai Expanded, ini tidak terlalu berpengaruh pada spacing utama
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildMenuItem(
@@ -320,9 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
             ),
-            const SizedBox(
-              width: 8,
-            ), // Memberi sedikit jarak antar item jika Expanded tidak cukup
+            const SizedBox(width: 16), // Gutter 16px
             _buildMenuItem(
               icon: Icons.description_outlined,
               label: "Form Pengajuan",
@@ -335,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (_) => const FormWizardScreen()),
                   ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 16), // Gutter 16px
             _buildMenuItem(
               icon: Icons.history_edu_outlined,
               label: "Riwayat Pinjaman",
@@ -350,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 16), // Gutter 16px
             _buildMenuItem(
               icon: Icons.payment_outlined,
               label: "Riwayat Tagihan",
@@ -370,20 +375,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTabunganMenu(BuildContext context) {
-    // Contoh warna untuk menu tabungan
     final Color mutasiBgColor = Colors.teal.shade50;
     final Color pencairanBgColor = Colors.red.shade50;
     final Color riwayatPencairanBgColor = Colors.indigo.shade50;
     final Color defaultIconColor = Colors.black.withOpacity(0.65);
 
-    // (Definisikan screenWidth jika digunakan untuk logika kondisional di sini)
-    // final screenWidth = MediaQuery.of(context).size.width;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4.0),
+          padding: const EdgeInsets.only(left: 4.0), // Padding judul menu
           child: Text(
             'Tabungan',
             style: Theme.of(
@@ -393,9 +394,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 16),
         Row(
-          mainAxisAlignment:
-              MainAxisAlignment
-                  .spaceBetween, // Atau MainAxisAlignment.start jika tidak ingin memaksa penuh
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildMenuItem(
@@ -410,7 +408,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (_) => const TabunganPage()),
                   ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 16), // Gutter 16px
             _buildMenuItem(
               icon: Icons.savings_outlined,
               label: "Form Pencairan",
@@ -425,7 +423,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 16), // Gutter 16px
             _buildMenuItem(
               icon: Icons.manage_history_outlined,
               label: "Riwayat Pencairan",
@@ -434,14 +432,8 @@ class _HomeScreenState extends State<HomeScreen> {
               iconColor: defaultIconColor,
               onTap: () => _navigateToPlaceholder("Riwayat Pencairan"),
             ),
-            // Jika hanya 3 item, dan ingin Row tetap mengambil lebar penuh dengan item yang terdistribusi:
-            // Anda bisa menambahkan Spacer atau Expanded kosong jika ingin item di kiri
-            // atau biarkan seperti ini jika ingin mereka mengelompok di kiri
-            // Untuk 3 item agar setara dengan 4 item di atas (jika itu tujuannya):
-            Expanded(
-              child: Container(),
-            ), // Ini akan mendorong 3 item ke kiri jika MainAxisAlignment.start
-            // Atau memberi ruang kosong jika MainAxisAlignment.spaceBetween dan hanya 3 item
+            // Kolom ke-4 kosong, Expanded akan mengambil sisa ruang
+            Expanded(child: Container()),
           ],
         ),
       ],
@@ -453,7 +445,7 @@ class _HomeScreenState extends State<HomeScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4.0),
+          padding: const EdgeInsets.only(left: 4.0), // Padding judul section
           child: Text(
             'Berita Terbaru',
             style: Theme.of(
@@ -463,7 +455,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         TextButton(
           onPressed: () {
-            // TODO: Navigate to full news list screen
             _navigateToPlaceholder("Semua Berita");
           },
           child: Text(
@@ -482,7 +473,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final double screenWidth = MediaQuery.of(context).size.width;
     // Tinggi perkiraan BannerWidget (harus konsisten dengan yang di BannerWidget)
-    final double bannerHeight = screenWidth * 0.52;
+    final double bannerHeight = screenWidth * 0.52; //
     // Seberapa banyak banner akan "turun" dari header
     final double bannerOverlap =
         bannerHeight / 3.5; // Sekitar sepertiga tinggi banner
@@ -534,11 +525,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: SafeArea(
                         bottom: false,
                         child: Padding(
+                          // --- MODIFIKASI MARGIN HEADER ---
                           padding: const EdgeInsets.only(
-                            left: 16.0,
-                            right: 16.0,
-                            top: 12.0, // Kurangi padding atas sedikit
+                            left: 24.0, // Diubah dari 16.0 ke 24.0
+                            right: 24.0, // Diubah dari 16.0 ke 24.0
+                            top: 12.0,
                           ),
+                          // --- END MODIFIKASI MARGIN HEADER ---
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -547,11 +540,73 @@ class _HomeScreenState extends State<HomeScreen> {
                                 height: 34,
                               ),
                               const Spacer(),
-                              const CircleAvatar(
-                                backgroundImage: AssetImage(
-                                  'assets/images/profile.jpg',
-                                ),
-                                radius: 18, // Sedikit lebih kecil
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: Colors.grey[200],
+                                child:
+                                    _isLoadingProfilePhoto
+                                        ? const Padding(
+                                          padding: EdgeInsets.all(6.0),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.0,
+                                          ),
+                                        )
+                                        : (_profilePhotoUrl != null &&
+                                            _profilePhotoUrl!.isNotEmpty)
+                                        ? ClipOval(
+                                          child: Image.network(
+                                            _profilePhotoUrl!,
+                                            width: 36,
+                                            height: 36,
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (
+                                              BuildContext context,
+                                              Widget child,
+                                              ImageChunkEvent? loadingProgress,
+                                            ) {
+                                              if (loadingProgress == null)
+                                                return child;
+                                              return Center(
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(
+                                                    6.0,
+                                                  ),
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2.0,
+                                                    value:
+                                                        loadingProgress
+                                                                    .expectedTotalBytes !=
+                                                                null
+                                                            ? loadingProgress
+                                                                    .cumulativeBytesLoaded /
+                                                                loadingProgress
+                                                                    .expectedTotalBytes!
+                                                            : null,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            errorBuilder: (
+                                              BuildContext context,
+                                              Object exception,
+                                              StackTrace? stackTrace,
+                                            ) {
+                                              print(
+                                                'Error loading profile network image: $exception',
+                                              );
+                                              return Icon(
+                                                Icons.person_outline,
+                                                size: 22,
+                                                color: Colors.grey[600],
+                                              );
+                                            },
+                                          ),
+                                        )
+                                        : Icon(
+                                          Icons.person_outline,
+                                          size: 22,
+                                          color: Colors.grey[600],
+                                        ),
                               ),
                               const SizedBox(width: 8),
                               IconButton(
@@ -561,7 +616,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     0.7,
                                   ),
                                   size: 24,
-                                ), // Warna ikon disesuaikan dengan background terang
+                                ),
                                 onPressed:
                                     () => _navigateToPlaceholder(
                                       "Logout/Settings",
@@ -578,9 +633,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     // Lapisan 3: BannerWidget yang overlap
                     Positioned(
-                      left: 16.0,
-                      right: 16.0,
-                      bottom: 0, // Banner menempel di bawah area Stack ini
+                      // --- MODIFIKASI POSISI BANNERWIDGET ---
+                      left: 24.0, // Diubah dari 16.0 ke 24.0
+                      right: 24.0, // Diubah dari 16.0 ke 24.0
+                      // --- END MODIFIKASI POSISI BANNERWIDGET ---
+                      bottom: 0,
                       height: bannerHeight,
                       child: BannerWidget(
                         isLoading: _isLoadingBanner,
@@ -601,27 +658,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // Spacer untuk memberi ruang setelah banner yang overlap
             SliverToBoxAdapter(
-              child: SizedBox(
-                height: 24 + bannerOverlap * 0.5,
-              ), // Tambahan space setelah banner, disesuaikan dengan overlap
+              child: SizedBox(height: 24 + bannerOverlap * 0.5),
             ),
 
             // SliverToBoxAdapter untuk menu dan berita
             SliverToBoxAdapter(
               child: PageWrapper(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Tidak perlu SizedBox(height: 24) pertama lagi jika sudah diatur di atas
-                    _buildPinjamanMenu(context),
-                    const SizedBox(height: 28),
-                    _buildTabunganMenu(context),
-                    const SizedBox(height: 28),
-                    _buildBeritaSectionTitle(context),
-                    const SizedBox(height: 12),
-                    _buildBeritaSectionContent(),
-                    const SizedBox(height: 20),
-                  ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0,
+                  ), // Margin 24px untuk konten utama
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildPinjamanMenu(context),
+                      const SizedBox(height: 28),
+                      _buildTabunganMenu(context),
+                      const SizedBox(height: 28),
+                      _buildBeritaSectionTitle(context),
+                      const SizedBox(height: 12),
+                      _buildBeritaSectionContent(),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -632,7 +691,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBeritaSectionContent() {
-    // Renamed from _buildBeritaSection
     if (_isLoadingBerita) {
       return const Center(
         child: Padding(
@@ -660,7 +718,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     } else {
       return BeritaListWidget(
-        // From home_widget.dart
+        //
         beritaList: _beritaList,
       );
     }

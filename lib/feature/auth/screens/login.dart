@@ -71,7 +71,7 @@ class _LoginPageState extends State<LoginPage> {
           print(
             "Data admin disimpan: Nama=${userData.name}, Email=${userData.email}",
           );
-                  // Hapus data anggota dari SharedPreferences jika login sebagai admin
+          // Hapus data anggota dari SharedPreferences jika login sebagai admin
           await prefs.remove("p_anggota_id");
           await prefs.remove("nomor_anggota");
           await prefs.remove("nik");
@@ -89,6 +89,10 @@ class _LoginPageState extends State<LoginPage> {
             String finalEmail = anggotaData.email ?? userData.email ?? '';
             await prefs.setString("email", finalEmail);
             await prefs.setString("nik", anggotaData.nik ?? '');
+            await prefs.setString(
+              "profile_photo_url",
+              userData.profilePhotoUrl ?? '',
+            );
             print(
               "Data anggota disimpan: ID=${anggotaData.pAnggotaId}, Nama=${anggotaData.nama}",
             );
@@ -99,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
             );
             await prefs.setString("nama", userData.name ?? '');
             await prefs.setString("email", userData.email ?? '');
-                      // Hapus data anggota lainnya untuk konsistensi
+            // Hapus data anggota lainnya untuk konsistensi
             await prefs.remove("p_anggota_id");
             await prefs.remove("nomor_anggota");
             await prefs.remove("nik");

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kkba_mobile/feature/profile/screens/profile.dart';
 import 'package:kkba_mobile/feature/simulasi_pinjaman/screens/simulasi_pinjaman.dart';
+import 'package:kkba_mobile/feature/ticket/screens/ticket_list.dart';
 import '../theme.dart'; // <-- Import AppTheme Anda
 
 // Import halaman-halaman Anda
@@ -22,8 +23,8 @@ class _MainWrapperState extends State<MainWrapper> {
   // Daftar halaman yang akan dinavigasi (pastikan nama class benar)
   static final List<Widget> _widgetOptions = <Widget>[
     HomeScreen(), // Halaman Beranda Anda
-    SimulasiPinjamanScreen(), // Halaman Tabungan Anda
-    TabunganPage(), // Halaman SHU Anda
+    ShuPage(), // Halaman Tabungan Anda
+    TicketListPage(), // Halaman SHU Anda
     ProfileScreen(), // Halaman Pinjaman/Formulir Anda
     // Tambahkan halaman lain jika perlu
   ];
@@ -95,17 +96,17 @@ class _MainWrapperState extends State<MainWrapper> {
               label: 'Beranda',
             ),
             NavigationDestination(
-              selectedIcon: Icon(Icons.calculate, color: selectedItemColor),
-              icon: Icon(Icons.calculate_outlined, color: unselectedItemColor),
-              label: 'Simulasi',
+              selectedIcon: Icon(Icons.wallet, color: selectedItemColor),
+              icon: Icon(Icons.wallet_outlined, color: unselectedItemColor),
+              label: 'SHU',
             ),
             NavigationDestination(
-              selectedIcon: Icon(Icons.savings, color: selectedItemColor),
+              selectedIcon: Icon(Icons.notifications, color: selectedItemColor),
               icon: Icon(
-                Icons.savings_outlined,
+                Icons.notifications_outlined,
                 color: unselectedItemColor,
               ), // pastikan icon benar
-              label: 'Tabungan',
+              label: 'Inbox',
             ),
             NavigationDestination(
               selectedIcon: Icon(Icons.person, color: selectedItemColor),

@@ -19,6 +19,7 @@ import '../model/base_response.dart';
 import '../model/mutasi_tabungan_response.dart';
 import '../model/pinjaman_list.dart';
 import '../model/tagihan_anggota.dart';
+import '../model/ticket_response.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
@@ -2443,6 +2444,260 @@ class ApiService {
         "[ApiService.getTagihanByNomorPinjaman] General Exception caught: $e",
       );
       throw Exception("Terjadi kesalahan sistem: $e");
+    }
+  }
+
+  Future<List<ChatReferenceTableItem>> getChatReferenceTable() async {
+    const String endpoint = '/api/master/chat-reference-table';
+    try {
+      final String? token = await _getAuthToken();
+      // Diasumsikan endpoint ini memerlukan token, jika tidak, hapus pengecekan token
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final chatRefResponse = ChatReferenceTableResponse.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+        if (chatRefResponse.success) {
+          return chatRefResponse.data;
+        } else {
+          throw Exception(chatRefResponse.message);
+        }
+      } else {
+        throw Exception(
+          'Gagal mengambil data referensi chat. Status: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      print('[ApiService.getChatReferenceTable] DioError: ${e.message}');
+      print('[ApiService.getChatReferenceTable] Response: ${e.response?.data}');
+      throw Exception(
+        'Gagal mengambil data referensi chat: ${e.response?.data?['message'] ?? e.message}',
+      );
+    } catch (e) {
+      print('[ApiService.getChatReferenceTable] Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<CreateTicketResponse> createTicket({
+    required int pChatReferenceTableId,
+    required int transactionId,
+    required String subject,
+  }) async {
+    const String endpoint = '/api/chat/ticket/add';
+    try {
+      final String? token = await _getAuthToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      final Map<String, dynamic> payload = {
+        "p_chat_reference_table_id": pChatReferenceTableId,
+        "transaction_id": transactionId,
+        "subject": subject,
+      };
+
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          response.data != null) {
+        return CreateTicketResponse.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+      } else {
+        String errorMessage =
+            'Gagal membuat tiket. Status: ${response.statusCode}';
+        if (response.data is Map<String, dynamic> &&
+            response.data['message'] != null) {
+          errorMessage =
+              'Gagal membuat tiket: ${response.data['message']} (Status: ${response.statusCode})';
+        }
+        throw Exception(errorMessage);
+      }
+    } on DioException catch (e) {
+      print('[ApiService.createTicket] DioError: ${e.message}');
+      print('[ApiService.createTicket] Response: ${e.response?.data}');
+      throw Exception(
+        'Gagal membuat tiket: ${e.response?.data?['message'] ?? e.message}',
+      );
+    } catch (e) {
+      print('[ApiService.createTicket] Error: $e');
+      rethrow;
+    }
+  }
+
+  // --- METODE BARU UNTUK MENGAMBIL DAFTAR TIKET ---
+  Future<TicketListResponseModel> getTicketList({
+    required int page,
+    required int perpage,
+    TicketListFilterPayload? filter, // Filter opsional
+  }) async {
+    const String endpoint = '/api/chat/ticket/grid';
+    try {
+      final String? token = await _getAuthToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      Map<String, dynamic> payload = {"page": page, "perpage": perpage};
+
+      // Jika ada filter, tambahkan ke dalam sub-objek 'data'
+      // Jika filter null atau semua field di dalamnya null, kirim objek 'data' kosong
+      // Atau, jika API tidak mau objek 'data' jika kosong, jangan kirim sama sekali.
+      // Asumsi: API mengharapkan objek 'data' ada.
+      if (filter != null) {
+        payload['data'] = filter.toJson();
+      } else {
+        // Jika tidak ada filter, API mungkin tetap mengharapkan objek 'data' (kosong atau dengan default)
+        // Sesuai payload: "data" : { "p_chat_reference_table_id" : 1, // optional ... }
+        // Jika tidak ada filter, kita bisa kirim objek data kosong, atau tidak mengirim key 'data' sama sekali.
+        // Untuk amannya, kita kirim objek 'data' kosong jika filter null.
+        payload['data'] =
+            {}; // Objek data kosong jika tidak ada filter spesifik
+      }
+
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        return TicketListResponseModel.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+      } else {
+        String errorMessage =
+            'Gagal mengambil daftar tiket. Status: ${response.statusCode}';
+        if (response.data is Map<String, dynamic> &&
+            response.data['message'] != null) {
+          errorMessage =
+              'Gagal mengambil daftar tiket: ${response.data['message']} (Status: ${response.statusCode})';
+        }
+        throw Exception(errorMessage);
+      }
+    } on DioException catch (e) {
+      print('[ApiService.getTicketList] DioError: ${e.message}');
+      print('[ApiService.getTicketList] Response: ${e.response?.data}');
+      throw Exception(
+        'Gagal mengambil daftar tiket: ${e.response?.data?['message'] ?? e.message}',
+      );
+    } catch (e) {
+      print('[ApiService.getTicketList] Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<ChatMessagesResponseModel> getChatMessages(
+    String tChatId, {
+    int? currentUserId,
+  }) async {
+    final String endpoint = '/api/chat/message/open/$tChatId';
+    try {
+      final String? token = await _getAuthToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        return ChatMessagesResponseModel.fromJson(
+          response.data as Map<String, dynamic>,
+          currentUserId: currentUserId,
+        );
+      } else {
+        throw Exception(
+          'Gagal mengambil pesan chat: ${response.data?['message'] ?? 'Status ${response.statusCode}'}',
+        );
+      }
+    } on DioException catch (e) {
+      throw Exception(
+        'Gagal mengambil pesan chat: ${e.response?.data?['message'] ?? e.message}',
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<SendMessageResponseModel> sendChatMessage({
+    required String tChatId,
+    required String messageText,
+    int? currentUserId, // Untuk menandai pesan baru sebagai milik currentUser
+  }) async {
+    const String endpoint = '/api/chat/message/add';
+    try {
+      final String? token = await _getAuthToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+      final Map<String, dynamic> payload = {
+        "t_chat_id": tChatId.trim(), // Pastikan tChatId di-trim
+        "message_text": messageText,
+      };
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          response.data != null) {
+        return SendMessageResponseModel.fromJson(
+          response.data as Map<String, dynamic>,
+          currentUserId: currentUserId,
+        );
+      } else {
+        throw Exception(
+          'Gagal mengirim pesan: ${response.data?['message'] ?? 'Status ${response.statusCode}'}',
+        );
+      }
+    } on DioException catch (e) {
+      throw Exception(
+        'Gagal mengirim pesan: ${e.response?.data?['message'] ?? e.message}',
+      );
+    } catch (e) {
+      rethrow;
     }
   }
 }
