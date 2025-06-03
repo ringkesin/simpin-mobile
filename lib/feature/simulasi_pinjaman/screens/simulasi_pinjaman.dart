@@ -237,14 +237,17 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   validator: (value) {
-                    if (value == null || value.isEmpty)
+                    if (value == null || value.isEmpty) {
                       return 'Jumlah pinjaman tidak boleh kosong';
+                    }
                     final int? amount = int.tryParse(value.replaceAll('.', ''));
-                    if (amount == null || amount <= 0)
+                    if (amount == null || amount <= 0) {
                       return 'Masukkan jumlah yang valid';
+                    }
                     if (amount < 500000) return 'Minimal pinjaman Rp 500.000';
-                    if (amount > 100000000)
+                    if (amount > 100000000) {
                       return 'Maksimal pinjaman Rp 100.000.000';
+                    }
                     return null;
                   },
                 ),
@@ -346,23 +349,28 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
   }
 
   Widget _buildTenorDropdown(BuildContext context) {
-    // ... (Logika _buildTenorDropdown tetap sama seperti sebelumnya)
     if (_selectedJenisPinjamanId == null) {
       return Opacity(
         opacity: 0.5,
         child: InputDecorator(
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Jangka Waktu (Tenor)',
             hintText: 'Pilih jenis pinjaman terlebih dahulu',
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 10.0,
-              vertical: 15.0,
+            border: const OutlineInputBorder(), // Ensure consistent styling
+            contentPadding: const EdgeInsets.symmetric(
+              // Consistent padding
+              horizontal:
+                  12.0, // Adjusted from 10 to match DropdownButtonFormField better
+              vertical: 15.0, // Adjusted to ensure text is vertically centered
             ),
+            filled: true, // Optional: makes it look more like a disabled field
+            fillColor: Colors.grey[100], // Optional
           ),
           child: Text(
             'Pilih jenis pinjaman dahulu',
-            style: TextStyle(color: Colors.grey[600]),
+            style: TextStyle(
+              color: Colors.grey[700],
+            ), // Darker grey for better readability
           ),
         ),
       );
@@ -409,7 +417,6 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
   }
 
   Widget _buildResultSection(BuildContext context) {
-    // ... (Logika _buildResultSection tetap sama seperti sebelumnya, sudah menampilkan biaya_admin dan biaya_admin_rp)
     final textTheme = AppTheme.textThemeLight;
 
     if (_isLoadingSimulasi) {
@@ -440,6 +447,7 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
           'Estimasi Hasil Simulasi',
           style: textTheme.titleMedium?.copyWith(
             color: AppColors.primaryTextLight,
+            fontWeight: FontWeight.bold, // Make title a bit bolder
           ),
           textAlign: TextAlign.center,
         ),
@@ -451,23 +459,26 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
           value: _percentFormatter.format((_simulasiResult!.margin ?? 0) / 100),
         ),
         const SizedBox(height: 16),
-        if (_simulasiResult!.biayaAdmin != null) ...[
+        if (_simulasiResult!.biayaAdmin != null &&
+            _simulasiResult!.biayaAdmin! > 0) ...[
+          // Check if > 0
           _buildResultRow(
             context,
             icon: Icons.admin_panel_settings_outlined,
-            label: 'Biaya Admin',
+            label: 'Biaya Admin (%)', // Clarified label
             value: _percentFormatter.format(
               (_simulasiResult!.biayaAdmin!) / 100,
             ),
           ),
           const SizedBox(height: 16),
         ],
-        if (_simulasiResult!.biayaAdminRp != null) ...[
+        if (_simulasiResult!.biayaAdminRp != null &&
+            _simulasiResult!.biayaAdminRp! > 0) ...[
+          // Check if > 0
           _buildResultRow(
             context,
             icon: Icons.account_balance_wallet_outlined,
             label: 'Biaya Admin (Rp)',
-            // Langsung format int karena biayaAdminRp sekarang adalah int?
             value: _currencyFormatter.format(_simulasiResult!.biayaAdminRp!),
           ),
           const SizedBox(height: 16),
@@ -480,11 +491,12 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
           value: _currencyFormatter.format(_simulasiResult!.angsuran ?? 0),
           isHighlight: true,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20), // Increased spacing
         Text(
-          '*Hasil simulasi ini adalah perkiraan dan dapat berbeda.',
+          '*Hasil simulasi ini adalah perkiraan dan dapat berbeda dari kondisi sebenarnya.', // Slightly more comprehensive disclaimer
           style: textTheme.labelSmall?.copyWith(
             color: AppColors.secondaryTextLight,
+            fontStyle: FontStyle.italic, // Italicize disclaimer
           ),
           textAlign: TextAlign.center,
         ),
@@ -499,39 +511,49 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
     required String value,
     bool isHighlight = false,
   }) {
-    // ... (Logika _buildResultRow tetap sama seperti sebelumnya)
     final textTheme = AppTheme.textThemeLight;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center, // Vertically center items
       children: [
-        Row(
-          children: [
-            Icon(icon, color: AppColors.secondaryTextLight, size: 20),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: textTheme.bodyMedium?.copyWith(
-                color: AppColors.secondaryTextLight,
+        // Left part (Icon and Label)
+        Expanded(
+          // Allows the label to take available space and wrap if necessary
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.secondaryTextLight, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                // Ensures the text within this Row can wrap
+                child: Text(
+                  label,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppColors.secondaryTextLight,
+                  ),
+                  softWrap: true, // Allow label to wrap
+                ),
               ),
-            ),
-          ],
-        ),
-        Flexible(
-          child: Text(
-            value,
-            textAlign: TextAlign.right,
-            style:
-                (isHighlight
-                    ? textTheme.titleLarge?.copyWith(
-                      color: AppColors.primaryLight,
-                      fontWeight: FontWeight.bold,
-                    )
-                    : textTheme.bodyLarge?.copyWith(
-                      color: AppColors.primaryTextLight,
-                      fontWeight: FontWeight.w500,
-                    )),
+            ],
           ),
+        ),
+        const SizedBox(width: 8), // Add some spacing between label and value
+        // Right part (Value)
+        Text(
+          value,
+          textAlign: TextAlign.right,
+          softWrap: false, // Crucial: Prevent value from wrapping
+          overflow:
+              TextOverflow
+                  .ellipsis, // In case value is still too long (unlikely for formatted currency)
+          style:
+              (isHighlight
+                  ? textTheme.titleLarge?.copyWith(
+                    color: AppColors.primaryLight,
+                    fontWeight: FontWeight.bold,
+                  )
+                  : textTheme.bodyLarge?.copyWith(
+                    color: AppColors.primaryTextLight,
+                    fontWeight: FontWeight.w500,
+                  )),
         ),
       ],
     );
