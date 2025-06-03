@@ -4,19 +4,23 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// Sesuaikan path import dengan struktur proyek Anda
 import 'package:kkba_mobile/service/api_service.dart';
+// Pastikan model ini berisi ChatMessageModel dan model lain yang relevan untuk chat
 import 'package:kkba_mobile/model/ticket_response.dart';
 import 'package:kkba_mobile/theme.dart';
 
 class ChatPage extends StatefulWidget {
   final String tChatId;
   final String ticketCode;
+  final String ticketSubject; // Tambahkan parameter ini
   final int? currentUserId;
 
   const ChatPage({
     super.key,
     required this.tChatId,
     required this.ticketCode,
+    required this.ticketSubject, // Jadikan required
     this.currentUserId,
   });
 
@@ -39,6 +43,8 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
+    // Langsung gunakan widget.currentUserId jika sudah ada,
+    // atau coba load jika null (sebagai fallback jika halaman ini dibuka langsung misal dari notifikasi)
     if (widget.currentUserId != null && widget.currentUserId != 0) {
       _loggedInUserId = widget.currentUserId!;
       _fetchMessages();
@@ -49,9 +55,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _loadLoggedInUserIdAndFetchMessages() async {
     await _loadLoggedInUserId();
-    // Hanya fetch messages jika _loggedInUserId berhasil dimuat
     if (_loggedInUserId != 0) {
-      // Asumsi 0 adalah indikasi gagal muat atau user tidak valid
       _fetchMessages();
     } else if (mounted) {
       setState(() {
@@ -64,7 +68,8 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _loadLoggedInUserId() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userIdFromPrefs = prefs.getInt('user_id');
+      // Ganti 'userId' dengan key yang Anda gunakan saat menyimpan ID pengguna
+      final userIdFromPrefs = prefs.getInt('userId');
       if (mounted) {
         setState(() {
           if (userIdFromPrefs != null) {
@@ -106,7 +111,6 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _fetchMessages({bool scrollToBottom = true}) async {
-    // Cek ulang _loggedInUserId sebelum fetch
     if (_loggedInUserId == 0 && widget.currentUserId == null) {
       if (mounted) {
         setState(() {
@@ -246,15 +250,9 @@ class _ChatPageState extends State<ChatPage> {
 
     String senderDisplayName = "";
     if (!isMe) {
-      // Jika created_by adalah 1, maka itu Admin
-      // Selain itu, anggap sebagai "User" atau "Pelanggan"
-      // Anda mungkin perlu logika lebih lanjut jika ada banyak tipe user/admin
       if (message.createdBy == 1) {
-        // Asumsi ID 1 adalah Admin
         senderDisplayName = "Admin";
       } else {
-        // Jika Anda memiliki cara untuk mendapatkan nama user berdasarkan message.createdBy,
-        // Anda bisa menambahkannya di sini. Untuk sekarang, kita gunakan "Pengguna".
         senderDisplayName = "Pengguna";
       }
     }
@@ -264,7 +262,6 @@ class _ChatPageState extends State<ChatPage> {
       child: Column(
         crossAxisAlignment: align,
         children: [
-          // Tampilkan nama pengirim jika bukan pesan dari pengguna saat ini dan nama ada
           if (!isMe && senderDisplayName.isNotEmpty)
             Padding(
               padding: EdgeInsets.only(
@@ -328,16 +325,38 @@ class _ChatPageState extends State<ChatPage> {
     return Scaffold(
       backgroundColor: AppColors.primaryBackgroundLight,
       appBar: AppBar(
-        title: Text(
-          widget.ticketCode,
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
+        // **** PERUBAHAN PADA APPBAR ****
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              widget
+                  .ticketSubject, // Menampilkan subjek tiket sebagai judul utama
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                fontSize: 17, // Sesuaikan ukuran font jika perlu
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+            if (widget.ticketCode.isNotEmpty)
+              Text(
+                widget.ticketCode, // Menampilkan kode tiket sebagai subjudul
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.normal,
+                  color: Colors.white.withOpacity(0.85),
+                  fontSize: 12.5, // Sesuaikan ukuran font jika perlu
+                ),
+              ),
+          ],
         ),
         backgroundColor: AppColors.primaryLight,
         foregroundColor: Colors.white,
         elevation: 1.0,
+        toolbarHeight: 65, // Mungkin perlu sedikit lebih tinggi untuk dua baris
+        // **** AKHIR PERUBAHAN PADA APPBAR ****
       ),
       body: Column(
         children: [

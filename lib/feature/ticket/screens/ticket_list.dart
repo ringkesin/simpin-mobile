@@ -2,15 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
+import 'package:shared_preferences/shared_preferences.dart';
 
-// Sesuaikan path import
 import 'package:kkba_mobile/service/api_service.dart';
 import 'package:kkba_mobile/model/ticket_response.dart';
 import './create_ticket.dart';
 import 'package:kkba_mobile/theme.dart';
-// Import halaman chat baru
-import './chat_page.dart'; // GANTI DENGAN PATH YANG BENAR
+import './chat_page.dart';
 
 class TicketListPage extends StatefulWidget {
   const TicketListPage({super.key});
@@ -29,20 +27,12 @@ class _TicketListPageState extends State<TicketListPage> {
   String? _errorMessage;
 
   final ScrollController _scrollController = ScrollController();
-
-  // Variabel untuk menyimpan ID pengguna yang sedang login
   int? _currentUserId;
 
   @override
   void initState() {
     super.initState();
-    // Panggil _loadCurrentUserId untuk memuat ID pengguna saat halaman diinisialisasi
-    _loadCurrentUserId().then((_) {
-      // Setelah userId dimuat (atau gagal dimuat), fetch tiket awal
-      // Ini memastikan _currentUserId tersedia sebelum fetch pertama jika diperlukan untuk filter awal
-      // atau setidaknya sudah di-attempt untuk dimuat sebelum navigasi ke chat.
-      _fetchTickets(isRefresh: true);
-    });
+    _loadCurrentUserIdAndFetchTickets();
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -54,30 +44,34 @@ class _TicketListPageState extends State<TicketListPage> {
     });
   }
 
+  Future<void> _loadCurrentUserIdAndFetchTickets() async {
+    await _loadCurrentUserId();
+    _fetchTickets(isRefresh: true);
+  }
+
+  Future<void> _loadCurrentUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _currentUserId = prefs.getInt('userId');
+          print("Loaded Current User ID in TicketListPage: $_currentUserId");
+        });
+      }
+    } catch (e) {
+      print("Error loading current user ID: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat ID pengguna: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
-  }
-
-  // Fungsi untuk memuat userId dari SharedPreferences
-  Future<void> _loadCurrentUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        // Ganti 'userId' dengan key yang Anda gunakan saat menyimpan ID pengguna
-        _currentUserId = prefs.getInt('userId');
-        print("Current User ID loaded in TicketListPage: $_currentUserId");
-
-        // Jika Anda ingin userId = 1 adalah admin, Anda bisa cek di sini
-        // atau biarkan ChatPage/ChatMessageModel yang menanganinya berdasarkan created_by
-        if (_currentUserId == 1) {
-          print("User is Admin (ID: $_currentUserId)");
-        } else {
-          print("User is NOT Admin (ID: $_currentUserId)");
-        }
-      });
-    }
   }
 
   Future<void> _fetchTickets({
@@ -159,23 +153,17 @@ class _TicketListPageState extends State<TicketListPage> {
     }
   }
 
-  // Navigasi ke halaman chat
   void _navigateToChatPage(TicketListItemModel ticket) {
     if (_currentUserId == null) {
-      // Handle jika _currentUserId masih null (belum selesai dimuat atau tidak ada)
-      // Anda bisa menampilkan pesan atau mencoba memuatnya lagi.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'ID Pengguna belum termuat. Mohon tunggu atau coba lagi.',
-          ),
+          content: Text('ID Pengguna belum termuat. Coba muat ulang halaman.'),
+          backgroundColor: AppColors.warningLight,
         ),
       );
-      // Coba muat ulang jika belum ada, mungkin ada race condition saat init
-      if (!_isLoading) _loadCurrentUserId();
+      _loadCurrentUserIdAndFetchTickets();
       return;
     }
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -183,8 +171,9 @@ class _TicketListPageState extends State<TicketListPage> {
             (context) => ChatPage(
               tChatId: ticket.tChatId.trim(),
               ticketCode: ticket.ticketCode,
-              currentUserId:
-                  _currentUserId!, // Sekarang _currentUserId sudah pasti non-null di sini
+              // **** MENGIRIM SUBJECT TIKET ****
+              ticketSubject: ticket.subject,
+              currentUserId: _currentUserId!,
             ),
       ),
     );
@@ -213,8 +202,8 @@ class _TicketListPageState extends State<TicketListPage> {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      elevation: 3.0,
-      shadowColor: AppColors.primaryLight.withOpacity(0.15),
+      elevation: 2.0,
+      shadowColor: AppColors.primaryLight.withOpacity(0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       color: AppColors.secondaryLight,
       child: InkWell(
@@ -236,7 +225,7 @@ class _TicketListPageState extends State<TicketListPage> {
                       ticket.ticketCode,
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w600,
-                        fontSize: 17,
+                        fontSize: 16,
                         color: AppColors.primaryTextLight,
                       ),
                     ),
@@ -245,17 +234,17 @@ class _TicketListPageState extends State<TicketListPage> {
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
-                        vertical: 4,
+                        vertical: 3,
                       ),
                       decoration: BoxDecoration(
                         color: AppColors.errorLight,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         '${ticket.countNotif} Baru',
                         style: GoogleFonts.inter(
                           color: Colors.white,
-                          fontSize: 10,
+                          fontSize: 9,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -270,31 +259,31 @@ class _TicketListPageState extends State<TicketListPage> {
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   color: AppColors.secondaryTextLight,
-                  height: 1.4,
+                  height: 1.3,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Row(
                 children: [
-                  Icon(Icons.flag_outlined, size: 16, color: statusColor),
-                  const SizedBox(width: 6),
+                  Icon(Icons.flag_outlined, size: 15, color: statusColor),
+                  const SizedBox(width: 5),
                   Text(
                     statusText,
                     style: GoogleFonts.inter(
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: statusColor,
                     ),
                   ),
                   const Spacer(),
-                  if (ticket.createdAt != null) // Menampilkan tanggal jika ada
+                  if (ticket.createdAt != null)
                     Text(
                       DateFormat(
                         'dd MMM yy, HH:mm',
                         'id_ID',
                       ).format(ticket.createdAt!.toLocal()),
                       style: GoogleFonts.inter(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: AppColors.secondaryTextLight.withOpacity(0.8),
                       ),
                     ),
@@ -310,7 +299,7 @@ class _TicketListPageState extends State<TicketListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primaryBackgroundLight,
+      backgroundColor: AppColors.secondaryBackgroundLight,
       appBar: AppBar(
         backgroundColor: AppColors.primaryLight,
         foregroundColor: Colors.white,
@@ -395,7 +384,7 @@ class _TicketListPageState extends State<TicketListPage> {
                               Icons.inbox_outlined,
                               size: 60,
                               color: AppColors.secondaryTextLight.withOpacity(
-                                0.5,
+                                0.4,
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -410,10 +399,11 @@ class _TicketListPageState extends State<TicketListPage> {
                             const SizedBox(height: 8),
                             Text(
                               'Ketuk tombol + untuk membuat tiket baru.',
+                              textAlign: TextAlign.center,
                               style: GoogleFonts.inter(
                                 fontSize: 14,
                                 color: AppColors.secondaryTextLight.withOpacity(
-                                  0.8,
+                                  0.7,
                                 ),
                               ),
                             ),
@@ -428,7 +418,7 @@ class _TicketListPageState extends State<TicketListPage> {
                             (_hasMore && _tickets.isNotEmpty ? 1 : 0),
                         itemBuilder: (context, index) {
                           if (index == _tickets.length) {
-                            if (_isLoading) {
+                            if (_isLoading && _tickets.isNotEmpty) {
                               return const Center(
                                 child: Padding(
                                   padding: EdgeInsets.all(16.0),
@@ -447,29 +437,34 @@ class _TicketListPageState extends State<TicketListPage> {
                                   child: OutlinedButton(
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: AppColors.primaryLight,
-                                      side: const BorderSide(
-                                        color: AppColors.primaryLight,
+                                      side: BorderSide(
+                                        color: AppColors.primaryLight
+                                            .withOpacity(0.5),
                                       ),
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 24,
-                                        vertical: 12,
+                                        vertical: 10,
                                       ),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
                                     ),
-                                    onPressed: () => _fetchTickets(),
+                                    onPressed:
+                                        _isLoading
+                                            ? null
+                                            : () => _fetchTickets(),
                                     child: Text(
-                                      'Muat Tiket Lainnya',
+                                      'Muat Lebih Banyak',
                                       style: GoogleFonts.inter(
                                         fontWeight: FontWeight.w500,
+                                        fontSize: 13,
                                       ),
                                     ),
                                   ),
                                 ),
                               );
                             } else {
-                              return const SizedBox.shrink();
+                              return const SizedBox(height: 20);
                             }
                           }
                           final ticket = _tickets[index];
@@ -484,10 +479,10 @@ class _TicketListPageState extends State<TicketListPage> {
         onPressed: _navigateToCreateTicket,
         backgroundColor: AppColors.primaryLight,
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_comment_outlined, size: 22),
+        icon: const Icon(Icons.add_comment_outlined, size: 20),
         label: Text(
           'Buat Tiket',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
         ),
         elevation: 4.0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
