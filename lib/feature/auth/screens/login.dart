@@ -67,6 +67,8 @@ class _LoginPageState extends State<LoginPage> {
           print("Login sebagai Admin: Menyimpan data user.");
           // Pastikan userData tidak null sebelum mengakses fieldnya
           await prefs.setString("nama", userData.name ?? '');
+          await prefs.setInt("userId", userData.id ?? 0);
+
           await prefs.setString("email", userData.email ?? '');
           print(
             "Data admin disimpan: Nama=${userData.name}, Email=${userData.email}",
@@ -80,6 +82,7 @@ class _LoginPageState extends State<LoginPage> {
           print("Login sebagai Anggota: Mencoba menyimpan data anggota.");
           if (anggotaData != null) {
             await prefs.setInt("p_anggota_id", anggotaData.pAnggotaId ?? 0);
+            await prefs.setInt("userId", userData.id ?? 0);
             await prefs.setString("nama", anggotaData.nama ?? '');
             await prefs.setString(
               "nomor_anggota",

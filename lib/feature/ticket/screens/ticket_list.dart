@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 
+// Sesuaikan path import
 import 'package:kkba_mobile/service/api_service.dart';
 import 'package:kkba_mobile/model/ticket_response.dart';
 import './create_ticket.dart';
@@ -28,17 +30,19 @@ class _TicketListPageState extends State<TicketListPage> {
 
   final ScrollController _scrollController = ScrollController();
 
-  // Asumsi Anda memiliki cara untuk mendapatkan ID pengguna saat ini
-  // Ini bisa dari SharedPreferences, provider state management, dll.
-  // Untuk contoh ini, kita akan hardcode sementara atau biarkan null
-  // dan handle di ChatPage atau ChatMessageModel.
-  int? _currentUserId; // TODO: Dapatkan ID pengguna yang sebenarnya
+  // Variabel untuk menyimpan ID pengguna yang sedang login
+  int? _currentUserId;
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentUserId(); // Panggil untuk memuat ID pengguna
-    _fetchTickets(isRefresh: true);
+    // Panggil _loadCurrentUserId untuk memuat ID pengguna saat halaman diinisialisasi
+    _loadCurrentUserId().then((_) {
+      // Setelah userId dimuat (atau gagal dimuat), fetch tiket awal
+      // Ini memastikan _currentUserId tersedia sebelum fetch pertama jika diperlukan untuk filter awal
+      // atau setidaknya sudah di-attempt untuk dimuat sebelum navigasi ke chat.
+      _fetchTickets(isRefresh: true);
+    });
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -50,25 +54,30 @@ class _TicketListPageState extends State<TicketListPage> {
     });
   }
 
-  Future<void> _loadCurrentUserId() async {
-    // Contoh cara mendapatkan user ID jika disimpan di SharedPreferences
-    // final prefs = await SharedPreferences.getInstance();
-    // setState(() {
-    //   _currentUserId = prefs.getInt('user_id');
-    // });
-    // Untuk sekarang, kita bisa hardcode untuk pengujian, atau biarkan null
-    // jika ChatPage akan menanganinya.
-    // Jika Anda memiliki sistem login, ID pengguna harus diambil dari sana.
-    // Contoh: jika 'created_by: 1' adalah user, dan 'created_by: 2' adalah admin
-    // Anda bisa set _currentUserId = 1; untuk simulasi.
-    // Untuk implementasi nyata, ini harus dinamis.
-    // _currentUserId = 1; // Hapus atau sesuaikan ini
-  }
-
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // Fungsi untuk memuat userId dari SharedPreferences
+  Future<void> _loadCurrentUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        // Ganti 'userId' dengan key yang Anda gunakan saat menyimpan ID pengguna
+        _currentUserId = prefs.getInt('userId');
+        print("Current User ID loaded in TicketListPage: $_currentUserId");
+
+        // Jika Anda ingin userId = 1 adalah admin, Anda bisa cek di sini
+        // atau biarkan ChatPage/ChatMessageModel yang menanganinya berdasarkan created_by
+        if (_currentUserId == 1) {
+          print("User is Admin (ID: $_currentUserId)");
+        } else {
+          print("User is NOT Admin (ID: $_currentUserId)");
+        }
+      });
+    }
   }
 
   Future<void> _fetchTickets({
@@ -152,16 +161,30 @@ class _TicketListPageState extends State<TicketListPage> {
 
   // Navigasi ke halaman chat
   void _navigateToChatPage(TicketListItemModel ticket) {
+    if (_currentUserId == null) {
+      // Handle jika _currentUserId masih null (belum selesai dimuat atau tidak ada)
+      // Anda bisa menampilkan pesan atau mencoba memuatnya lagi.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'ID Pengguna belum termuat. Mohon tunggu atau coba lagi.',
+          ),
+        ),
+      );
+      // Coba muat ulang jika belum ada, mungkin ada race condition saat init
+      if (!_isLoading) _loadCurrentUserId();
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder:
             (context) => ChatPage(
-              tChatId: ticket.tChatId.trim(), // Pastikan tChatId di-trim
+              tChatId: ticket.tChatId.trim(),
               ticketCode: ticket.ticketCode,
               currentUserId:
-                  _currentUserId ??
-                  0, // Kirim ID pengguna saat ini, default 0 jika null
+                  _currentUserId!, // Sekarang _currentUserId sudah pasti non-null di sini
             ),
       ),
     );
@@ -197,7 +220,7 @@ class _TicketListPageState extends State<TicketListPage> {
       child: InkWell(
         borderRadius: BorderRadius.circular(12.0),
         onTap: () {
-          _navigateToChatPage(ticket); // Panggil navigasi ke chat page
+          _navigateToChatPage(ticket);
         },
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -264,12 +287,12 @@ class _TicketListPageState extends State<TicketListPage> {
                     ),
                   ),
                   const Spacer(),
-                  if (ticket.createdAt != null)
+                  if (ticket.createdAt != null) // Menampilkan tanggal jika ada
                     Text(
                       DateFormat(
-                        'dd MMM yyyy, HH:mm',
+                        'dd MMM yy, HH:mm',
                         'id_ID',
-                      ).format(ticket.createdAt!),
+                      ).format(ticket.createdAt!.toLocal()),
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: AppColors.secondaryTextLight.withOpacity(0.8),

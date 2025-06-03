@@ -1,23 +1,23 @@
 // screens/chat_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart'; // Untuk format tanggal dan waktu
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// Sesuaikan path import
 import 'package:kkba_mobile/service/api_service.dart';
-import 'package:kkba_mobile/model/ticket_response.dart'; // Untuk ChatMessageModel, dll.
+import 'package:kkba_mobile/model/ticket_response.dart';
 import 'package:kkba_mobile/theme.dart';
 
 class ChatPage extends StatefulWidget {
   final String tChatId;
   final String ticketCode;
-  final int currentUserId; // ID pengguna yang sedang login
+  final int? currentUserId;
 
   const ChatPage({
     super.key,
     required this.tChatId,
     required this.ticketCode,
-    required this.currentUserId,
+    this.currentUserId,
   });
 
   @override
@@ -27,17 +27,75 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final ApiService _apiService = ApiService();
   List<ChatMessageModel> _messages = [];
-  bool _isLoadingMessages = false;
+  bool _isLoadingMessages = true;
   bool _isSendingMessage = false;
   String? _errorMessage;
 
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  late int _loggedInUserId;
+
   @override
   void initState() {
     super.initState();
-    _fetchMessages();
+    if (widget.currentUserId != null && widget.currentUserId != 0) {
+      _loggedInUserId = widget.currentUserId!;
+      _fetchMessages();
+    } else {
+      _loadLoggedInUserIdAndFetchMessages();
+    }
+  }
+
+  Future<void> _loadLoggedInUserIdAndFetchMessages() async {
+    await _loadLoggedInUserId();
+    // Hanya fetch messages jika _loggedInUserId berhasil dimuat
+    if (_loggedInUserId != 0) {
+      // Asumsi 0 adalah indikasi gagal muat atau user tidak valid
+      _fetchMessages();
+    } else if (mounted) {
+      setState(() {
+        _isLoadingMessages = false;
+        _errorMessage = "Tidak dapat memuat ID pengguna untuk chat.";
+      });
+    }
+  }
+
+  Future<void> _loadLoggedInUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userIdFromPrefs = prefs.getInt('user_id');
+      if (mounted) {
+        setState(() {
+          if (userIdFromPrefs != null) {
+            _loggedInUserId = userIdFromPrefs;
+            print("Loaded Logged In User ID in ChatPage: $_loggedInUserId");
+          } else {
+            _loggedInUserId = 0; // Default jika tidak ditemukan
+            print(
+              "Error: Logged in User ID not found in SharedPreferences. Using default 0.",
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Gagal memuat ID pengguna dari SharedPreferences.',
+                ),
+              ),
+            );
+          }
+        });
+      }
+    } catch (e) {
+      print("Error loading logged in user ID: $e");
+      if (mounted) {
+        setState(() {
+          _loggedInUserId = 0; // Fallback
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error memuat ID pengguna: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   @override
@@ -47,7 +105,18 @@ class _ChatPageState extends State<ChatPage> {
     super.dispose();
   }
 
-  Future<void> _fetchMessages({bool scrollToBottom = false}) async {
+  Future<void> _fetchMessages({bool scrollToBottom = true}) async {
+    // Cek ulang _loggedInUserId sebelum fetch
+    if (_loggedInUserId == 0 && widget.currentUserId == null) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMessages = false;
+          _errorMessage = "ID Pengguna tidak valid untuk memuat pesan.";
+        });
+      }
+      return;
+    }
+
     setState(() {
       _isLoadingMessages = true;
       _errorMessage = null;
@@ -55,14 +124,14 @@ class _ChatPageState extends State<ChatPage> {
     try {
       final response = await _apiService.getChatMessages(
         widget.tChatId,
-        currentUserId: widget.currentUserId,
+        currentUserId: _loggedInUserId,
       );
       if (mounted) {
         if (response.success) {
           setState(() {
             _messages = response.data;
           });
-          if (scrollToBottom || _messages.isNotEmpty) {
+          if (scrollToBottom && _messages.isNotEmpty) {
             _scrollToBottom();
           }
         } else {
@@ -90,6 +159,14 @@ class _ChatPageState extends State<ChatPage> {
     if (_messageController.text.trim().isEmpty || _isSendingMessage) {
       return;
     }
+    if (_loggedInUserId == 0 && widget.currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak dapat mengirim pesan, ID pengguna tidak valid.'),
+        ),
+      );
+      return;
+    }
     setState(() {
       _isSendingMessage = true;
     });
@@ -100,13 +177,12 @@ class _ChatPageState extends State<ChatPage> {
       final response = await _apiService.sendChatMessage(
         tChatId: widget.tChatId,
         messageText: messageText,
-        currentUserId:
-            widget.currentUserId, // Kirim ID user agar pesan baru bisa ditandai
+        currentUserId: _loggedInUserId,
       );
       if (mounted) {
         if (response.success && response.data != null) {
           setState(() {
-            _messages.add(response.data!); // Tambahkan pesan baru ke list
+            _messages.add(response.data!);
             _messageController.clear();
           });
           _scrollToBottom();
@@ -139,7 +215,8 @@ class _ChatPageState extends State<ChatPage> {
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (_scrollController.hasClients &&
+          _scrollController.position.maxScrollExtent > 0) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
@@ -150,21 +227,64 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildMessageBubble(ChatMessageModel message) {
-    final bool isMe = message.isCurrentUser; // Menggunakan field isCurrentUser
+    final bool isMe = message.isCurrentUser;
     final align = isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final textAlign = isMe ? TextAlign.end : TextAlign.start;
     final bgColor =
         isMe ? AppColors.primaryLight : AppColors.secondaryBackgroundLight;
     final textColor = isMe ? Colors.white : AppColors.primaryTextLight;
-    final timeColor = isMe ? Colors.white70 : AppColors.secondaryTextLight;
+    final timeColor =
+        isMe
+            ? Colors.white.withOpacity(0.7)
+            : AppColors.secondaryTextLight.withOpacity(0.7);
+    final bubbleRadius = BorderRadius.only(
+      topLeft: Radius.circular(isMe ? 18.0 : 6.0),
+      topRight: Radius.circular(isMe ? 6.0 : 18.0),
+      bottomLeft: const Radius.circular(18.0),
+      bottomRight: const Radius.circular(18.0),
+    );
+
+    String senderDisplayName = "";
+    if (!isMe) {
+      // Jika created_by adalah 1, maka itu Admin
+      // Selain itu, anggap sebagai "User" atau "Pelanggan"
+      // Anda mungkin perlu logika lebih lanjut jika ada banyak tipe user/admin
+      if (message.createdBy == 1) {
+        // Asumsi ID 1 adalah Admin
+        senderDisplayName = "Admin";
+      } else {
+        // Jika Anda memiliki cara untuk mendapatkan nama user berdasarkan message.createdBy,
+        // Anda bisa menambahkannya di sini. Untuk sekarang, kita gunakan "Pengguna".
+        senderDisplayName = "Pengguna";
+      }
+    }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 5.0),
       child: Column(
         crossAxisAlignment: align,
         children: [
+          // Tampilkan nama pengirim jika bukan pesan dari pengguna saat ini dan nama ada
+          if (!isMe && senderDisplayName.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(
+                left: isMe ? 0 : 10,
+                right: isMe ? 10 : 0,
+                bottom: 3,
+              ),
+              child: Text(
+                senderDisplayName,
+                textAlign: textAlign,
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.secondaryTextLight,
+                ),
+              ),
+            ),
           Container(
             constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.75,
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
             ),
             padding: const EdgeInsets.symmetric(
               horizontal: 14.0,
@@ -172,16 +292,11 @@ class _ChatPageState extends State<ChatPage> {
             ),
             decoration: BoxDecoration(
               color: bgColor,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(isMe ? 16.0 : 4.0),
-                topRight: Radius.circular(isMe ? 4.0 : 16.0),
-                bottomLeft: const Radius.circular(16.0),
-                bottomRight: const Radius.circular(16.0),
-              ),
+              borderRadius: bubbleRadius,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 3,
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 2,
                   offset: const Offset(0, 1),
                 ),
               ],
@@ -191,16 +306,16 @@ class _ChatPageState extends State<ChatPage> {
               style: GoogleFonts.inter(
                 fontSize: 14.5,
                 color: textColor,
-                height: 1.4,
+                height: 1.35,
               ),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Padding(
-            padding: EdgeInsets.only(left: isMe ? 0 : 8, right: isMe ? 8 : 0),
+            padding: EdgeInsets.only(left: isMe ? 0 : 10, right: isMe ? 10 : 0),
             child: Text(
               DateFormat('HH:mm', 'id_ID').format(message.createdAt.toLocal()),
-              style: GoogleFonts.inter(fontSize: 11, color: timeColor),
+              style: GoogleFonts.inter(fontSize: 10.5, color: timeColor),
             ),
           ),
         ],
@@ -228,35 +343,77 @@ class _ChatPageState extends State<ChatPage> {
         children: [
           Expanded(
             child:
-                _isLoadingMessages
+                (_isLoadingMessages && _messages.isEmpty)
                     ? const Center(
                       child: CircularProgressIndicator(
                         color: AppColors.primaryLight,
                       ),
                     )
-                    : _errorMessage != null
+                    : _errorMessage != null && _messages.isEmpty
                     ? Center(
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
-                        child: Text(
-                          _errorMessage!,
-                          style: GoogleFonts.inter(color: AppColors.errorLight),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: AppColors.errorLight.withOpacity(0.7),
+                              size: 40,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _errorMessage!,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(
+                                color: AppColors.secondaryTextLight,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextButton.icon(
+                              onPressed:
+                                  () => _fetchMessages(scrollToBottom: true),
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text("Coba Lagi"),
+                            ),
+                          ],
                         ),
                       ),
                     )
                     : _messages.isEmpty
                     ? Center(
-                      child: Text(
-                        'Belum ada percakapan.',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          color: AppColors.secondaryTextLight,
-                        ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            color: AppColors.secondaryTextLight.withOpacity(
+                              0.4,
+                            ),
+                            size: 50,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Mulai percakapan.',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              color: AppColors.secondaryTextLight.withOpacity(
+                                0.8,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     )
                     : ListView.builder(
                       controller: _scrollController,
-                      padding: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.fromLTRB(
+                        12.0,
+                        16.0,
+                        12.0,
+                        16.0,
+                      ),
                       itemCount: _messages.length,
                       itemBuilder: (context, index) {
                         return _buildMessageBubble(_messages[index]);
@@ -271,48 +428,51 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _buildMessageInputField() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      padding: const EdgeInsets.only(
+        left: 12.0,
+        right: 8.0,
+        top: 8.0,
+        bottom: 8.0,
+      ),
       decoration: BoxDecoration(
-        color:
-            AppColors.secondaryLight, // Warna latar belakang input field area
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.15),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, -2),
+        color: AppColors.secondaryLight,
+        border: Border(
+          top: BorderSide(
+            color: Colors.grey.shade300.withOpacity(0.7),
+            width: 0.5,
           ),
-        ],
+        ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: TextField(
               controller: _messageController,
               minLines: 1,
-              maxLines: 4,
+              maxLines: 5,
+              textCapitalization: TextCapitalization.sentences,
               style: GoogleFonts.inter(
                 fontSize: 15,
                 color: AppColors.primaryTextLight,
               ),
               decoration: InputDecoration(
-                hintText: 'Ketik pesan...',
+                hintText: 'Ketik pesan Anda...',
                 hintStyle: GoogleFonts.inter(
-                  color: AppColors.secondaryTextLight.withOpacity(0.8),
+                  color: AppColors.secondaryTextLight.withOpacity(0.7),
                 ),
                 filled: true,
                 fillColor: AppColors.secondaryBackgroundLight,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24.0),
+                  borderRadius: BorderRadius.circular(20.0),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16.0,
-                  vertical: 10.0,
+                  vertical: 12.0,
                 ),
               ),
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _sendMessage(),
+              textInputAction: TextInputAction.newline,
             ),
           ),
           const SizedBox(width: 8.0),
@@ -323,18 +483,24 @@ class _ChatPageState extends State<ChatPage> {
               borderRadius: BorderRadius.circular(24.0),
               onTap: _sendMessage,
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(10.0),
                 child:
                     _isSendingMessage
                         ? const SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 22,
+                          height: 22,
                           child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
-                        : const Icon(Icons.send_rounded, color: Colors.white),
+                        : const Icon(
+                          Icons.send_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
               ),
             ),
           ),

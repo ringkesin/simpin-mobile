@@ -1,6 +1,7 @@
 // feature/home/screens/home_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:kkba_mobile/feature/pencairan/screens/history.dart';
 import 'package:kkba_mobile/feature/tagihan/screens/tagihan_screens.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kkba_mobile/page_wrapper.dart';
@@ -430,7 +431,13 @@ class _HomeScreenState extends State<HomeScreen> {
               context: context,
               iconBackgroundColor: riwayatPencairanBgColor,
               iconColor: defaultIconColor,
-              onTap: () => _navigateToPlaceholder("Riwayat Pencairan"),
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const HistoryPengajuanScreen(),
+                    ),
+                  ),
             ),
             // Kolom ke-4 kosong, Expanded akan mengambil sisa ruang
             Expanded(child: Container()),
