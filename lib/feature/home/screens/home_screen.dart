@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kkba_mobile/page_wrapper.dart';
 import 'package:kkba_mobile/theme.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-
+import 'package:google_fonts/google_fonts.dart';
 import '../../../service/api_service.dart';
 import 'package:kkba_mobile/model/berita.dart';
 import '../widgets/home_widget.dart'; // BannerWidget and BeritaListWidget are here
@@ -182,6 +182,68 @@ class _HomeScreenState extends State<HomeScreen> {
         _beritaList = [];
         _beritaError = e.toString().replaceFirst("Exception: ", "");
       });
+    }
+  }
+
+  Future<void> _logoutUser() async {
+    final bool? confirmLogout = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Konfirmasi Logout',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          ),
+          content: Text(
+            'Apakah Anda yakin ingin keluar dari aplikasi?',
+            style: GoogleFonts.inter(),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text(
+                'Batal',
+                style: GoogleFonts.inter(color: AppColors.secondaryTextLight),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+            ),
+            TextButton(
+              child: Text(
+                'Logout',
+                style: GoogleFonts.inter(
+                  color: AppColors.errorLight,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmLogout == true) {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.remove('token');
+      await prefs.remove('user_id');
+      await prefs.remove('nama');
+      await prefs.remove('nomor_anggota');
+      await prefs.remove('profile_photo_url');
+      // await prefs.clear(); // Alternatif jika ingin menghapus semua
+
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/login',
+          (Route<dynamic> route) => false,
+        );
+      }
     }
   }
 
@@ -617,20 +679,18 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               const SizedBox(width: 8),
                               IconButton(
-                                icon: Icon(
+                                icon: const Icon(
                                   Icons.logout_outlined,
-                                  color: AppColors.primaryTextLight.withOpacity(
-                                    0.7,
-                                  ),
-                                  size: 24,
+                                  color:
+                                      AppColors
+                                          .errorLight, // Warna ikon diubah menjadi merah
                                 ),
-                                onPressed:
-                                    () => _navigateToPlaceholder(
-                                      "Logout/Settings",
-                                    ),
-                                tooltip: 'Pengaturan',
+                                iconSize: 26,
+                                tooltip: 'Logout',
                                 padding: EdgeInsets.zero,
-                                constraints: BoxConstraints(),
+                                constraints: const BoxConstraints(),
+                                onPressed:
+                                    _logoutUser, // Fungsi logout dipanggil di sini
                               ),
                             ],
                           ),

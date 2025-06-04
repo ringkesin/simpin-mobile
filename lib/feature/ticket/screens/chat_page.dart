@@ -250,10 +250,17 @@ class _ChatPageState extends State<ChatPage> {
 
     String senderDisplayName = "";
     if (!isMe) {
-      if (message.createdBy == 1) {
+      // Hanya tampilkan nama jika bukan pesan dari pengguna saat ini
+      if (message.createdByInfo != null) {
+        senderDisplayName =
+            message.createdByInfo!.name; // Ambil nama dari objek senderInfo
+      } else if (message.createdById == 1) {
+        // Fallback jika createdByInfo null tapi createdById adalah 1 (Admin)
+        // Ini mungkin terjadi jika API send message mengembalikan ID, bukan objek
         senderDisplayName = "Admin";
       } else {
-        senderDisplayName = "Pengguna";
+        // Fallback jika tidak ada info nama sama sekali
+        senderDisplayName = "Pengguna ${message.createdById ?? ''}".trim();
       }
     }
 

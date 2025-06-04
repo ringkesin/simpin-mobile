@@ -1,4 +1,5 @@
 // ticket_models.dart
+import 'dart:convert';
 
 // Model untuk respons dari /api/master/chat-reference-table
 class ChatReferenceTableResponse {
@@ -92,12 +93,11 @@ class TicketListItemModel {
   final String transactionId;
   final String subject;
   final int status;
-  final int createdBy;
+  final dynamic createdBy; // Bisa jadi int atau objek dari API tiket list
   final int? updatedBy;
   final int? deletedBy;
   final int countNotif;
-  final DateTime?
-  createdAt; // Tambahkan createdAt jika ada di API dan dibutuhkan
+  final DateTime? createdAt;
 
   TicketListItemModel({
     required this.tChatId,
@@ -118,10 +118,11 @@ class TicketListItemModel {
       tChatId: json['t_chat_id'] as String,
       ticketCode: json['ticket_code'] as String,
       pChatReferenceTableId: json['p_chat_reference_table_id'] as int,
-      transactionId: json['transaction_id'] as String,
+      transactionId:
+          json['transaction_id'].toString(), // Pastikan selalu string
       subject: json['subject'] as String,
       status: json['status'] as int,
-      createdBy: json['created_by'] as int,
+      createdBy: json['created_by'], // Biarkan dynamic, bisa int atau objek
       updatedBy: json['updated_by'] as int?,
       deletedBy: json['deleted_by'] as int?,
       countNotif: json['count_notif'] as int,
@@ -172,9 +173,9 @@ class TicketListResponseModel {
             : [];
 
     return TicketListResponseModel(
-      success: json['success'] as bool,
+      success: json['success'] as bool? ?? false, // Handle null
       data: itemsList,
-      message: json['message'] as String,
+      message: json['message'] as String? ?? '', // Handle null
     );
   }
 }
@@ -205,8 +206,50 @@ class TicketListFilterPayload {
   }
 }
 
-// --- MODEL BARU UNTUK PESAN CHAT ---
+// --- MODEL UNTUK INFORMASI PENGIRIM PESAN CHAT (created_by object) ---
+class ChatMessageSenderInfoModel {
+  final int id;
+  final String name;
+  final String? username;
+  final String? email;
+  final String? mobile;
+  final String? profilePhotoUrl;
+  // Tambahkan field lain dari objek created_by jika diperlukan
+  // final String? remarks;
+  // final DateTime? validFrom;
+  // final DateTime? validUntil;
+  // final String? profilePhotoPath;
 
+  ChatMessageSenderInfoModel({
+    required this.id,
+    required this.name,
+    this.username,
+    this.email,
+    this.mobile,
+    this.profilePhotoUrl,
+    // this.remarks,
+    // this.validFrom,
+    // this.validUntil,
+    // this.profilePhotoPath,
+  });
+
+  factory ChatMessageSenderInfoModel.fromJson(Map<String, dynamic> json) {
+    return ChatMessageSenderInfoModel(
+      id: json['id'] as int,
+      name: json['name'] as String? ?? 'Unknown Sender',
+      username: json['username'] as String?,
+      email: json['email'] as String?,
+      mobile: json['mobile'] as String?,
+      profilePhotoUrl: json['profile_photo_url'] as String?,
+      // remarks: json['remarks'] as String?,
+      // validFrom: json['valid_from'] != null ? DateTime.tryParse(json['valid_from']) : null,
+      // validUntil: json['valid_until'] != null ? DateTime.tryParse(json['valid_until']) : null,
+      // profilePhotoPath: json['profile_photo_path'] as String?,
+    );
+  }
+}
+
+// --- MODEL PESAN CHAT (DIPERBARUI untuk created_by object) ---
 class ChatMessageModel {
   final String tChatConversationsId;
   final String tChatId;
@@ -216,11 +259,13 @@ class ChatMessageModel {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
-  final int createdBy; // Untuk menentukan apakah pesan dari user atau admin
-  final int? updatedBy;
-  final int? deletedBy;
+  // 'createdBy' sekarang adalah objek ChatMessageSenderInfoModel atau null
+  final ChatMessageSenderInfoModel? createdByInfo;
+  // 'createdById' untuk menyimpan ID pengirim, untuk kompatibilitas dan perbandingan mudah
+  final int? createdById;
+  final int? updatedBy; // Tetap integer karena API tidak menunjukkan perubahan
+  final int? deletedBy; // Tetap integer
 
-  // Tambahan untuk UI: penanda apakah pesan ini dari pengguna saat ini
   bool isCurrentUser;
 
   ChatMessageModel({
@@ -232,47 +277,64 @@ class ChatMessageModel {
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
-    required this.createdBy,
+    this.createdByInfo,
+    this.createdById,
     this.updatedBy,
     this.deletedBy,
-    this.isCurrentUser = false, // Default false, akan di-set kemudian
+    this.isCurrentUser = false,
   });
 
   factory ChatMessageModel.fromJson(
     Map<String, dynamic> json, {
     int? currentUserId,
   }) {
-    // Membersihkan tChatId dari spasi berlebih
     String cleanTChatId = (json['t_chat_id'] as String? ?? '').trim();
+    dynamic createdByData =
+        json['created_by']; // Bisa objek atau int (dari send message)
 
-    ChatMessageModel message = ChatMessageModel(
+    ChatMessageSenderInfoModel? senderInfoModel;
+    int? senderId;
+
+    if (createdByData is Map<String, dynamic>) {
+      senderInfoModel = ChatMessageSenderInfoModel.fromJson(createdByData);
+      senderId = senderInfoModel.id;
+    } else if (createdByData is int) {
+      // Jika created_by adalah int (misalnya dari respons send message lama atau API lain)
+      senderId = createdByData;
+      // Anda bisa membuat senderInfoModel dummy jika perlu nama default
+      // senderInfoModel = ChatMessageSenderInfoModel(id: senderId, name: "User $senderId");
+    }
+
+    bool currentUserFlag = false;
+    if (currentUserId != null && senderId != null) {
+      currentUserFlag = senderId == currentUserId;
+    }
+
+    bool parseReadStatus(dynamic value) {
+      if (value is bool) return value;
+      if (value is int) return value == 1;
+      if (value is String) return value.toLowerCase() == 'true' || value == '1';
+      return false;
+    }
+
+    return ChatMessageModel(
       tChatConversationsId: json['t_chat_conversations_id'] as String,
       tChatId: cleanTChatId,
       messageText: json['message_text'] as String,
-      // API mengirim boolean untuk is_read_user, tapi di respons POST mengirim 0/1
-      // Kita akan handle keduanya
-      isReadUser:
-          json['is_read_user'] is bool
-              ? json['is_read_user']
-              : (json['is_read_user'] == 1),
-      isReadAdmin:
-          json['is_read_admin'] is bool
-              ? json['is_read_admin']
-              : (json['is_read_admin'] == 1),
+      isReadUser: parseReadStatus(json['is_read_user']),
+      isReadAdmin: parseReadStatus(json['is_read_admin']),
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       deletedAt:
           json['deleted_at'] == null
               ? null
               : DateTime.parse(json['deleted_at'] as String),
-      createdBy: json['created_by'] as int,
+      createdByInfo: senderInfoModel, // Simpan objek info pengirim
+      createdById: senderId, // Simpan ID pengirim
       updatedBy: json['updated_by'] as int?,
       deletedBy: json['deleted_by'] as int?,
+      isCurrentUser: currentUserFlag,
     );
-    if (currentUserId != null) {
-      message.isCurrentUser = message.createdBy == currentUserId;
-    }
-    return message;
   }
 }
 
@@ -305,13 +367,12 @@ class ChatMessagesResponseModel {
                 .toList()
             : [];
 
-    // Urutkan pesan berdasarkan createdAt (dari yang paling lama ke terbaru)
     messagesList.sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
     return ChatMessagesResponseModel(
-      success: json['success'] as bool,
+      success: json['success'] as bool? ?? false, // Handle null
       data: messagesList,
-      message: json['message'] as String,
+      message: json['message'] as String? ?? '', // Handle null
     );
   }
 }
@@ -319,7 +380,7 @@ class ChatMessagesResponseModel {
 // Model untuk respons POST /api/chat/message/add
 class SendMessageResponseModel {
   final bool success;
-  final ChatMessageModel? data; // Data berisi pesan yang baru dikirim
+  final ChatMessageModel? data;
   final String message;
 
   SendMessageResponseModel({
@@ -332,8 +393,10 @@ class SendMessageResponseModel {
     Map<String, dynamic> json, {
     int? currentUserId,
   }) {
+    // Respons API send message mungkin masih mengirim 'created_by' sebagai integer.
+    // ChatMessageModel.fromJson sudah diupdate untuk menangani ini.
     return SendMessageResponseModel(
-      success: json['success'] as bool,
+      success: json['success'] as bool? ?? false, // Handle null
       data:
           json['success'] == true && json['data'] != null
               ? ChatMessageModel.fromJson(
@@ -341,7 +404,7 @@ class SendMessageResponseModel {
                 currentUserId: currentUserId,
               )
               : null,
-      message: json['message'] as String,
+      message: json['message'] as String? ?? '', // Handle null
     );
   }
 }
