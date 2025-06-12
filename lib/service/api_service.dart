@@ -1352,7 +1352,7 @@ class ApiService {
         // "page": page, // Kirim parameter page jika backend Anda mendukungnya di payload POST
       };
 
-      final response = await ApiService._dio.get(
+      final response = await ApiService._dio.post(
         endpoint, // Jika 'page' adalah query param, gunakan requestEndpoint
         data: payload,
         options: Options(
