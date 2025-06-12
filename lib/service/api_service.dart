@@ -2797,4 +2797,50 @@ class ApiService {
       throw Exception("Terjadi kesalahan sistem saat memperbarui profil: $e");
     }
   }
+
+  Future<Map<String, dynamic>> closeTicket(String tChatId) async {
+    // Endpoint dinamis berdasarkan t_chat_id
+    final String endpoint = '/api/chat/ticket/close/$tChatId';
+    String? authToken;
+
+    try {
+      authToken = await _getAuthToken();
+      if (authToken == null || authToken.isEmpty) {
+        throw Exception("Sesi tidak valid. Silakan login kembali.");
+      }
+
+      print("[ApiService.closeTicket] Menjalankan GET ke $endpoint");
+
+      // Menggunakan dio.get sesuai permintaan
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $authToken',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      print("[ApiService.closeTicket] Response status: ${response.statusCode}");
+      print("[ApiService.closeTicket] Response data: ${response.data}");
+
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      } else {
+        throw Exception(
+          response.data?['message'] ??
+              "Gagal menutup tiket (Status: ${response.statusCode})",
+        );
+      }
+    } on DioException catch (e) {
+      print("[ApiService.closeTicket] DioException: ${e.message}");
+      final errorMessage =
+          e.response?.data?['message'] ?? 'Gagal menutup tiket.';
+      throw Exception(errorMessage);
+    } catch (e) {
+      print("[ApiService.closeTicket] Exception: $e");
+      rethrow;
+    }
+  }
 }

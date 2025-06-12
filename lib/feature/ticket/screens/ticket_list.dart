@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_slidable/flutter_slidable.dart'; // Import paket slidable
 
 import 'package:kkba_mobile/service/api_service.dart';
 import 'package:kkba_mobile/model/ticket_response.dart';
@@ -22,17 +23,18 @@ class _TicketListPageState extends State<TicketListPage> {
   List<TicketListItemModel> _tickets = [];
   bool _isLoading = false;
   int _currentPage = 1;
-  final int _perPage = 10;
+  final int _perPage = 15; // Tambah item per halaman untuk scrolling
   bool _hasMore = true;
   String? _errorMessage;
 
   final ScrollController _scrollController = ScrollController();
   int? _currentUserId;
+  String? _userRole; // State untuk menyimpan role pengguna
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentUserIdAndFetchTickets();
+    _loadUserDataAndFetchTickets(); // Memuat role dan user ID
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -44,25 +46,30 @@ class _TicketListPageState extends State<TicketListPage> {
     });
   }
 
-  Future<void> _loadCurrentUserIdAndFetchTickets() async {
-    await _loadCurrentUserId();
+  Future<void> _loadUserDataAndFetchTickets() async {
+    await _loadUserData();
     _fetchTickets(isRefresh: true);
   }
 
-  Future<void> _loadCurrentUserId() async {
+  Future<void> _loadUserData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (mounted) {
         setState(() {
           _currentUserId = prefs.getInt('userId');
-          print("Loaded Current User ID in TicketListPage: $_currentUserId");
+          _userRole = prefs.getString(
+            'role',
+          ); // Ambil role dari SharedPreferences
+          print("Loaded User ID: $_currentUserId, Role: $_userRole");
         });
       }
     } catch (e) {
-      print("Error loading current user ID: $e");
+      print("Error loading user data: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memuat ID pengguna: ${e.toString()}')),
+          SnackBar(
+            content: Text('Gagal memuat data pengguna: ${e.toString()}'),
+          ),
         );
       }
     }
@@ -79,7 +86,6 @@ class _TicketListPageState extends State<TicketListPage> {
     TicketListFilterPayload? filter,
   }) async {
     if (_isLoading && !isRefresh) return;
-
     setState(() {
       _isLoading = true;
       if (isRefresh) {
@@ -97,29 +103,11 @@ class _TicketListPageState extends State<TicketListPage> {
         filter: filter,
       );
       if (mounted) {
-        if (response.success) {
-          setState(() {
-            _tickets.addAll(response.data);
-            if (response.data.isNotEmpty) {
-              _currentPage++;
-            }
-            _hasMore = response.data.length == _perPage;
-            if (isRefresh && response.data.isEmpty) {
-              _errorMessage = "Tidak ada tiket ditemukan.";
-            }
-          });
-        } else {
-          setState(() {
-            _errorMessage = response.message;
-            _hasMore = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Gagal memuat tiket: ${response.message}'),
-              backgroundColor: AppColors.errorLight,
-            ),
-          );
-        }
+        setState(() {
+          _tickets.addAll(response.data);
+          _currentPage++;
+          _hasMore = response.data.length == _perPage;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -127,22 +115,63 @@ class _TicketListPageState extends State<TicketListPage> {
           _errorMessage = e.toString().replaceFirst("Exception: ", "");
           _hasMore = false;
         });
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _closeTicket(String tChatId) async {
+    // Tampilkan dialog konfirmasi
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi'),
+          content: const Text('Apakah Anda yakin ingin menutup tiket ini?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Ya, Tutup',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return; // Jika pengguna membatalkan
+
+    try {
+      final response = await _apiService.closeTicket(tChatId);
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Terjadi kesalahan: $_errorMessage'),
+            content: Text(response['message'] ?? 'Tiket berhasil ditutup.'),
+            backgroundColor: AppColors.successLight,
+          ),
+        );
+        _fetchTickets(isRefresh: true); // Muat ulang daftar tiket
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst("Exception: ", "")),
             backgroundColor: AppColors.errorLight,
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
 
+  // ... (Sisa fungsi seperti _navigateToCreateTicket, _navigateToChatPage tidak berubah)
   Future<void> _navigateToCreateTicket() async {
     final result = await Navigator.push(
       context,
@@ -161,7 +190,7 @@ class _TicketListPageState extends State<TicketListPage> {
           backgroundColor: AppColors.warningLight,
         ),
       );
-      _loadCurrentUserIdAndFetchTickets();
+      _loadUserDataAndFetchTickets();
       return;
     }
     Navigator.push(
@@ -171,125 +200,167 @@ class _TicketListPageState extends State<TicketListPage> {
             (context) => ChatPage(
               tChatId: ticket.tChatId.trim(),
               ticketCode: ticket.ticketCode,
-              // **** MENGIRIM SUBJECT TIKET ****
               ticketSubject: ticket.subject,
               currentUserId: _currentUserId!,
+              ticketStatus: ticket.status, // Kirim status tiket ke halaman chat
             ),
       ),
     );
   }
 
   Widget _buildTicketItem(TicketListItemModel ticket) {
+    // 1. Logika untuk menentukan warna dan ikon berdasarkan status
     Color statusColor;
-    String statusText = ticket.statusDisplay;
+    IconData statusIcon;
 
     switch (ticket.status) {
-      case 0:
-        statusColor = AppColors.warningLight;
+      case 0: // Tiket Baru (Aktif)
+        statusColor =
+            AppColors.primaryLight; // Biru untuk status aktif/informasi
+        statusIcon = Icons.chat_bubble_outline; // Ikon untuk chat/tiket baru
         break;
-      case 1:
-        statusColor = AppColors.infoLight;
+      case 1: // Ticket Close (Tidak Aktif)
+        statusColor =
+            AppColors.primaryDark; // Abu-abu untuk status selesai/ditutup
+        statusIcon =
+            Icons.check_circle_outline; // Ikon untuk yang sudah selesai
         break;
-      case 2:
-        statusColor = AppColors.successLight;
-        break;
-      case 3:
-        statusColor = AppColors.secondaryTextLight;
-        break;
-      default:
-        statusColor = AppColors.secondaryTextLight;
+      default: // Fallback jika ada status lain yang tidak terduga
+        statusColor = Colors.grey;
+        statusIcon = Icons.help_outline;
     }
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      elevation: 2.0,
-      shadowColor: AppColors.primaryLight.withOpacity(0.1),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-      color: AppColors.secondaryLight,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12.0),
-        onTap: () {
-          _navigateToChatPage(ticket);
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      ticket.ticketCode,
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: AppColors.primaryTextLight,
-                      ),
-                    ),
+    // 2. Logika untuk mengaktifkan/menonaktifkan fitur slide
+    // Fitur hanya aktif jika role adalah 'mobile_admin' DAN status tiket belum selesai/ditutup.
+    final bool isSlidable = _userRole == 'mobile_admin' && ticket.status < 2;
+
+    return Slidable(
+      key: ValueKey(ticket.tChatId),
+      enabled: isSlidable, // Gunakan variabel isSlidable di sini
+      endActionPane: ActionPane(
+        motion: const StretchMotion(),
+        children: [
+          SlidableAction(
+            onPressed: (context) => _closeTicket(ticket.tChatId),
+            backgroundColor:
+                AppColors.errorLight, // Warna lebih cocok untuk menutup
+            foregroundColor: Colors.white,
+            icon: Icons.archive_rounded,
+            label: 'Close',
+          ),
+        ],
+      ),
+      child: Material(
+        color: AppColors.secondaryBackgroundLight,
+        child: InkWell(
+          onTap: () => _navigateToChatPage(ticket),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 12.0,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: statusColor.withOpacity(0.1),
+                  child: Icon(
+                    statusIcon, // Gunakan ikon status dinamis
+                    color: statusColor,
+                    size: 28,
                   ),
-                  if (ticket.countNotif > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.errorLight,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${ticket.countNotif} Baru',
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ticket.ticketCode,
                         style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          color: AppColors.primaryTextLight,
                         ),
                       ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                ticket.subject,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: AppColors.secondaryTextLight,
-                  height: 1.3,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Icon(Icons.flag_outlined, size: 15, color: statusColor),
-                  const SizedBox(width: 5),
-                  Text(
-                    statusText,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: statusColor,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (ticket.createdAt != null)
-                    Text(
-                      DateFormat(
-                        'dd MMM yy, HH:mm',
-                        'id_ID',
-                      ).format(ticket.createdAt!.toLocal()),
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppColors.secondaryTextLight.withOpacity(0.8),
+                      const SizedBox(height: 4),
+                      Text(
+                        ticket.subject,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: AppColors.secondaryTextLight,
+                        ),
                       ),
-                    ),
-                ],
-              ),
-            ],
+                      const SizedBox(height: 8), // Spasi sebelum status
+                      // 3. Menampilkan statusDisplay di sini
+                      Row(
+                        children: [
+                          Icon(statusIcon, size: 14, color: statusColor),
+                          const SizedBox(width: 6),
+                          Text(
+                            ticket.statusDisplay,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: statusColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (ticket.createdAt != null)
+                      Text(
+                        DateFormat(
+                          'HH:mm',
+                          'id_ID',
+                        ).format(ticket.createdAt!.toLocal()),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color:
+                              ticket.countNotif > 0
+                                  ? AppColors.successLight
+                                  : AppColors.secondaryTextLight,
+                          fontWeight:
+                              ticket.countNotif > 0
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    if (ticket.countNotif > 0)
+                      Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: AppColors.successLight,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${ticket.countNotif}',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      const SizedBox(height: 22),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -303,7 +374,7 @@ class _TicketListPageState extends State<TicketListPage> {
       appBar: AppBar(
         backgroundColor: AppColors.primaryLight,
         foregroundColor: Colors.white,
-        elevation: 1.0,
+        elevation: 0, // Membuat AppBar seamless dengan list
         title: Text(
           'Daftar Tiket',
           style: GoogleFonts.inter(
@@ -314,178 +385,147 @@ class _TicketListPageState extends State<TicketListPage> {
         ),
       ),
       body: RefreshIndicator(
-        onRefresh: () => _fetchTickets(isRefresh: true),
+        onRefresh: () => _loadUserDataAndFetchTickets(),
         color: AppColors.primaryLight,
-        child: Column(
-          children: [
-            Expanded(
-              child:
-                  (_isLoading && _tickets.isEmpty && _errorMessage == null)
-                      ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.primaryLight,
-                        ),
-                      )
-                      : (_errorMessage != null && _tickets.isEmpty)
-                      ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                color: AppColors.errorLight,
-                                size: 50,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Gagal Memuat Data',
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.inter(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.primaryTextLight,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _errorMessage!,
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: AppColors.secondaryTextLight,
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              ElevatedButton.icon(
-                                icon: const Icon(Icons.refresh, size: 18),
-                                label: const Text('Coba Lagi'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryLight,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                ),
-                                onPressed: () => _fetchTickets(isRefresh: true),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                      : _tickets.isEmpty
-                      ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.inbox_outlined,
-                              size: 60,
-                              color: AppColors.secondaryTextLight.withOpacity(
-                                0.4,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Belum ada tiket.',
-                              style: GoogleFonts.inter(
-                                fontSize: 17,
-                                color: AppColors.secondaryTextLight,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Ketuk tombol + untuk membuat tiket baru.',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: AppColors.secondaryTextLight.withOpacity(
-                                  0.7,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                      : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.only(top: 8.0, bottom: 80.0),
-                        itemCount:
-                            _tickets.length +
-                            (_hasMore && _tickets.isNotEmpty ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index == _tickets.length) {
-                            if (_isLoading && _tickets.isNotEmpty) {
-                              return const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(16.0),
-                                  child: CircularProgressIndicator(
-                                    color: AppColors.primaryLight,
-                                    strokeWidth: 3,
-                                  ),
-                                ),
-                              );
-                            } else if (_hasMore) {
-                              return Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16.0,
-                                  ),
-                                  child: OutlinedButton(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: AppColors.primaryLight,
-                                      side: BorderSide(
-                                        color: AppColors.primaryLight
-                                            .withOpacity(0.5),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 24,
-                                        vertical: 10,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                    ),
-                                    onPressed:
-                                        _isLoading
-                                            ? null
-                                            : () => _fetchTickets(),
-                                    child: Text(
-                                      'Muat Lebih Banyak',
-                                      style: GoogleFonts.inter(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            } else {
-                              return const SizedBox(height: 20);
-                            }
-                          }
-                          final ticket = _tickets[index];
-                          return _buildTicketItem(ticket);
-                        },
-                      ),
-            ),
-          ],
-        ),
+        child:
+            (_isLoading && _tickets.isEmpty)
+                ? const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.primaryLight,
+                  ),
+                )
+                : (_errorMessage != null && _tickets.isEmpty)
+                ? _buildErrorWidget() // Widget error terpisah
+                : (_tickets.isEmpty)
+                ? _buildEmptyWidget() // Widget kosong terpisah
+                : _buildTicketListView(),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
+        // Diubah ke FAB biasa
         onPressed: _navigateToCreateTicket,
         backgroundColor: AppColors.primaryLight,
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_comment_outlined, size: 20),
-        label: Text(
-          'Buat Tiket',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
         elevation: 4.0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Icon(Icons.add, size: 28),
+      ),
+    );
+  }
+
+  // Widget untuk daftar tiket (ListView.separated)
+  Widget _buildTicketListView() {
+    return ListView.separated(
+      controller: _scrollController,
+      padding: const EdgeInsets.only(bottom: 80.0),
+      itemCount: _tickets.length + (_hasMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index < _tickets.length) {
+          final ticket = _tickets[index];
+          return _buildTicketItem(ticket);
+        } else {
+          return _buildLoader();
+        }
+      },
+      separatorBuilder:
+          (context, index) => Divider(
+            height: 1,
+            thickness: 1,
+            color: Colors.grey.withOpacity(0.15),
+            indent: 88, // Separator mulai setelah avatar
+            endIndent: 16,
+          ),
+    );
+  }
+
+  // Widget untuk loader di bagian bawah
+  Widget _buildLoader() {
+    return _isLoading
+        ? const Center(
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: CircularProgressIndicator(color: AppColors.primaryLight),
+          ),
+        )
+        : const SizedBox.shrink();
+  }
+
+  // Widget untuk tampilan kosong
+  Widget _buildEmptyWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.inbox_outlined,
+            size: 60,
+            color: AppColors.secondaryTextLight.withOpacity(0.4),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Belum ada tiket.',
+            style: GoogleFonts.inter(
+              fontSize: 17,
+              color: AppColors.secondaryTextLight,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ketuk tombol + untuk membuat tiket baru.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: AppColors.secondaryTextLight.withOpacity(0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget untuk tampilan error
+  Widget _buildErrorWidget() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, color: AppColors.errorLight, size: 50),
+            const SizedBox(height: 16),
+            Text(
+              'Gagal Memuat Data',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primaryTextLight,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: AppColors.secondaryTextLight,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Coba Lagi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryLight,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+              onPressed: () => _fetchTickets(isRefresh: true),
+            ),
+          ],
+        ),
       ),
     );
   }
