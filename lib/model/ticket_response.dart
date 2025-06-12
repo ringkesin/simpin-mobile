@@ -138,11 +138,8 @@ class TicketListItemModel {
       case 0:
         return 'Baru';
       case 1:
-        return 'Diproses';
-      case 2:
-        return 'Selesai';
-      case 3:
-        return 'Dibatalkan';
+        return 'Closed';
+
       default:
         return 'Tidak Diketahui ($status)';
     }

@@ -13,14 +13,16 @@ import 'package:kkba_mobile/theme.dart';
 class ChatPage extends StatefulWidget {
   final String tChatId;
   final String ticketCode;
-  final String ticketSubject; // Tambahkan parameter ini
+  final String ticketSubject;
+  final int ticketStatus; // Tambahkan parameter ini
   final int? currentUserId;
 
   const ChatPage({
     super.key,
     required this.tChatId,
     required this.ticketCode,
-    required this.ticketSubject, // Jadikan required
+    required this.ticketSubject,
+    required this.ticketStatus, // Jadikan required
     this.currentUserId,
   });
 
@@ -332,29 +334,27 @@ class _ChatPageState extends State<ChatPage> {
     return Scaffold(
       backgroundColor: AppColors.primaryBackgroundLight,
       appBar: AppBar(
-        // **** PERUBAHAN PADA APPBAR ****
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              widget
-                  .ticketSubject, // Menampilkan subjek tiket sebagai judul utama
+              widget.ticketSubject,
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
-                fontSize: 17, // Sesuaikan ukuran font jika perlu
+                fontSize: 17,
               ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
             if (widget.ticketCode.isNotEmpty)
               Text(
-                widget.ticketCode, // Menampilkan kode tiket sebagai subjudul
+                widget.ticketCode,
                 style: GoogleFonts.inter(
                   fontWeight: FontWeight.normal,
                   color: Colors.white.withOpacity(0.85),
-                  fontSize: 12.5, // Sesuaikan ukuran font jika perlu
+                  fontSize: 12.5,
                 ),
               ),
           ],
@@ -362,8 +362,7 @@ class _ChatPageState extends State<ChatPage> {
         backgroundColor: AppColors.primaryLight,
         foregroundColor: Colors.white,
         elevation: 1.0,
-        toolbarHeight: 65, // Mungkin perlu sedikit lebih tinggi untuk dua baris
-        // **** AKHIR PERUBAHAN PADA APPBAR ****
+        toolbarHeight: 65,
       ),
       body: Column(
         children: [
@@ -446,7 +445,42 @@ class _ChatPageState extends State<ChatPage> {
                       },
                     ),
           ),
-          _buildMessageInputField(),
+
+          // **** PERUBAHAN UTAMA DI SINI ****
+          // Tampilkan input field atau banner tiket ditutup secara kondisional
+          if (widget.ticketStatus == 1)
+            _buildTicketClosedBanner() // Tampilkan banner jika status 1 (Close)
+          else
+            _buildMessageInputField(), // Tampilkan input jika status lain
+          // **** AKHIR PERUBAHAN UTAMA ****
+        ],
+      ),
+    );
+  }
+
+  // BARU: Widget untuk menampilkan banner bahwa tiket sudah ditutup
+  Widget _buildTicketClosedBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+      width: double.infinity,
+      color: AppColors.secondaryBackgroundLight.withOpacity(0.9),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.lock_outline,
+            size: 18,
+            color: AppColors.secondaryTextLight,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Tiket ini telah ditutup.',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AppColors.secondaryTextLight,
+            ),
+          ),
         ],
       ),
     );
@@ -454,12 +488,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _buildMessageInputField() {
     return Container(
-      padding: const EdgeInsets.only(
-        left: 12.0,
-        right: 8.0,
-        top: 8.0,
-        bottom: 8.0,
-      ),
+      padding: const EdgeInsets.fromLTRB(12.0, 8.0, 8.0, 8.0),
       decoration: BoxDecoration(
         color: AppColors.secondaryLight,
         border: Border(

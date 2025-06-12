@@ -2700,4 +2700,147 @@ class ApiService {
       rethrow;
     }
   }
+
+  Future<Map<String, dynamic>> updateProfileAnggota({
+    required int pAnggotaId,
+    required String tglLahir, // Format Wajib: "YYYY-MM-DD"
+    String? alamat, // Opsional
+    String? alamatEmail, // Opsional
+    String? nomorHp, // Opsional
+  }) async {
+    const String endpoint = '/api/profile';
+    String? authToken;
+
+    try {
+      authToken = await _getAuthToken();
+
+      if (authToken == null || authToken.isEmpty) {
+        throw Exception('Sesi Anda telah berakhir. Silakan login kembali.');
+      }
+
+      // Membuat payload. Field opsional hanya ditambahkan jika tidak null.
+      // Ini mencegah pengiriman key dengan nilai null ke backend.
+      final Map<String, dynamic> payload = {
+        'p_anggota_id': pAnggotaId,
+        'tgl_lahir': tglLahir,
+      };
+      if (alamat != null) payload['alamat'] = alamat;
+      if (alamatEmail != null) payload['alamat_email'] = alamatEmail;
+      if (nomorHp != null) payload['nomor_hp'] = nomorHp;
+
+      print(
+        "[ApiService.updateProfileAnggota] Mengirim PUT ke $endpoint dengan payload: ${json.encode(payload)}",
+      );
+
+      // Menggunakan dio.put
+      final response = await _dio.put(
+        endpoint,
+        data: payload, // Mengirim payload sebagai data
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $authToken',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      print(
+        "[ApiService.updateProfileAnggota] Response status: ${response.statusCode}",
+      );
+      print(
+        "[ApiService.updateProfileAnggota] Response data: ${response.data}",
+      );
+
+      if (response.statusCode == 200) {
+        if (response.data is Map<String, dynamic>) {
+          return response.data as Map<String, dynamic>;
+        } else {
+          throw Exception(
+            "Format respons server tidak valid setelah pembaruan profil.",
+          );
+        }
+      } else {
+        // Fallback, meskipun DioException akan menangani ini
+        throw Exception(
+          "Gagal memperbarui profil (Status: ${response.statusCode})",
+        );
+      }
+    } on DioException catch (e) {
+      print("[ApiService.updateProfileAnggota] DioException caught!");
+      print("  -> Response Status: ${e.response?.statusCode}");
+      print("  -> Response Data: ${e.response?.data}");
+
+      String errorMessage = "Gagal memperbarui profil.";
+      if (e.response?.data is Map<String, dynamic>) {
+        final responseData = e.response!.data as Map<String, dynamic>;
+        errorMessage = responseData['message'] as String? ?? errorMessage;
+        if (e.response?.statusCode == 422 &&
+            responseData['errors'] is Map<String, dynamic>) {
+          final errors = responseData['errors'] as Map<String, dynamic>;
+          if (errors.isNotEmpty) {
+            final firstErrorField = errors.keys.first;
+            final firstErrorMessage =
+                (errors[firstErrorField] as List).isNotEmpty
+                    ? (errors[firstErrorField] as List).first
+                    : "Data tidak valid.";
+            errorMessage = "Validasi gagal: $firstErrorMessage";
+          }
+        }
+      } else if (e.response?.statusCode == 401) {
+        errorMessage = "Sesi Anda telah berakhir. Silakan login kembali.";
+      }
+
+      throw Exception(errorMessage);
+    } catch (e) {
+      print("[ApiService.updateProfileAnggota] General Exception caught: $e");
+      throw Exception("Terjadi kesalahan sistem saat memperbarui profil: $e");
+    }
+  }
+
+  Future<Map<String, dynamic>> closeTicket(String tChatId) async {
+    // Endpoint dinamis berdasarkan t_chat_id
+    final String endpoint = '/api/chat/ticket/close/$tChatId';
+    String? authToken;
+
+    try {
+      authToken = await _getAuthToken();
+      if (authToken == null || authToken.isEmpty) {
+        throw Exception("Sesi tidak valid. Silakan login kembali.");
+      }
+
+      print("[ApiService.closeTicket] Menjalankan GET ke $endpoint");
+
+      // Menggunakan dio.get sesuai permintaan
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $authToken',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      print("[ApiService.closeTicket] Response status: ${response.statusCode}");
+      print("[ApiService.closeTicket] Response data: ${response.data}");
+
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      } else {
+        throw Exception(
+          response.data?['message'] ??
+              "Gagal menutup tiket (Status: ${response.statusCode})",
+        );
+      }
+    } on DioException catch (e) {
+      print("[ApiService.closeTicket] DioException: ${e.message}");
+      final errorMessage =
+          e.response?.data?['message'] ?? 'Gagal menutup tiket.';
+      throw Exception(errorMessage);
+    } catch (e) {
+      print("[ApiService.closeTicket] Exception: $e");
+      rethrow;
+    }
+  }
 }
