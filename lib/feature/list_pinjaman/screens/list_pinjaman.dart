@@ -5,6 +5,8 @@ import 'package:kkba_mobile/service/api_service.dart'; // Sesuaikan path import
 import 'package:kkba_mobile/model/jenis_pinjaman.dart'; // Sesuaikan path import (dari FormWizard)
 import 'package:kkba_mobile/model/keperluan_pinjaman.dart'; // Sesuaikan path import (dari FormWizard)
 import 'package:kkba_mobile/theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'approval.dart';
 // Model StatusPengajuanFilterModel sekarang ada di pinjaman_list_models.dart
 // jadi tidak perlu import terpisah lagi.
 
@@ -23,6 +25,7 @@ class _DaftarPinjamanScreenState extends State<DaftarPinjamanScreen> {
   int? _lastPage;
   bool _isFetchingMore = false;
   bool _isLoadingFilters = false;
+  String? _userRole;
 
   int? _selectedStatusId;
   int? _selectedJenisPinjamanId;
@@ -113,10 +116,27 @@ class _DaftarPinjamanScreenState extends State<DaftarPinjamanScreen> {
     super.dispose();
   }
 
+  // Modifikasi _loadInitialData untuk memanggil _loadUserRole
   Future<void> _loadInitialData() async {
     if (mounted) setState(() => _isLoading = true);
+    await _loadUserRole();
     await _fetchFilterOptions();
     await _fetchPinjamanData(refresh: true);
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  // Fungsi baru untuk memuat role dari SharedPreferences
+  Future<void> _loadUserRole() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _userRole = prefs.getString('role');
+        });
+      }
+    } catch (e) {
+      print("Gagal memuat user role: $e");
+    }
   }
 
   Future<void> _fetchFilterOptions() async {
@@ -528,108 +548,148 @@ class _DaftarPinjamanScreenState extends State<DaftarPinjamanScreen> {
                               _statusTextColors[statusNama] ??
                               AppColors.primaryTextLight;
 
-                          return Card(
-                            margin: EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 6,
-                            ),
-                            elevation: 1.5,
-                            color:
-                                AppColors
-                                    .secondaryBackgroundLight, // Warna Card
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          pinjaman.nomorPinjaman ?? 'N/A',
-                                          style: textTheme.titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color:
-                                                    AppColors.primaryTextLight,
-                                              ),
-                                          overflow: TextOverflow.ellipsis,
+                          return InkWell(
+                            onTap:
+                                _userRole == 'mobile_admin'
+                                    ? () {
+                                      // Navigasi ke halaman approval jika role adalah admin
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  ApprovalPinjamanScreen(
+                                                    tPinjamanId:
+                                                        pinjaman.tPinjamanId,
+                                                  ),
                                         ),
-                                      ),
-                                      SizedBox(width: 8),
-                                      Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: statusBgColor,
-                                          borderRadius: BorderRadius.circular(
-                                            16,
+                                      ).then((isSuccess) {
+                                        // Muat ulang data jika halaman approval ditutup setelah berhasil menyimpan
+                                        if (isSuccess == true) {
+                                          _fetchPinjamanData(refresh: true);
+                                        }
+                                      });
+                                    }
+                                    : null, // Jangan lakukan apa-apa jika bukan admin
+                            child: Card(
+                              margin: EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                              elevation:
+                                  _userRole == 'mobile_admin'
+                                      ? 3.0
+                                      : 1.5, // Beri efek lebih jika bisa diklik
+                              color: AppColors.secondaryBackgroundLight,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side:
+                                    _userRole == 'mobile_admin'
+                                        ? BorderSide(
+                                          color: AppColors.primaryLight
+                                              .withOpacity(0.5),
+                                          width: 1,
+                                        )
+                                        : BorderSide.none,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            pinjaman.nomorPinjaman ?? 'N/A',
+                                            style: textTheme.titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                  color:
+                                                      AppColors
+                                                          .primaryTextLight,
+                                                ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                        child: Text(
-                                          statusNama,
-                                          style: textTheme.labelSmall?.copyWith(
-                                            color: statusTextColor,
-                                            fontWeight: FontWeight.w600,
+                                        SizedBox(width: 8),
+                                        Container(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: statusBgColor,
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            statusNama,
+                                            style: textTheme.labelSmall
+                                                ?.copyWith(
+                                                  color: statusTextColor,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
                                           ),
                                         ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 10),
+                                    _buildInfoRow(
+                                      Icons.person_outline_rounded,
+                                      'Anggota:',
+                                      '${pinjaman.masterAnggota.nama ?? 'N/A'} (${pinjaman.masterAnggota.nomorAnggota ?? 'N/A'})',
+                                    ),
+                                    _buildInfoRow(
+                                      Icons.category_outlined,
+                                      'Jenis:',
+                                      pinjaman.masterJenisPinjaman.nama ??
+                                          'N/A',
+                                    ),
+                                    SizedBox(height: 6),
+                                    _buildInfoRow(
+                                      Icons.attach_money_rounded,
+                                      'Jumlah Diajukan:',
+                                      'Rp ${NumberFormat.decimalPattern('id_ID').format(pinjaman.raJumlahPinjaman ?? 0)}',
+                                    ),
+                                    if (pinjaman.riJumlahPinjaman != null &&
+                                        pinjaman.riJumlahPinjaman! > 0)
+                                      _buildInfoRow(
+                                        Icons.check_circle_outline_rounded,
+                                        'Jumlah Disetujui:',
+                                        'Rp ${NumberFormat.decimalPattern('id_ID').format(pinjaman.riJumlahPinjaman)}',
                                       ),
-                                    ],
-                                  ),
-                                  SizedBox(height: 10),
-                                  _buildInfoRow(
-                                    Icons.person_outline_rounded,
-                                    'Anggota:',
-                                    '${pinjaman.masterAnggota.nama ?? 'N/A'} (${pinjaman.masterAnggota.nomorAnggota ?? 'N/A'})',
-                                  ),
-                                  _buildInfoRow(
-                                    Icons.category_outlined,
-                                    'Jenis:',
-                                    pinjaman.masterJenisPinjaman.nama ?? 'N/A',
-                                  ),
-                                  SizedBox(height: 6),
-                                  _buildInfoRow(
-                                    Icons.attach_money_rounded,
-                                    'Jumlah Diajukan:',
-                                    'Rp ${NumberFormat.decimalPattern('id_ID').format(pinjaman.raJumlahPinjaman ?? 0)}',
-                                  ),
-                                  if (pinjaman.riJumlahPinjaman != null &&
-                                      pinjaman.riJumlahPinjaman! > 0)
                                     _buildInfoRow(
-                                      Icons.check_circle_outline_rounded,
-                                      'Jumlah Disetujui:',
-                                      'Rp ${NumberFormat.decimalPattern('id_ID').format(pinjaman.riJumlahPinjaman)}',
+                                      Icons.timer_outlined,
+                                      'Tenor:',
+                                      '${pinjaman.tenor ?? '-'} bulan',
                                     ),
-                                  _buildInfoRow(
-                                    Icons.timer_outlined,
-                                    'Tenor:',
-                                    '${pinjaman.tenor ?? '-'} bulan',
-                                  ),
-                                  if (pinjaman.pinjamanKeperluanNama.isNotEmpty)
+                                    if (pinjaman
+                                        .pinjamanKeperluanNama
+                                        .isNotEmpty)
+                                      _buildInfoRow(
+                                        Icons.list_alt_rounded,
+                                        'Keperluan:',
+                                        pinjaman.pinjamanKeperluanNama.join(
+                                          ', ',
+                                        ),
+                                      ),
+                                    SizedBox(height: 6),
                                     _buildInfoRow(
-                                      Icons.list_alt_rounded,
-                                      'Keperluan:',
-                                      pinjaman.pinjamanKeperluanNama.join(', '),
+                                      Icons.calendar_today_outlined,
+                                      'Tgl Pengajuan:',
+                                      DateFormat(
+                                        'dd MMM yyyy, HH:mm',
+                                        'id_ID',
+                                      ).format(pinjaman.createdAt),
                                     ),
-                                  SizedBox(height: 6),
-                                  _buildInfoRow(
-                                    Icons.calendar_today_outlined,
-                                    'Tgl Pengajuan:',
-                                    DateFormat(
-                                      'dd MMM yyyy, HH:mm',
-                                      'id_ID',
-                                    ).format(pinjaman.createdAt),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           );

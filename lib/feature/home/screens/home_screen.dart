@@ -602,95 +602,86 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           // --- END MODIFIKASI MARGIN HEADER ---
                           child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment:
+                                MainAxisAlignment
+                                    .spaceBetween, // Mendorong item ke ujung
+                            crossAxisAlignment:
+                                CrossAxisAlignment
+                                    .start, // Membuat item sejajar di tengah sebagai dasar
                             children: [
+                              // Item Kiri: Logo
                               Image.asset(
                                 'assets/images/logokkba_header.png',
                                 height: 34,
                               ),
-                              const Spacer(),
-                              CircleAvatar(
-                                radius: 18,
-                                backgroundColor: Colors.grey[200],
-                                child:
-                                    _isLoadingProfilePhoto
-                                        ? const Padding(
-                                          padding: EdgeInsets.all(6.0),
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.0,
-                                          ),
-                                        )
-                                        : (_profilePhotoUrl != null &&
-                                            _profilePhotoUrl!.isNotEmpty)
-                                        ? ClipOval(
-                                          child: Image.network(
-                                            _profilePhotoUrl!,
-                                            width: 36,
-                                            height: 36,
-                                            fit: BoxFit.cover,
-                                            loadingBuilder: (
-                                              BuildContext context,
-                                              Widget child,
-                                              ImageChunkEvent? loadingProgress,
-                                            ) {
-                                              if (loadingProgress == null)
-                                                return child;
-                                              return Center(
-                                                child: Padding(
-                                                  padding: const EdgeInsets.all(
-                                                    6.0,
-                                                  ),
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 2.0,
-                                                    value:
-                                                        loadingProgress
-                                                                    .expectedTotalBytes !=
-                                                                null
-                                                            ? loadingProgress
-                                                                    .cumulativeBytesLoaded /
-                                                                loadingProgress
-                                                                    .expectedTotalBytes!
-                                                            : null,
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                            errorBuilder: (
-                                              BuildContext context,
-                                              Object exception,
-                                              StackTrace? stackTrace,
-                                            ) {
-                                              print(
-                                                'Error loading profile network image: $exception',
-                                              );
-                                              return Icon(
-                                                Icons.person_outline,
-                                                size: 22,
-                                                color: Colors.grey[600],
-                                              );
-                                            },
-                                          ),
-                                        )
-                                        : Icon(
-                                          Icons.person_outline,
-                                          size: 22,
-                                          color: Colors.grey[600],
-                                        ),
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.logout_outlined,
-                                  color:
-                                      AppColors
-                                          .errorLight, // Warna ikon diubah menjadi merah
-                                ),
-                                iconSize: 26,
-                                tooltip: 'Logout',
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                onPressed:
-                                    _logoutUser, // Fungsi logout dipanggil di sini
+
+                              // Item Kanan: Grup Ikon
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment
+                                        .center, // Sejajarkan item di grup ini
+                                children: [
+                                  // Foto Profil (tidak berubah)
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: Colors.grey[200],
+                                    child:
+                                        _isLoadingProfilePhoto
+                                            ? const Padding(
+                                              padding: EdgeInsets.all(6.0),
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2.0,
+                                              ),
+                                            )
+                                            : (_profilePhotoUrl != null &&
+                                                _profilePhotoUrl!.isNotEmpty)
+                                            ? ClipOval(
+                                              child: Image.network(
+                                                _profilePhotoUrl!,
+                                                width: 36,
+                                                height: 36,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (
+                                                  ctx,
+                                                  error,
+                                                  stackTrace,
+                                                ) {
+                                                  return Icon(
+                                                    Icons.person_outline,
+                                                    size: 22,
+                                                    color: Colors.grey[600],
+                                                  );
+                                                },
+                                              ),
+                                            )
+                                            : Icon(
+                                              Icons.person_outline,
+                                              size: 22,
+                                              color: Colors.grey[600],
+                                            ),
+                                  ),
+                                  const SizedBox(width: 12),
+
+                                  // **** PERUBAHAN DI SINI ****
+                                  // Ikon Logout dibungkus dengan Padding untuk diturunkan sedikit
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 4.0,
+                                    ), // Beri sedikit padding atas
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.logout_outlined,
+                                        color: AppColors.errorLight,
+                                      ),
+                                      iconSize: 26,
+                                      tooltip: 'Logout',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: _logoutUser,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

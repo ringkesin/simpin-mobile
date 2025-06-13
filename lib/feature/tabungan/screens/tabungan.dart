@@ -31,6 +31,10 @@ class _TabunganPageState extends State<TabunganPage> {
   MutasiTabunganResponse? _mutasiResponse;
 
   int? _pAnggotaId;
+  // BARU: State untuk dropdown di kartu total
+  static const String _semuaTabunganValue = 'SEMUA_TABUNGAN';
+  String _selectedJenisTabungan =
+      _semuaTabunganValue; // Default menampilkan semua
 
   final List<String> _bulanOptions = List.generate(
     12,
@@ -167,28 +171,24 @@ class _TabunganPageState extends State<TabunganPage> {
 
   @override
   Widget build(BuildContext context) {
-    // final theme = Theme.of(context); // Bisa tetap digunakan untuk TextTheme jika AppTheme tidak lengkap
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detail Tabungan Anggota'),
-        backgroundColor: AppColors.primaryLight, // Gunakan AppColors
-        foregroundColor:
-            Colors.white, // Biasanya putih untuk AppColors.primaryLight
+        backgroundColor: AppColors.primaryLight,
+        foregroundColor: Colors.white,
         elevation: 1,
       ),
-      backgroundColor: AppColors.primaryBackgroundLight, // Gunakan AppColors
+      backgroundColor: AppColors.primaryBackgroundLight,
       body: RefreshIndicator(
         onRefresh: _fetchAllData,
-        color: AppColors.primaryLight, // Gunakan AppColors
+        color: AppColors.primaryLight,
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start, // Agar judul "Riwayat Mutasi" rata kiri
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // DIUBAH: Panggil _buildTotalCard dengan data lengkap
                   if (_isLoadingSaldo)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 75.0),
@@ -206,11 +206,15 @@ class _TabunganPageState extends State<TabunganPage> {
                         "Gagal memuat total saldo: $_errorMessageSaldo",
                         style: TextStyle(color: AppColors.errorLight),
                         textAlign: TextAlign.center,
-                      ), // Gunakan AppColors
+                      ),
                     )
+                  // Pengecekan baru: pastikan data dan detail tidak null/kosong
                   else if (_tabunganResponse?.success == true &&
-                      _tabunganResponse!.data?.total != null)
-                    _buildTotalCard(context, _tabunganResponse!.data!.total!)
+                      _tabunganResponse!.data != null)
+                    _buildTotalCard(
+                      context,
+                      _tabunganResponse!.data!,
+                    ) // Kirim seluruh data
                   else
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
@@ -224,19 +228,16 @@ class _TabunganPageState extends State<TabunganPage> {
                             "Total saldo tidak tersedia.",
                         style: TextStyle(color: AppColors.secondaryTextLight),
                         textAlign: TextAlign.center,
-                      ), // Gunakan AppColors
+                      ),
                     ),
-
                   _buildSelectionArea(),
-
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
                     child: Text(
                       "Riwayat Mutasi (${_formatNamaBulan(_selectedBulan ?? DateFormat('MM').format(DateTime.now()))} $_selectedTahun)",
                       style: AppTheme.textThemeLight.titleMedium?.copyWith(
-                        // Gunakan AppTheme
                         fontWeight: FontWeight.w600,
-                        color: AppColors.primaryTextLight, // Gunakan AppColors
+                        color: AppColors.primaryTextLight,
                       ),
                     ),
                   ),
@@ -250,42 +251,111 @@ class _TabunganPageState extends State<TabunganPage> {
     );
   }
 
-  Widget _buildTotalCard(BuildContext context, TotalTabungan total) {
-    final textTheme = AppTheme.textThemeLight; // Prioritaskan AppTheme
+  // DIUBAH: Widget ini sekarang lebih dinamis dan berisi Dropdown
+  Widget _buildTotalCard(
+    BuildContext context,
+    TabunganBulananData tabunganData,
+  ) {
+    final textTheme = AppTheme.textThemeLight;
+
+    // Logika untuk menentukan nilai dan label yang akan ditampilkan
+    String displayLabel;
+    num displayValue;
+
+    if (_selectedJenisTabungan == _semuaTabunganValue) {
+      displayLabel = 'Total Saldo (s/d Bulan Ini)';
+      displayValue = tabunganData.total?.totalBulanIniSd ?? 0;
+    } else {
+      // Cari item detail yang cocok
+      final selectedDetail = tabunganData.detail?.firstWhere(
+        (item) => item.jenisTabungan == _selectedJenisTabungan,
+        orElse: () => DetailTabunganItem(), // Fallback
+      );
+      displayLabel = _selectedJenisTabungan;
+      displayValue = selectedDetail?.nilaiBulanIniSd ?? 0;
+    }
 
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 10.0),
       padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 20.0),
       decoration: BoxDecoration(
-        color: AppColors.primaryLight, // Gunakan AppColors
+        color: AppColors.primaryLight,
         borderRadius: BorderRadius.circular(16.0),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryLight.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // BARU: Dropdown untuk memilih jenis tabungan
+          if (tabunganData.detail != null && tabunganData.detail!.isNotEmpty)
+            Theme(
+              data: Theme.of(context).copyWith(
+                canvasColor: AppColors.primaryLight.withRed(
+                  100,
+                ), // Warna background menu dropdown
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedJenisTabungan,
+                  isExpanded: true,
+                  icon: Icon(
+                    Icons.arrow_drop_down_circle_outlined,
+                    color: Colors.white.withOpacity(0.8),
+                  ),
+                  style: textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  items: [
+                    // Opsi pertama untuk "Semua Tabungan"
+                    DropdownMenuItem<String>(
+                      value: _semuaTabunganValue,
+                      child: Text('Semua Tabungan'),
+                    ),
+                    // Opsi lain dari list detail
+                    ...tabunganData.detail!.map((item) {
+                      return DropdownMenuItem<String>(
+                        value: item.jenisTabungan,
+                        child: Text(item.jenisTabungan ?? 'Tidak Diketahui'),
+                      );
+                    }).toList(),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _selectedJenisTabungan = value;
+                      });
+                    }
+                  },
+                ),
+              ),
+            ),
+
+          if (tabunganData.detail != null && tabunganData.detail!.isNotEmpty)
+            const SizedBox(height: 12),
+
+          // Tampilkan label dinamis
           Text(
-            'Total Saldo (s/d Bulan Ini)',
+            displayLabel,
             textAlign: TextAlign.center,
             style: textTheme.titleMedium?.copyWith(
-              color: Colors.white.withOpacity(
-                0.9,
-              ), // Teks putih di atas primaryLight
+              color: Colors.white.withOpacity(0.9),
             ),
           ),
           const SizedBox(height: 8),
+          // Tampilkan nilai dinamis
           Text(
-            _currencyFormatter.format(total.totalBulanIniSd ?? 0),
+            _currencyFormatter.format(displayValue),
             style: textTheme.displaySmall?.copyWith(
-              color: Colors.white, // Teks putih
+              color: Colors.white,
               fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Perubahan Bulan Ini: ${_currencyFormatter.format(total.totalBulanIni ?? 0)}',
-            style: textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withOpacity(0.8), // Teks putih
             ),
           ),
         ],

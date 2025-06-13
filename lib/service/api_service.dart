@@ -20,6 +20,7 @@ import '../model/mutasi_tabungan_response.dart';
 import '../model/pinjaman_list.dart';
 import '../model/tagihan_anggota.dart';
 import '../model/ticket_response.dart';
+import '../model/pinjaman_preview.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
@@ -2841,6 +2842,89 @@ class ApiService {
     } catch (e) {
       print("[ApiService.closeTicket] Exception: $e");
       rethrow;
+    }
+  }
+
+  Future<PinjamanPreviewResponse> getPinjamanPreview(int tPinjamanId) async {
+    final String endpoint = "/api/pinjaman/preview/$tPinjamanId";
+    try {
+      final String? token = await _getAuthToken();
+      if (token == null || token.isEmpty) {
+        throw Exception("Sesi tidak valid. Silakan login kembali.");
+      }
+
+      final response = await _dio.get(
+        endpoint,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200) {
+        return PinjamanPreviewResponse.fromJson(response.data);
+      } else {
+        throw Exception("Gagal memuat detail pinjaman.");
+      }
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? "Terjadi kesalahan jaringan.";
+      throw Exception(message);
+    }
+  }
+
+  // Metode untuk menyimpan data approval
+  // !! PENTING: Ini adalah PLACEHOLDER. Sesuaikan endpoint dan payload dengan API Anda.
+  Future<Map<String, dynamic>> submitApproval({
+    required int tPinjamanId, // <-- ID ini sudah diterima sebagai parameter
+    required double jumlahDisetujui,
+    required int tenor,
+    required double margin,
+    required double biayaAdmin,
+    required int statusId,
+    String? catatan,
+    String? tglPencairan, // Format yyyy-MM-dd
+    String? tglPelunasan, // Format yyyy-MM-dd
+  }) async {
+    // URL sudah benar sesuai konfirmasi Anda
+    const String endpoint = "/api/pinjaman/approval";
+
+    try {
+      final String? token = await _getAuthToken();
+      if (token == null || token.isEmpty) {
+        throw Exception("Sesi tidak valid. Silakan login kembali.");
+      }
+
+      // Payload yang diperbaiki
+      final Map<String, dynamic> payload = {
+        // **!! PERBAIKAN UTAMA DI SINI: TAMBAHKAN ID PINJAMAN !!**
+        't_pinjaman_id': tPinjamanId,
+
+        // Data lainnya tetap sama
+        'ri_jumlah_pinjaman': jumlahDisetujui,
+        'tenor': tenor,
+        'margin': margin,
+        'biaya_admin': biayaAdmin,
+        'p_status_pengajuan_id': statusId,
+        'remarks': catatan,
+        'tgl_pencairan': tglPencairan,
+        'tgl_pelunasan': tglPelunasan,
+        // '_method':
+        //     'PUT', // Tetap sertakan ini untuk keamanan jika metode aslinya adalah PUT
+      };
+
+      // Metode pemanggilan tetap POST karena _method akan dihandle oleh Laravel
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200) {
+        return response.data;
+      } else {
+        throw Exception("Gagal menyimpan data approval.");
+      }
+    } on DioException catch (e) {
+      final message = e.response?.data?['message'] ?? "Gagal menyimpan data.";
+      throw Exception(message);
     }
   }
 }
