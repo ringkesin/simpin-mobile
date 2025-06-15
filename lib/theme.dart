@@ -10,7 +10,7 @@ class AppColors {
   static const Color tertiaryLight = Color(0xFFFFFFFF);
   static const Color alternateLight = Color(0xFF217942);
 
-  static const Color primaryTextLight = Color(0xFF333333);
+  static const Color primaryTextLight = Color(0xFF0F172A);
   static const Color secondaryTextLight = Color(0xFF666666);
   static const Color primaryBackgroundLight = Color(0xFFFFFFFF);
   static const Color secondaryBackgroundLight = Color(0xFFF2F2F2);
@@ -326,9 +326,7 @@ class AppTheme {
       // Definisikan colorScheme dark
       primary: AppColors.primaryDark,
       secondary: AppColors.alternateDark,
-      surface:
-          AppColors
-              .secondaryBackgroundDark,
+      surface: AppColors.secondaryBackgroundDark,
       error: AppColors.errorDark,
       onPrimary: Colors.white,
       onSecondary: Colors.white,

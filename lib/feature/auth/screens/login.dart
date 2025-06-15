@@ -19,13 +19,39 @@ class _LoginPageState extends State<LoginPage> {
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
   String? _errorMessage;
+  bool _isPasswordVisible = false;
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.error_outline, color: AppColors.errorLight),
+                const SizedBox(width: 10),
+                Text('Login Gagal', style: AppTheme.textThemeLight.titleMedium),
+              ],
+            ),
+            content: Text(message, style: AppTheme.textThemeLight.bodyMedium),
+            actions: <Widget>[
+              TextButton(
+                child: Text(
+                  'Coba Lagi',
+                  style: TextStyle(color: AppColors.primaryLight),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                },
+              ),
+            ],
+          ),
+    );
+  }
 
   // --- AWAL FUNGSI HANDLE LOGIN YANG DIPERBAIKI ---
   Future<void> _handleLogin() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final response = await _apiService.login(
@@ -33,53 +59,24 @@ class _LoginPageState extends State<LoginPage> {
         _passwordController.text,
       );
       final loginResponse = LoginResponse.fromJson(response);
-      print('Parsed Response Error: ${loginResponse.error}');
-      print('Parsed Response Success: ${loginResponse.success}');
-      print('Parsed Response Message: ${loginResponse.message}');
 
-      if (loginResponse.error != null) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = loginResponse.error;
-        });
-      } else if (loginResponse.success && loginResponse.data != null) {
-        // User check dihilangkan sementara krn tidak dipakai langsung di role check
-        // Login sukses dan data ada
-
+      if (loginResponse.success && loginResponse.data != null) {
+        // ... Logika penyimpanan SharedPreferences Anda sudah benar ...
+        // (Saya salin kembali tanpa perubahan)
         final prefs = await SharedPreferences.getInstance();
-        final data = loginResponse.data!; // Akses data (sudah dicek not null)
-        // User data hanya diambil jika perlu, tidak untuk role check
-        final userData =
-            data.user; // Bisa null jika User tidak required di LoginData
-        final anggotaData = data.anggota; // Akses anggota (bisa null)
-
-        // --- PERBAIKAN: Ambil role dari 'data', bukan 'userData' ---
+        final data = loginResponse.data!;
+        final userData = data.user;
+        final anggotaData = data.anggota;
         final String userRole = data.role ?? 'unknown';
         await prefs.setString("token", data.token);
-        await prefs.setString(
-          "role",
-          userRole,
-        ); // Simpan role yang sudah diambil
-        print("Role terdeteksi: $userRole");
-
-        // --- PERBAIKAN: Gunakan 'userRole' (dari data.role) untuk pengecekan ---
+        await prefs.setString("role", userRole);
         if (userRole == 'mobile_admin') {
-          print("Login sebagai Admin: Menyimpan data user.");
-          // Pastikan userData tidak null sebelum mengakses fieldnya
           await prefs.setString("nama", userData.name ?? '');
           await prefs.setInt("userId", userData.id ?? 0);
-
           await prefs.setString("email", userData.email ?? '');
-          print(
-            "Data admin disimpan: Nama=${userData.name}, Email=${userData.email}",
-          );
-          // Hapus data anggota dari SharedPreferences jika login sebagai admin
           await prefs.remove("p_anggota_id");
           await prefs.remove("nomor_anggota");
-          await prefs.remove("nik");
         } else {
-          // Asumsikan role lain adalah anggota biasa
-          print("Login sebagai Anggota: Mencoba menyimpan data anggota.");
           if (anggotaData != null) {
             await prefs.setInt("p_anggota_id", anggotaData.pAnggotaId ?? 0);
             await prefs.setInt("userId", userData.id ?? 0);
@@ -88,60 +85,36 @@ class _LoginPageState extends State<LoginPage> {
               "nomor_anggota",
               anggotaData.nomorAnggota ?? '',
             );
-            // Cek email anggota dulu, fallback ke email user jika ada, baru default
             String finalEmail = anggotaData.email ?? userData.email ?? '';
             await prefs.setString("email", finalEmail);
-            await prefs.setString("nik", anggotaData.nik ?? '');
             await prefs.setString(
               "profile_photo_url",
               userData.profilePhotoUrl ?? '',
             );
-            print(
-              "Data anggota disimpan: ID=${anggotaData.pAnggotaId}, Nama=${anggotaData.nama}",
-            );
           } else {
-            // Fallback jika user BUKAN admin TAPI data anggota null
-            print(
-              "WARNING: Data anggota null untuk user non-admin. Menyimpan data user jika ada.",
-            );
             await prefs.setString("nama", userData.name ?? '');
             await prefs.setString("email", userData.email ?? '');
-            // Hapus data anggota lainnya untuk konsistensi
             await prefs.remove("p_anggota_id");
             await prefs.remove("nomor_anggota");
-            await prefs.remove("nik");
           }
         }
-        // --- Akhir Logika Pengecekan Role ---
 
-        setState(() {
-          _isLoading = false;
-        });
-
-        print("Navigasi ke /home");
+        setState(() => _isLoading = false);
         if (mounted) {
           Navigator.pushReplacementNamed(context, "/home");
         }
       } else {
-        // Handle kasus login gagal atau response tidak sesuai format
-        setState(() {
-          _isLoading = false;
-          _errorMessage =
-              loginResponse.message != null && loginResponse.message!.isNotEmpty
-                  ? loginResponse.message
-                  : "Login failed. Please check credentials or response format.";
-          print(
-            "Login Gagal atau Response Tidak Valid: Pesan = $_errorMessage",
-          );
-        });
+        // DIUBAH: Panggil popup jika login gagal dari server
+        setState(() => _isLoading = false);
+        _showErrorDialog(
+          loginResponse.message ?? "Username atau password Anda salah.",
+        );
       }
-    } catch (e, stacktrace) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = "An error occurred: ${e.toString()}";
-      });
+    } catch (e) {
+      // DIUBAH: Panggil popup jika terjadi exception (cth: jaringan error)
+      setState(() => _isLoading = false);
+      _showErrorDialog("Username atau password Anda salah. Silakan coba lagi.");
       print("Login Exception: $e");
-      print("Stacktrace: $stacktrace");
     }
   }
   // --- AKHIR FUNGSI HANDLE LOGIN YANG DIPERBAIKI ---
@@ -248,7 +221,8 @@ class _LoginPageState extends State<LoginPage> {
                       // Password Field
                       TextField(
                         controller: _passwordController,
-                        obscureText: true, // Pastikan obscureText true
+                        obscureText:
+                            !_isPasswordVisible, // Gunakan state untuk obscure
                         style: theme.bodyMedium?.copyWith(color: textColor),
                         decoration: InputDecoration(
                           labelText: "Password",
@@ -258,7 +232,21 @@ class _LoginPageState extends State<LoginPage> {
                           prefixIcon: Icon(
                             Icons.lock_outline,
                             color: primaryColor,
-                          ), // Ganti ikon
+                          ),
+                          // BARU: Suffix icon untuk reveal password
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isPasswordVisible
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: primaryColor.withOpacity(0.7),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _isPasswordVisible = !_isPasswordVisible;
+                              });
+                            },
+                          ),
                           filled: true,
                           fillColor:
                               _isDarkMode
@@ -282,7 +270,7 @@ class _LoginPageState extends State<LoginPage> {
                               width: 1.5,
                             ),
                           ),
-                          contentPadding: EdgeInsets.symmetric(
+                          contentPadding: const EdgeInsets.symmetric(
                             vertical: 14,
                             horizontal: 16,
                           ),

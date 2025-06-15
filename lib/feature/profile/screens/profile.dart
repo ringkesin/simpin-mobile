@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:file_picker/file_picker.dart';
 // !! PENTING: PASTIKAN PATH DAN NAMA FILE MODEL INI BENAR !!
 import '../../../model/anggota_profile.dart';
 import '../../../service/api_service.dart';
@@ -56,13 +56,34 @@ class _ProfileScreenState extends State<ProfileScreen>
   final TextEditingController _tglLahirController = TextEditingController();
   DateTime? _selectedDate; // Untuk menyimpan tanggal lahir yang dipilih
 
+  // State untuk upload dokumen
+  final _docFormKey = GlobalKey<FormState>();
+  bool _isUpdatingDocs = false;
+  final _noKtpController = TextEditingController();
+  final _noKartuPegawaiController = TextEditingController();
+  final _noKartuKeluargaController = TextEditingController();
+  final _noNpwpController = TextEditingController();
+  XFile? _fileKtp;
+  XFile? _fileKartuPegawai;
+  XFile? _fileKartuKeluarga;
+  XFile? _fileNpwp;
+
   final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadInitialData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_anggotaProfile != null) {
+      _noKtpController.text = _anggotaProfile!.ktp ?? '';
+      _noKartuPegawaiController.text = _anggotaProfile!.nik ?? '';
+    }
   }
 
   @override
@@ -71,11 +92,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     _oldPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmNewPasswordController.dispose();
-    // Dispose controller edit profil
     _alamatController.dispose();
     _emailController.dispose();
     _nomorHpController.dispose();
     _tglLahirController.dispose();
+    _noKtpController.dispose();
+    _noKartuPegawaiController.dispose();
+    _noKartuKeluargaController.dispose();
+    _noNpwpController.dispose();
     super.dispose();
   }
 
@@ -437,6 +461,105 @@ class _ProfileScreenState extends State<ProfileScreen>
     return null;
   }
 
+  Future<XFile?> _pickPdfFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        return XFile(result.files.single.path!);
+      }
+      return null;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memilih file PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return null;
+    }
+  }
+
+  Future<XFile?> _pickImageFromGallery() async {
+    try {
+      return await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memilih gambar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      return null;
+    }
+  }
+
+  Future<void> _handleUpdateDocuments() async {
+    if (!(_docFormKey.currentState?.validate() ?? false)) return;
+
+    if (_fileKtp == null &&
+        _fileKartuPegawai == null &&
+        _fileKartuKeluarga == null &&
+        _fileNpwp == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pilih minimal satu file dokumen untuk diunggah.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isUpdatingDocs = true);
+
+    try {
+      final response = await _apiService.updateUserDocuments(
+        attachmentKtp: _fileKtp,
+        noKtp: _noKtpController.text,
+        attachmentKartuPegawai: _fileKartuPegawai,
+        noKartuPegawai: _noKartuPegawaiController.text,
+        attachmentKartuKeluarga: _fileKartuKeluarga,
+        noKartuKeluarga: _noKartuKeluargaController.text,
+        attachmentNpwp: _fileNpwp,
+        noNpwp: _noNpwpController.text,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response['message'] ?? 'Dokumen berhasil diperbarui.'),
+          backgroundColor: AppColors.successLight,
+        ),
+      );
+
+      setState(() {
+        _fileKtp = null;
+        _fileKartuPegawai = null;
+        _fileKartuKeluarga = null;
+        _fileNpwp = null;
+      });
+    } on Exception catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst("Exception: ", "")),
+          backgroundColor: AppColors.errorLight,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUpdatingDocs = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = AppTheme.textThemeLight;
@@ -489,15 +612,194 @@ class _ProfileScreenState extends State<ProfileScreen>
           labelColor: AppColors.primaryLight,
           unselectedLabelColor: AppColors.secondaryTextLight,
           indicatorColor: AppColors.primaryLight,
-          tabs: const [Tab(text: 'Info Profil'), Tab(text: 'Ganti Password')],
+          tabs: const [
+            Tab(text: 'Info Profil'),
+            Tab(text: 'Dokumen'), // Tab baru
+            Tab(text: 'Ganti Password'),
+          ],
         ),
         Expanded(
           child: TabBarView(
             controller: _tabController,
             children: [
               _buildProfileInfoTab(context),
+              _buildDocumentTab(context), // View baru untuk tab dokumen
               _buildChangePasswordTab(context),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDocumentTab(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Form(
+        key: _docFormKey,
+        child: Column(
+          children: [
+            _buildDocumentSection(context),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _isUpdatingDocs ? null : _handleUpdateDocuments,
+              icon:
+                  _isUpdatingDocs
+                      ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                      : const Icon(Icons.cloud_upload_outlined, size: 18),
+              label: const Text('Simpan Perubahan Dokumen'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryLight,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // BARU: Widget untuk membangun keseluruhan seksi dokumen
+  Widget _buildDocumentSection(BuildContext context) {
+    return Card(
+      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.folder_copy_outlined,
+                  color: AppColors.primaryLight,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "Dokumen Keanggotaan",
+                  style: AppTheme.textThemeLight.titleMedium?.copyWith(
+                    color: AppColors.primaryLight,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24, thickness: 0.5),
+            _buildDocumentUploader(
+              label: 'Nomor KTP',
+              controller: _noKtpController,
+              file: _fileKtp,
+              onPickFile: () async {
+                final file = await _pickPdfFile(); // DIUBAH
+                if (file != null) setState(() => _fileKtp = file);
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildDocumentUploader(
+              label: 'Nomor Kartu Pegawai',
+              controller: _noKartuPegawaiController,
+              file: _fileKartuPegawai,
+              onPickFile: () async {
+                final file = await _pickPdfFile(); // DIUBAH
+                if (file != null) setState(() => _fileKartuPegawai = file);
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildDocumentUploader(
+              label: 'Nomor Kartu Keluarga',
+              controller: _noKartuKeluargaController,
+              file: _fileKartuKeluarga,
+              onPickFile: () async {
+                final file = await _pickPdfFile(); // DIUBAH
+                if (file != null) setState(() => _fileKartuKeluarga = file);
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildDocumentUploader(
+              label: 'Nomor NPWP',
+              controller: _noNpwpController,
+              file: _fileNpwp,
+              onPickFile: () async {
+                final file = await _pickPdfFile(); // DIUBAH
+                if (file != null) setState(() => _fileNpwp = file);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDocumentUploader({
+    required String label,
+    required TextEditingController controller,
+    required XFile? file,
+    required VoidCallback onPickFile,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: label,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 14,
+            ),
+          ),
+          keyboardType: TextInputType.text,
+          validator: (value) {
+            if (file != null && (value == null || value.isEmpty)) {
+              return 'Nomor tidak boleh kosong jika file diunggah';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: onPickFile,
+          icon: Icon(
+            Icons.attach_file_rounded,
+            size: 16,
+            color: AppColors.secondaryTextLight,
+          ),
+          label: Expanded(
+            child: Text(
+              file?.name ?? 'Pilih file PDF...', // DIUBAH
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color:
+                    file != null
+                        ? AppColors.primaryTextLight
+                        : AppColors.secondaryTextLight,
+                fontWeight: file != null ? FontWeight.w500 : FontWeight.normal,
+              ),
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 48),
+            alignment: Alignment.centerLeft,
+            side: BorderSide(color: Colors.grey.shade300),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         ),
       ],
@@ -697,16 +999,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               label: 'Username',
               value: _displayData(user.username),
             ),
-            _buildInfoRow(
-              context,
-              label: 'Email Akun',
-              value: _displayData(user.email),
-            ),
-            _buildInfoRow(
-              context,
-              label: 'No. Telepon Akun',
-              value: _displayData(user.mobile),
-            ),
+
             _buildInfoRow(
               context,
               label: 'Akun Valid Sejak',

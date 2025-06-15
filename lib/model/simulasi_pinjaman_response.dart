@@ -2,15 +2,17 @@
 
 import 'dart:convert';
 
+// Fungsi helper (dikembalikan seperti semula)
 SimulasiPinjamanResponse simulasiPinjamanResponseFromJson(String str) =>
     SimulasiPinjamanResponse.fromJson(json.decode(str));
 
 String simulasiPinjamanResponseToJson(SimulasiPinjamanResponse data) =>
     json.encode(data.toJson());
 
+// Class SimulasiPinjamanResponse (dikembalikan seperti semula)
 class SimulasiPinjamanResponse {
   final bool success;
-  final SimulasiResult? data; // Jadikan nullable
+  final SimulasiResult? data;
   final String? message;
 
   SimulasiPinjamanResponse({required this.success, this.data, this.message});
@@ -32,21 +34,25 @@ class SimulasiPinjamanResponse {
   };
 }
 
+// Class SimulasiResult (dimodifikasi dengan benar)
 class SimulasiResult {
   final int? tahun;
   final int? tenor;
   final double? margin;
   final double? angsuran;
-  final double? biayaAdmin; // FIELD BARU
-  final int? biayaAdminRp; // FIELD BARU
+  final double? biayaAdmin;
+  final int? biayaAdminRp;
+  // Variabel baru dengan nama yang benar (tidak diubah)
+  final double? total_pengembalian;
 
   SimulasiResult({
     this.tahun = 0,
     this.tenor = 0,
     this.margin = 0.0,
     this.angsuran = 0.0,
-    this.biayaAdmin, // Tambahkan di constructor
-    this.biayaAdminRp, // Tambahkan di constructor
+    this.biayaAdmin,
+    this.biayaAdminRp,
+    this.total_pengembalian, // Menggunakan nama variabel yang benar
   });
 
   factory SimulasiResult.fromJson(Map<String, dynamic> json) => SimulasiResult(
@@ -54,8 +60,9 @@ class SimulasiResult {
     tenor: (json["tenor"] as int?) ?? 0,
     margin: (json["margin"] as num?)?.toDouble() ?? 0.0,
     angsuran: (json["angsuran"] as num?)?.toDouble() ?? 0.0,
-    biayaAdmin: (json["biaya_admin"] as num?)?.toDouble(), // Parsing field baru
-    biayaAdminRp: json["biaya_admin_rp"] as int?, // Parsing field baru
+    biayaAdmin: (json["biaya_admin"] as num?)?.toDouble(),
+    biayaAdminRp: json["biaya_admin_rp"] as int?,
+    total_pengembalian: (json["total_pengembalian"] as num?)?.toDouble(),
   );
 
   Map<String, dynamic> toJson() => {
@@ -63,7 +70,8 @@ class SimulasiResult {
     "tenor": tenor,
     "margin": margin,
     "angsuran": angsuran,
-    "biaya_admin": biayaAdmin, // Tambahkan ke toJson
-    "biaya_admin_rp": biayaAdminRp, // Tambahkan ke toJson
+    "biaya_admin": biayaAdmin,
+    "biaya_admin_rp": biayaAdminRp,
+    "total_pengembalian": total_pengembalian,
   };
 }

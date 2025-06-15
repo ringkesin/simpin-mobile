@@ -2927,4 +2927,93 @@ class ApiService {
       throw Exception(message);
     }
   }
+
+  Future<Map<String, dynamic>> updateUserDocuments({
+    XFile? attachmentKtp,
+    String? noKtp,
+    XFile? attachmentKartuPegawai,
+    String? noKartuPegawai,
+    XFile? attachmentKartuKeluarga,
+    String? noKartuKeluarga,
+    XFile? attachmentNpwp,
+    String? noNpwp,
+  }) async {
+    const String endpoint = '/api/profile/update-doc';
+    final String? token = await _getAuthToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Sesi tidak valid. Silakan login kembali.');
+    }
+
+    final Map<String, dynamic> formDataMap = {};
+
+    // Menambahkan file dan nomor ke FormData hanya jika keduanya ada
+    if (attachmentKtp != null && noKtp != null && noKtp.isNotEmpty) {
+      formDataMap['attachment_ktp'] = await MultipartFile.fromFile(
+        attachmentKtp.path,
+        filename: attachmentKtp.name,
+      );
+      formDataMap['attr_no_ktp'] = noKtp;
+    }
+    if (attachmentKartuPegawai != null &&
+        noKartuPegawai != null &&
+        noKartuPegawai.isNotEmpty) {
+      formDataMap['attachment_kartu_pegawai'] = await MultipartFile.fromFile(
+        attachmentKartuPegawai.path,
+        filename: attachmentKartuPegawai.name,
+      );
+      formDataMap['attr_no_kartu_pegawai'] = noKartuPegawai;
+    }
+    if (attachmentKartuKeluarga != null &&
+        noKartuKeluarga != null &&
+        noKartuKeluarga.isNotEmpty) {
+      formDataMap['attachment_kartu_keluarga'] = await MultipartFile.fromFile(
+        attachmentKartuKeluarga.path,
+        filename: attachmentKartuKeluarga.name,
+      );
+      formDataMap['attr_no_kartu_keluarga'] = noKartuKeluarga;
+    }
+    if (attachmentNpwp != null && noNpwp != null && noNpwp.isNotEmpty) {
+      formDataMap['attachment_npwp'] = await MultipartFile.fromFile(
+        attachmentNpwp.path,
+        filename: attachmentNpwp.name,
+      );
+      formDataMap['attr_npwp'] = noNpwp;
+    }
+
+    if (formDataMap.isEmpty) {
+      throw Exception(
+        "Tidak ada dokumen atau nomor yang diisi untuk diperbarui.",
+      );
+    }
+
+    final formData = FormData.fromMap(formDataMap);
+
+    try {
+      final response = await _dio.post(
+        endpoint,
+        data: formData,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+            'Content-Type': 'multipart/form-data',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        return response.data;
+      } else {
+        throw Exception(
+          response.data?['message'] ?? 'Gagal memperbarui dokumen.',
+        );
+      }
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ??
+          'Terjadi kesalahan saat memperbarui dokumen.';
+      throw Exception(message);
+    }
+  }
 }

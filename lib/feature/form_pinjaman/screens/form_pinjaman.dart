@@ -827,50 +827,50 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
                     style: TextStyle(color: Colors.grey[600]),
                   ),
                 ),
-              const SizedBox(height: 16),
-              Stack(
-                children: [
-                  _buildTextField(
-                    controller: _biayaAdminController,
-                    labelText: 'Biaya Admin', // Ubah label jika perlu
-                    hintText:
-                        _isLoadingSimulasi
-                            ? 'Menghitung...'
-                            : 'Akan terisi setelah simulasi',
-                    // prefixText: 'Rp ', // HAPUS ATAU GANTI INI
-                    suffixText: '%', // TAMBAHKAN INI
-                    keyboardType:
-                        TextInputType.number, // Meskipun readOnly, ini relevan
-                    icon:
-                        Icons.percent_outlined, // Ganti ikon menjadi persentase
-                    readOnly: true,
-                    validator: (value) {
-                      String? errorMessage;
-                      // Validasi tetap berdasarkan apakah _simulasiBiayaAdmin (nilai Rupiah) sudah dihitung
-                      if (_simulasiBiayaAdmin == null) {
-                        errorMessage = 'Biaya admin belum disimulasikan';
-                      }
-                      print(
-                        'DEBUG Validator BiayaAdmin (UI Persen): value="$value", _simulasiBiayaAdmin (Rp)=$_simulasiBiayaAdmin, error="$errorMessage"',
-                      );
-                      return errorMessage;
-                    },
-                  ),
-                  if (_isLoadingSimulasi)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.white.withOpacity(0.1),
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 40.0),
-                        child: const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              // const SizedBox(height: 16),
+              // Stack(
+              //   children: [
+              //     _buildTextField(
+              //       controller: _biayaAdminController,
+              //       labelText: 'Biaya Admin', // Ubah label jika perlu
+              //       hintText:
+              //           _isLoadingSimulasi
+              //               ? 'Menghitung...'
+              //               : 'Akan terisi setelah simulasi',
+              //       // prefixText: 'Rp ', // HAPUS ATAU GANTI INI
+              //       suffixText: '%', // TAMBAHKAN INI
+              //       keyboardType:
+              //           TextInputType.number, // Meskipun readOnly, ini relevan
+              //       icon:
+              //           Icons.percent_outlined, // Ganti ikon menjadi persentase
+              //       readOnly: true,
+              //       validator: (value) {
+              //         String? errorMessage;
+              //         // Validasi tetap berdasarkan apakah _simulasiBiayaAdmin (nilai Rupiah) sudah dihitung
+              //         if (_simulasiBiayaAdmin == null) {
+              //           errorMessage = 'Biaya admin belum disimulasikan';
+              //         }
+              //         print(
+              //           'DEBUG Validator BiayaAdmin (UI Persen): value="$value", _simulasiBiayaAdmin (Rp)=$_simulasiBiayaAdmin, error="$errorMessage"',
+              //         );
+              //         return errorMessage;
+              //       },
+              //     ),
+              //     if (_isLoadingSimulasi)
+              //       Positioned.fill(
+              //         child: Container(
+              //           color: Colors.white.withOpacity(0.1),
+              //           alignment: Alignment.centerRight,
+              //           padding: const EdgeInsets.only(right: 40.0),
+              //           child: const SizedBox(
+              //             width: 20,
+              //             height: 20,
+              //             child: CircularProgressIndicator(strokeWidth: 2),
+              //           ),
+              //         ),
+              //       ),
+              //   ],
+              // ),
               const SizedBox(height: 32),
               _buildNextButton(), // Tombol "Berikutnya" di Step 1
             ],

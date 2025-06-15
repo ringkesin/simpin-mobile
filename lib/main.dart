@@ -39,6 +39,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => const LoginPage(), // Halaman login sebagai default
         '/home': (context) => MainWrapper(), // Definisi rute home
+        '/login': (context) => const LoginPage(),
       },
     );
   }

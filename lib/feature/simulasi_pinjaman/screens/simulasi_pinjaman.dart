@@ -5,8 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../model/tenor_response.dart';
 import '../../../model/simulasi_pinjaman_response.dart';
-// GANTI IMPORT MODEL JENIS PINJAMAN
-import '../../../model/jenis_pinjaman.dart'; // SESUAIKAN PATH JIKA PERLU
+import '../../../model/jenis_pinjaman.dart';
 import '../../../service/api_service.dart';
 import '../../../theme.dart';
 
@@ -23,19 +22,17 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
   final _jumlahPinjamanController = TextEditingController();
   final _amountFormatter = NumberFormat("#,##0", "id_ID");
 
-  // State untuk Jenis Pinjaman - GUNAKAN JenisPinjamanModel
+  // State
   bool _isLoadingJenisPinjaman = true;
   String? _jenisPinjamanError;
-  List<JenisPinjamanModel> _availableJenisPinjaman = []; // GANTI TIPE LIST
+  List<JenisPinjamanModel> _availableJenisPinjaman = [];
   int? _selectedJenisPinjamanId;
 
-  // State untuk Tenor
   bool _isLoadingTenors = false;
   String? _tenorError;
   List<TenorItem> _availableTenors = [];
   int? _selectedTenor;
 
-  // State untuk Simulasi
   bool _isLoadingSimulasi = false;
   String? _simulasiError;
   SimulasiResult? _simulasiResult;
@@ -94,7 +91,6 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
       _simulasiError = null;
     });
     try {
-      // PANGGIL METODE DARI API SERVICE ANDA
       final jenisPinjamanList = await _apiService.getMasterJenisPinjaman();
       if (!mounted) return;
       setState(() {
@@ -223,10 +219,8 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-
-                _buildJenisPinjamanDropdown(context), // Dropdown Jenis Pinjaman
+                _buildJenisPinjamanDropdown(context),
                 const SizedBox(height: 20),
-
                 TextFormField(
                   controller: _jumlahPinjamanController,
                   decoration: const InputDecoration(
@@ -252,10 +246,8 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
                   },
                 ),
                 const SizedBox(height: 20),
-
-                _buildTenorDropdown(context), // Dropdown Tenor
+                _buildTenorDropdown(context),
                 const SizedBox(height: 40),
-
                 ElevatedButton.icon(
                   icon:
                       _isLoadingSimulasi
@@ -321,7 +313,6 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
         labelText: 'Jenis Pinjaman',
         hintText: 'Pilih jenis pinjaman...',
       ),
-      // GUNAKAN JenisPinjamanModel
       items:
           _availableJenisPinjaman.map((JenisPinjamanModel item) {
             return DropdownMenuItem<int>(
@@ -356,21 +347,17 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
           decoration: InputDecoration(
             labelText: 'Jangka Waktu (Tenor)',
             hintText: 'Pilih jenis pinjaman terlebih dahulu',
-            border: const OutlineInputBorder(), // Ensure consistent styling
+            border: const OutlineInputBorder(),
             contentPadding: const EdgeInsets.symmetric(
-              // Consistent padding
-              horizontal:
-                  12.0, // Adjusted from 10 to match DropdownButtonFormField better
-              vertical: 15.0, // Adjusted to ensure text is vertically centered
+              horizontal: 12.0,
+              vertical: 15.0,
             ),
-            filled: true, // Optional: makes it look more like a disabled field
-            fillColor: Colors.grey[100], // Optional
+            filled: true,
+            fillColor: Colors.grey[100],
           ),
           child: Text(
             'Pilih jenis pinjaman dahulu',
-            style: TextStyle(
-              color: Colors.grey[700],
-            ), // Darker grey for better readability
+            style: TextStyle(color: Colors.grey[700]),
           ),
         ),
       );
@@ -440,6 +427,23 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
       return const SizedBox.shrink();
     }
 
+    // Logika untuk menentukan label dan nilai utama
+    String mainLabel;
+    String mainValue;
+    IconData mainIcon;
+
+    if (_selectedJenisPinjamanId == 2) {
+      mainLabel = 'Total Pengembalian';
+      mainValue = _currencyFormatter.format(
+        _simulasiResult!.total_pengembalian ?? 0,
+      );
+      mainIcon = Icons.summarize_outlined;
+    } else {
+      mainLabel = 'Estimasi Angsuran / Bulan';
+      mainValue = _currencyFormatter.format(_simulasiResult!.angsuran ?? 0);
+      mainIcon = Icons.payment_outlined;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -447,7 +451,7 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
           'Estimasi Hasil Simulasi',
           style: textTheme.titleMedium?.copyWith(
             color: AppColors.primaryTextLight,
-            fontWeight: FontWeight.bold, // Make title a bit bolder
+            fontWeight: FontWeight.bold,
           ),
           textAlign: TextAlign.center,
         ),
@@ -455,48 +459,23 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
         _buildResultRow(
           context,
           icon: Icons.percent_outlined,
-          label: 'Margin Efektif / Tahun',
+          label: 'Admin per tahun',
           value: _percentFormatter.format((_simulasiResult!.margin ?? 0) / 100),
         ),
         const SizedBox(height: 16),
-        if (_simulasiResult!.biayaAdmin != null &&
-            _simulasiResult!.biayaAdmin! > 0) ...[
-          // Check if > 0
-          _buildResultRow(
-            context,
-            icon: Icons.admin_panel_settings_outlined,
-            label: 'Biaya Admin (%)', // Clarified label
-            value: _percentFormatter.format(
-              (_simulasiResult!.biayaAdmin!) / 100,
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        if (_simulasiResult!.biayaAdminRp != null &&
-            _simulasiResult!.biayaAdminRp! > 0) ...[
-          // Check if > 0
-          _buildResultRow(
-            context,
-            icon: Icons.account_balance_wallet_outlined,
-            label: 'Biaya Admin (Rp)',
-            value: _currencyFormatter.format(_simulasiResult!.biayaAdminRp!),
-          ),
-          const SizedBox(height: 16),
-        ],
-
         _buildResultRow(
           context,
-          icon: Icons.payment_outlined,
-          label: 'Estimasi Angsuran / Bulan',
-          value: _currencyFormatter.format(_simulasiResult!.angsuran ?? 0),
+          icon: mainIcon,
+          label: mainLabel,
+          value: mainValue,
           isHighlight: true,
         ),
-        const SizedBox(height: 20), // Increased spacing
+        const SizedBox(height: 20),
         Text(
-          '*Hasil simulasi ini adalah perkiraan dan dapat berbeda dari kondisi sebenarnya.', // Slightly more comprehensive disclaimer
+          '*Hasil simulasi ini adalah perkiraan dan dapat berbeda dari kondisi sebenarnya.',
           style: textTheme.labelSmall?.copyWith(
             color: AppColors.secondaryTextLight,
-            fontStyle: FontStyle.italic, // Italicize disclaimer
+            fontStyle: FontStyle.italic,
           ),
           textAlign: TextAlign.center,
         ),
@@ -513,37 +492,31 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
   }) {
     final textTheme = AppTheme.textThemeLight;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center, // Vertically center items
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Left part (Icon and Label)
         Expanded(
-          // Allows the label to take available space and wrap if necessary
           child: Row(
             children: [
               Icon(icon, color: AppColors.secondaryTextLight, size: 20),
               const SizedBox(width: 12),
               Expanded(
-                // Ensures the text within this Row can wrap
                 child: Text(
                   label,
                   style: textTheme.bodyMedium?.copyWith(
                     color: AppColors.secondaryTextLight,
                   ),
-                  softWrap: true, // Allow label to wrap
+                  softWrap: true,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 8), // Add some spacing between label and value
-        // Right part (Value)
+        const SizedBox(width: 8),
         Text(
           value,
           textAlign: TextAlign.right,
-          softWrap: false, // Crucial: Prevent value from wrapping
-          overflow:
-              TextOverflow
-                  .ellipsis, // In case value is still too long (unlikely for formatted currency)
+          softWrap: false,
+          overflow: TextOverflow.ellipsis,
           style:
               (isHighlight
                   ? textTheme.titleLarge?.copyWith(
