@@ -21,6 +21,7 @@ import '../model/pinjaman_list.dart';
 import '../model/tagihan_anggota.dart';
 import '../model/ticket_response.dart';
 import '../model/pinjaman_preview.dart';
+import '../model/document_attribute.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
@@ -2937,6 +2938,9 @@ class ApiService {
     String? noKartuKeluarga,
     XFile? attachmentNpwp,
     String? noNpwp,
+    // BARU: Tambahkan parameter untuk buku nikah
+    XFile? attachmentBukuNikah,
+    String? noBukuNikah,
   }) async {
     const String endpoint = '/api/profile/update-doc';
     final String? token = await _getAuthToken();
@@ -2947,7 +2951,7 @@ class ApiService {
 
     final Map<String, dynamic> formDataMap = {};
 
-    // Menambahkan file dan nomor ke FormData hanya jika keduanya ada
+    // Blok untuk KTP (tidak berubah)
     if (attachmentKtp != null && noKtp != null && noKtp.isNotEmpty) {
       formDataMap['attachment_ktp'] = await MultipartFile.fromFile(
         attachmentKtp.path,
@@ -2955,6 +2959,7 @@ class ApiService {
       );
       formDataMap['attr_no_ktp'] = noKtp;
     }
+    // Blok untuk Kartu Pegawai (tidak berubah)
     if (attachmentKartuPegawai != null &&
         noKartuPegawai != null &&
         noKartuPegawai.isNotEmpty) {
@@ -2964,6 +2969,7 @@ class ApiService {
       );
       formDataMap['attr_no_kartu_pegawai'] = noKartuPegawai;
     }
+    // Blok untuk Kartu Keluarga (tidak berubah)
     if (attachmentKartuKeluarga != null &&
         noKartuKeluarga != null &&
         noKartuKeluarga.isNotEmpty) {
@@ -2973,12 +2979,24 @@ class ApiService {
       );
       formDataMap['attr_no_kartu_keluarga'] = noKartuKeluarga;
     }
+    // Blok untuk NPWP (tidak berubah)
     if (attachmentNpwp != null && noNpwp != null && noNpwp.isNotEmpty) {
       formDataMap['attachment_npwp'] = await MultipartFile.fromFile(
         attachmentNpwp.path,
         filename: attachmentNpwp.name,
       );
       formDataMap['attr_npwp'] = noNpwp;
+    }
+
+    // BARU: Blok untuk menambahkan data buku nikah
+    if (attachmentBukuNikah != null &&
+        noBukuNikah != null &&
+        noBukuNikah.isNotEmpty) {
+      formDataMap['attachment_buku_nikah'] = await MultipartFile.fromFile(
+        attachmentBukuNikah.path,
+        filename: attachmentBukuNikah.name,
+      );
+      formDataMap['attr_buku_nikah'] = noBukuNikah;
     }
 
     if (formDataMap.isEmpty) {
@@ -3013,6 +3031,54 @@ class ApiService {
       final message =
           e.response?.data?['message'] ??
           'Terjadi kesalahan saat memperbarui dokumen.';
+      throw Exception(message);
+    }
+  }
+
+  Future<DocumentAttributeResponse> getDocumentAttributes() async {
+    const String endpoint = '/api/profile/atribut';
+    final String? token = await _getAuthToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Sesi tidak valid. Silakan login kembali.');
+    }
+
+    try {
+      final response = await _dio.get(
+        endpoint,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      // DEBUG PRINT 1: Lihat data mentah yang diterima dari server
+      print("===== [ApiService] Raw Response from getDocumentAttributes =====");
+      print(response.data);
+      print("=============================================================");
+
+      if (response.statusCode == 200) {
+        final parsedResponse = DocumentAttributeResponse.fromJson(
+          response.data,
+        );
+
+        // DEBUG PRINT 2: Lihat hasil parsing, khususnya URL attachment
+        print(
+          "[ApiService] Parsed KTP Attachment URL: ${parsedResponse.data?.attachment_ktp}",
+        );
+
+        return parsedResponse;
+      } else {
+        throw Exception(
+          response.data?['message'] ?? 'Gagal mengambil data dokumen.',
+        );
+      }
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ??
+          'Terjadi kesalahan saat mengambil data dokumen.';
       throw Exception(message);
     }
   }
