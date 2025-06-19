@@ -427,6 +427,20 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
       return const SizedBox.shrink();
     }
 
+    // Logika kondisional untuk label dan nilai margin
+    String marginLabel;
+    double marginValue;
+
+    if (_selectedJenisPinjamanId == 2) {
+      marginLabel = 'Margin per bulan';
+      final tenor = _simulasiResult!.tenor ?? 1;
+      final margin = _simulasiResult!.margin ?? 0;
+      marginValue = (tenor > 0) ? (margin / tenor) / 100 : 0.0;
+    } else {
+      marginLabel = 'Margin per tahun';
+      marginValue = (_simulasiResult!.margin ?? 0) / 100;
+    }
+
     // Logika untuk menentukan label dan nilai utama
     String mainLabel;
     String mainValue;
@@ -459,8 +473,8 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
         _buildResultRow(
           context,
           icon: Icons.percent_outlined,
-          label: 'Admin per tahun',
-          value: _percentFormatter.format((_simulasiResult!.margin ?? 0) / 100),
+          label: marginLabel,
+          value: _percentFormatter.format(marginValue),
         ),
         const SizedBox(height: 16),
         _buildResultRow(
@@ -471,14 +485,20 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
           isHighlight: true,
         ),
         const SizedBox(height: 20),
-        Text(
-          '*Hasil simulasi ini adalah perkiraan dan dapat berbeda dari kondisi sebenarnya.',
-          style: textTheme.labelSmall?.copyWith(
-            color: AppColors.secondaryTextLight,
-            fontStyle: FontStyle.italic,
+
+        // **** PERUBAHAN UTAMA DI SINI ****
+        // Tampilkan catatan hanya jika biaya admin ada dan lebih dari 0
+        if (_simulasiResult?.biayaAdmin != null &&
+            _simulasiResult!.biayaAdmin! > 0)
+          Text(
+            // Teks diubah menjadi dinamis
+            '*Nilai angsuran sudah termasuk biaya admin ${_percentFormatter.format((_simulasiResult!.biayaAdmin!) / 100)} pertahun.',
+            style: textTheme.labelSmall?.copyWith(
+              color: AppColors.secondaryTextLight,
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
       ],
     );
   }

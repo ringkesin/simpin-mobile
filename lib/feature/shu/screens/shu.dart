@@ -391,7 +391,7 @@ class _ShuPageState extends State<ShuPage> {
           const SizedBox(width: 16),
           Expanded(
             child: Text(
-              "SHU (Sisa Hasil Usaha) adalah keuntungan bersih koperasi yang dibagikan kepada anggota berdasarkan partisipasi mereka.",
+              "SHU (Sisa Hasil Usaha) adalah keuntungan bersih koperasi yang dibagikan kepada anggota berdasarkan partisipasi anggota.",
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 fontStyle: FontStyle.italic,
                 color: Theme.of(context).textTheme.bodySmall?.color,

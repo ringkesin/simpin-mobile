@@ -9,7 +9,10 @@ import 'package:file_picker/file_picker.dart';
 // !! PENTING: PASTIKAN PATH DAN NAMA FILE MODEL INI BENAR !!
 import '../../../model/anggota_profile.dart';
 import '../../../service/api_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../theme.dart';
+
+import '../../../model/document_attribute.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -63,10 +66,16 @@ class _ProfileScreenState extends State<ProfileScreen>
   final _noKartuPegawaiController = TextEditingController();
   final _noKartuKeluargaController = TextEditingController();
   final _noNpwpController = TextEditingController();
+  final _noBukuNikahController = TextEditingController();
   XFile? _fileKtp;
   XFile? _fileKartuPegawai;
   XFile? _fileKartuKeluarga;
   XFile? _fileNpwp;
+  XFile? _fileBukuNikah;
+
+  bool _isLoadingDocs = false;
+  DocumentAttributeData? _documentAttributes;
+  String? _docsError;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -75,19 +84,23 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadInitialData();
+    _tabController?.addListener(_handleTabSelection);
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_anggotaProfile != null) {
-      _noKtpController.text = _anggotaProfile!.ktp ?? '';
-      _noKartuPegawaiController.text = _anggotaProfile!.nik ?? '';
+  void _handleTabSelection() {
+    // Panggil fetch dokumen hanya jika tab "Dokumen" (indeks 1) menjadi aktif
+    // dan datanya belum pernah dimuat
+    if (_tabController!.index == 1 &&
+        _documentAttributes == null &&
+        !_isLoadingDocs) {
+      _fetchDocumentAttributes();
     }
   }
 
   @override
   void dispose() {
+    _tabController?.removeListener(_handleTabSelection);
+
     _tabController?.dispose();
     _oldPasswordController.dispose();
     _newPasswordController.dispose();
@@ -100,7 +113,43 @@ class _ProfileScreenState extends State<ProfileScreen>
     _noKartuPegawaiController.dispose();
     _noKartuKeluargaController.dispose();
     _noNpwpController.dispose();
+    _noBukuNikahController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchDocumentAttributes() async {
+    setState(() {
+      _isLoadingDocs = true;
+      _docsError = null;
+    });
+    try {
+      final response = await _apiService.getDocumentAttributes();
+      if (mounted) {
+        if (response.success && response.data != null) {
+          setState(() {
+            _documentAttributes = response.data;
+            // Isi controller dengan data yang ada
+            _noKtpController.text = _documentAttributes?.attr_no_ktp ?? '';
+            _noKartuPegawaiController.text =
+                _documentAttributes?.attr_no_kartu_pegawai ?? '';
+            _noKartuKeluargaController.text =
+                _documentAttributes?.attr_no_kartu_keluarga ?? '';
+            _noNpwpController.text = _documentAttributes?.attr_npwp ?? '';
+            _noBukuNikahController.text =
+                _documentAttributes?.attr_buku_nikah ?? '';
+          });
+        } else {
+          throw Exception(response.message);
+        }
+      }
+    } catch (e) {
+      if (mounted)
+        setState(
+          () => _docsError = e.toString().replaceFirst("Exception: ", ""),
+        );
+    } finally {
+      if (mounted) setState(() => _isLoadingDocs = false);
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -485,31 +534,15 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-  Future<XFile?> _pickImageFromGallery() async {
-    try {
-      return await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-      );
-    } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memilih gambar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      return null;
-    }
-  }
-
   Future<void> _handleUpdateDocuments() async {
     if (!(_docFormKey.currentState?.validate() ?? false)) return;
 
     if (_fileKtp == null &&
         _fileKartuPegawai == null &&
         _fileKartuKeluarga == null &&
-        _fileNpwp == null) {
+        _fileNpwp == null &&
+        _fileBukuNikah == null) {
+      // DIUBAH
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Pilih minimal satu file dokumen untuk diunggah.'),
@@ -531,6 +564,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         noKartuKeluarga: _noKartuKeluargaController.text,
         attachmentNpwp: _fileNpwp,
         noNpwp: _noNpwpController.text,
+        // BARU: Kirim data buku nikah ke API
+        attachmentBukuNikah: _fileBukuNikah,
+        noBukuNikah: _noBukuNikahController.text,
       );
 
       if (!mounted) return;
@@ -546,6 +582,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         _fileKartuPegawai = null;
         _fileKartuKeluarga = null;
         _fileNpwp = null;
+        _fileBukuNikah = null; // DIUBAH
       });
     } on Exception catch (e) {
       if (!mounted) return;
@@ -633,6 +670,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildDocumentTab(BuildContext context) {
+    if (_isLoadingDocs) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_docsError != null) {
+      return Center(child: Text("Gagal memuat data dokumen: $_docsError"));
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Form(
@@ -672,6 +716,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // BARU: Widget untuk membangun keseluruhan seksi dokumen
   Widget _buildDocumentSection(BuildContext context) {
+    // DEBUG PRINT untuk memastikan _documentAttributes tidak null saat build
+    print("[BuildUI] attachment_ktp: ${_documentAttributes?.attachment_ktp}");
+
     return Card(
       elevation: 1,
       margin: const EdgeInsets.only(bottom: 16),
@@ -684,7 +731,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           children: [
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.folder_copy_outlined,
                   color: AppColors.primaryLight,
                   size: 20,
@@ -700,22 +747,26 @@ class _ProfileScreenState extends State<ProfileScreen>
               ],
             ),
             const Divider(height: 24, thickness: 0.5),
+
+            // DIUBAH: Tambahkan parameter existingFileUrl pada setiap pemanggilan
             _buildDocumentUploader(
               label: 'Nomor KTP',
               controller: _noKtpController,
               file: _fileKtp,
+              existingFileUrl: _documentAttributes?.attachment_ktp,
               onPickFile: () async {
-                final file = await _pickPdfFile(); // DIUBAH
+                final file = await _pickPdfFile();
                 if (file != null) setState(() => _fileKtp = file);
               },
             ),
             const SizedBox(height: 20),
             _buildDocumentUploader(
-              label: 'Nomor Kartu Pegawai',
+              label: 'Nomor ID Card',
               controller: _noKartuPegawaiController,
               file: _fileKartuPegawai,
+              existingFileUrl: _documentAttributes?.attachment_kartu_pegawai,
               onPickFile: () async {
-                final file = await _pickPdfFile(); // DIUBAH
+                final file = await _pickPdfFile();
                 if (file != null) setState(() => _fileKartuPegawai = file);
               },
             ),
@@ -724,8 +775,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               label: 'Nomor Kartu Keluarga',
               controller: _noKartuKeluargaController,
               file: _fileKartuKeluarga,
+              existingFileUrl: _documentAttributes?.attachment_kartu_keluarga,
               onPickFile: () async {
-                final file = await _pickPdfFile(); // DIUBAH
+                final file = await _pickPdfFile();
                 if (file != null) setState(() => _fileKartuKeluarga = file);
               },
             ),
@@ -734,9 +786,21 @@ class _ProfileScreenState extends State<ProfileScreen>
               label: 'Nomor NPWP',
               controller: _noNpwpController,
               file: _fileNpwp,
+              existingFileUrl: _documentAttributes?.attachment_npwp,
               onPickFile: () async {
-                final file = await _pickPdfFile(); // DIUBAH
+                final file = await _pickPdfFile();
                 if (file != null) setState(() => _fileNpwp = file);
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildDocumentUploader(
+              label: 'Nomor Buku Nikah',
+              controller: _noBukuNikahController,
+              file: _fileBukuNikah,
+              existingFileUrl: _documentAttributes?.attachment_buku_nikah,
+              onPickFile: () async {
+                final file = await _pickPdfFile();
+                if (file != null) setState(() => _fileBukuNikah = file);
               },
             ),
           ],
@@ -750,7 +814,26 @@ class _ProfileScreenState extends State<ProfileScreen>
     required TextEditingController controller,
     required XFile? file,
     required VoidCallback onPickFile,
+    String? existingFileUrl,
   }) {
+    bool hasExistingFile =
+        existingFileUrl != null && existingFileUrl.isNotEmpty;
+    bool hasNewFile = file != null;
+
+    String buttonText = 'Pilih file PDF...';
+    Color buttonTextColor = AppColors.secondaryTextLight;
+    FontWeight buttonFontWeight = FontWeight.normal;
+
+    if (hasNewFile) {
+      buttonText = file.name;
+      buttonTextColor = AppColors.primaryTextLight;
+      buttonFontWeight = FontWeight.w500;
+    } else if (hasExistingFile) {
+      buttonText = 'File sudah ada. Klik untuk ganti.';
+      buttonTextColor = AppColors.successLight;
+      buttonFontWeight = FontWeight.w500;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -773,34 +856,66 @@ class _ProfileScreenState extends State<ProfileScreen>
           },
         ),
         const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: onPickFile,
-          icon: Icon(
-            Icons.attach_file_rounded,
-            size: 16,
-            color: AppColors.secondaryTextLight,
-          ),
-          label: Expanded(
-            child: Text(
-              file?.name ?? 'Pilih file PDF...', // DIUBAH
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color:
-                    file != null
-                        ? AppColors.primaryTextLight
-                        : AppColors.secondaryTextLight,
-                fontWeight: file != null ? FontWeight.w500 : FontWeight.normal,
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onPickFile,
+                icon: Icon(
+                  Icons.attach_file_rounded,
+                  size: 16,
+                  color: AppColors.secondaryTextLight,
+                ),
+
+                // DIUBAH: Expanded di dalam label dihapus
+                label: Text(
+                  buttonText,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: buttonTextColor,
+                    fontWeight: buttonFontWeight,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                  alignment: Alignment.centerLeft,
+                  side: BorderSide(color: Colors.grey.shade300),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  // Padding di sini untuk memastikan ada ruang antara ikon dan teks
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
               ),
             ),
-          ),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 48),
-            alignment: Alignment.centerLeft,
-            side: BorderSide(color: Colors.grey.shade300),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
+            if (hasExistingFile && !hasNewFile)
+              Padding(
+                padding: const EdgeInsets.only(left: 8.0),
+                child: IconButton(
+                  icon: Icon(
+                    Icons.visibility_outlined,
+                    color: AppColors.primaryLight,
+                  ),
+                  onPressed: () async {
+                    final uri = Uri.parse(existingFileUrl);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Tidak bisa membuka URL: $existingFileUrl',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+          ],
         ),
       ],
     );
