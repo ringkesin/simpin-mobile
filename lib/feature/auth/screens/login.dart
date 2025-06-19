@@ -141,251 +141,266 @@ class _LoginPageState extends State<LoginPage> {
         _isDarkMode ? AppColors.primaryTextDark : AppColors.primaryTextLight;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 32,
-                ),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: 500),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Logo
-                      Image.asset(
-                        'assets/images/logokkba.png',
-                        height: 120,
-                        fit: BoxFit.contain,
-                      ),
-                      const SizedBox(height: 16),
+      backgroundColor: backgroundColor, // Contoh: Abu-abu terang
 
-                      // Headline Text
-                      Text(
-                        "Welcome Back!",
-                        style: theme.headlineMedium?.copyWith(color: textColor),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Username Field
-                      TextField(
-                        controller: _usernameController,
-                        style: theme.bodyMedium?.copyWith(color: textColor),
-                        decoration: InputDecoration(
-                          labelText: "Username",
-                          labelStyle: theme.bodyMedium?.copyWith(
-                            color: textColor.withOpacity(
-                              0.7,
-                            ), // Sedikit redupkan label
-                          ),
-                          prefixIcon: Icon(
-                            Icons.person_outline,
-                            color: primaryColor,
-                          ), // Ganti ikon
-                          filled: true,
-                          fillColor:
-                              _isDarkMode
-                                  ? AppColors.secondaryBackgroundDark
-                                  : AppColors.secondaryBackgroundLight,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: Colors.grey.shade300.withOpacity(0.5),
-                              width: 1,
-                            ), // Border lebih halus
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: primaryColor,
-                              width: 1.5,
-                            ), // Border fokus sedikit tebal
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 16,
-                          ), // Sesuaikan padding
+      body: Container(
+        // Container ini sekarang HANYA menampilkan gambar pola, tanpa warna latar.
+        // decoration: BoxDecoration(
+        //   image: DecorationImage(
+        //     image: const AssetImage(
+        //       'assets/images/background_simpin_mobile.png',
+        //     ), // Ganti dengan path gambar Anda
+        //     fit: BoxFit.cover,
+        //     opacity: 1,
+        //   ),
+        // ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 32,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 500),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Logo
+                        Image.asset(
+                          'assets/images/logokkba.png',
+                          height: 120,
+                          fit: BoxFit.contain,
                         ),
-                      ),
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
-                      // Password Field
-                      TextField(
-                        controller: _passwordController,
-                        obscureText:
-                            !_isPasswordVisible, // Gunakan state untuk obscure
-                        style: theme.bodyMedium?.copyWith(color: textColor),
-                        decoration: InputDecoration(
-                          labelText: "Password",
-                          labelStyle: theme.bodyMedium?.copyWith(
-                            color: textColor.withOpacity(0.7),
+                        // Headline Text
+                        Text(
+                          "Welcome Back!",
+                          style: theme.headlineMedium?.copyWith(
+                            color: textColor,
                           ),
-                          prefixIcon: Icon(
-                            Icons.lock_outline,
-                            color: primaryColor,
-                          ),
-                          // BARU: Suffix icon untuk reveal password
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _isPasswordVisible
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                              color: primaryColor.withOpacity(0.7),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _isPasswordVisible = !_isPasswordVisible;
-                              });
-                            },
-                          ),
-                          filled: true,
-                          fillColor:
-                              _isDarkMode
-                                  ? AppColors.secondaryBackgroundDark
-                                  : AppColors.secondaryBackgroundLight,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: Colors.grey.shade300.withOpacity(0.5),
-                              width: 1,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: primaryColor,
-                              width: 1.5,
-                            ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 16,
-                          ),
+                          textAlign: TextAlign.center,
                         ),
-                      ),
-                      const SizedBox(height: 10),
+                        const SizedBox(height: 32),
 
-                      // Forgot Password
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {
-                            // TODO: Implement forgot password
-                          },
-                          child: Text(
-                            "Forgot Password?",
-                            style: theme.bodyMedium?.copyWith(
-                              color: primaryColor,
+                        // Username Field
+                        TextField(
+                          controller: _usernameController,
+                          style: theme.bodyMedium?.copyWith(color: textColor),
+                          decoration: InputDecoration(
+                            labelText: "Username",
+                            labelStyle: theme.bodyMedium?.copyWith(
+                              color: textColor.withOpacity(
+                                0.7,
+                              ), // Sedikit redupkan label
                             ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Login Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
+                            prefixIcon: Icon(
+                              Icons.person_outline,
+                              color: primaryColor,
+                            ), // Ganti ikon
+                            filled: true,
+                            fillColor:
+                                _isDarkMode
+                                    ? AppColors.secondaryBackgroundDark
+                                    : AppColors.secondaryBackgroundLight,
+                            border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
                             ),
-                            elevation: 2, // Sedikit shadow
-                          ),
-                          child:
-                              _isLoading
-                                  ? const SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 3,
-                                    ),
-                                  )
-                                  : Text(
-                                    "Login",
-                                    style: theme.titleMedium?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing:
-                                          0.5, // Sedikit spasi antar huruf
-                                    ),
-                                  ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Error Message
-                      if (_errorMessage != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 16.0),
-                          child: Text(
-                            _errorMessage!,
-                            style: const TextStyle(
-                              color: Colors.redAccent,
-                              fontSize: 14,
-                            ), // Warna error sedikit beda
-                            textAlign: TextAlign.center,
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300.withOpacity(0.5),
+                                width: 1,
+                              ), // Border lebih halus
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: primaryColor,
+                                width: 1.5,
+                              ), // Border fokus sedikit tebal
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: 14,
+                              horizontal: 16,
+                            ), // Sesuaikan padding
                           ),
                         ),
+                        const SizedBox(height: 16),
 
-                      // Register Link
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            "Don't have an account?",
-                            style: theme.bodySmall?.copyWith(
-                              color: textColor.withOpacity(0.8),
+                        // Password Field
+                        TextField(
+                          controller: _passwordController,
+                          obscureText:
+                              !_isPasswordVisible, // Gunakan state untuk obscure
+                          style: theme.bodyMedium?.copyWith(color: textColor),
+                          decoration: InputDecoration(
+                            labelText: "Password",
+                            labelStyle: theme.bodyMedium?.copyWith(
+                              color: textColor.withOpacity(0.7),
+                            ),
+                            prefixIcon: Icon(
+                              Icons.lock_outline,
+                              color: primaryColor,
+                            ),
+                            // BARU: Suffix icon untuk reveal password
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _isPasswordVisible
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                                color: primaryColor.withOpacity(0.7),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _isPasswordVisible = !_isPasswordVisible;
+                                });
+                              },
+                            ),
+                            filled: true,
+                            fillColor:
+                                _isDarkMode
+                                    ? AppColors.secondaryBackgroundDark
+                                    : AppColors.secondaryBackgroundLight,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300.withOpacity(0.5),
+                                width: 1,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: primaryColor,
+                                width: 1.5,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                              horizontal: 16,
                             ),
                           ),
-                          TextButton(
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 0,
-                              ), // Kurangi padding default
-                            ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Forgot Password
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
                             onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => RegisterScreen(),
-                                ),
-                              );
+                              // TODO: Implement forgot password
                             },
                             child: Text(
-                              "Create Account",
-                              style: theme.bodySmall?.copyWith(
+                              "Forgot Password?",
+                              style: theme.bodyMedium?.copyWith(
                                 color: primaryColor,
-                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Login Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _handleLogin,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 2, // Sedikit shadow
+                            ),
+                            child:
+                                _isLoading
+                                    ? const SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 3,
+                                      ),
+                                    )
+                                    : Text(
+                                      "Login",
+                                      style: theme.titleMedium?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing:
+                                            0.5, // Sedikit spasi antar huruf
+                                      ),
+                                    ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Error Message
+                        if (_errorMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 14,
+                              ), // Warna error sedikit beda
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+
+                        // Register Link
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "Don't have an account?",
+                              style: theme.bodySmall?.copyWith(
+                                color: textColor.withOpacity(0.8),
+                              ),
+                            ),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 0,
+                                ), // Kurangi padding default
+                              ),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => RegisterScreen(),
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                "Create Account",
+                                style: theme.bodySmall?.copyWith(
+                                  color: primaryColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

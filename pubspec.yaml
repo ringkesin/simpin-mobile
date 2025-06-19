@@ -90,6 +90,7 @@ flutter:
     - assets/images/Card.png
     - assets/images/logokkba_header.png
     - assets/icons/
+    - assets/images/
 
  
 flutter_native_splash:
