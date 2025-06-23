@@ -50,13 +50,13 @@ class BannerWidget extends StatelessWidget {
         textTheme.headlineSmall?.copyWith(
           color: Colors.white, // Tetap putih karena di atas gambar
           fontWeight: FontWeight.bold,
-          shadows: [
-            Shadow(
-              color: Colors.black.withOpacity(0.4),
-              blurRadius: 3,
-              offset: const Offset(1, 1),
-            ),
-          ],
+          // shadows: [
+          //   Shadow(
+          //     color: Colors.black.withOpacity(0.4),
+          //     blurRadius: 3,
+          //     offset: const Offset(1, 1),
+          //   ),
+          // ],
         ) ??
         const TextStyle(
           color: Colors.white,
@@ -90,13 +90,13 @@ class BannerWidget extends StatelessWidget {
         textTheme.titleMedium?.copyWith(
           color: Colors.white.withOpacity(0.95),
           fontWeight: FontWeight.w500,
-          shadows: [
-            Shadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 2,
-              offset: const Offset(0.5, 0.5),
-            ),
-          ],
+          // shadows: [
+          //   Shadow(
+          //     color: Colors.black.withOpacity(0.3),
+          //     blurRadius: 2,
+          //     offset: const Offset(0.5, 0.5),
+          //   ),
+          // ],
         ) ??
         TextStyle(
           color: Colors.white.withOpacity(0.95),
@@ -136,7 +136,7 @@ class BannerWidget extends StatelessWidget {
     }
 
     return Card(
-      elevation: 6.0,
+      elevation: 0.0,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
       margin: EdgeInsets.zero,
@@ -401,13 +401,13 @@ class BeritaListWidget extends StatelessWidget {
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15,
                                 height: 1.25,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black.withOpacity(0.5),
-                                    blurRadius: 2,
-                                    offset: const Offset(0, 1),
-                                  ),
-                                ],
+                                // shadows: [
+                                //   Shadow(
+                                //     color: Colors.black.withOpacity(0.5),
+                                //     blurRadius: 2,
+                                //     offset: const Offset(0, 1),
+                                //   ),
+                                // ],
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
