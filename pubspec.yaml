@@ -59,6 +59,7 @@ dependencies:
   flutter_svg: ^2.0.10+1
   smooth_page_indicator: ^1.1.0
   url_launcher: ^6.2.6
+  flutter_inappwebview: ^6.0.0
   barcode_widget: ^2.0.4
 
 
@@ -93,6 +94,7 @@ flutter:
     - assets/images/Card.png
     - assets/images/logokkba_header.png
     - assets/icons/
+    - assets/images/
 
  
 flutter_native_splash:

@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../theme.dart';
 
 import '../../../model/document_attribute.dart';
+import './document_viewer.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -866,8 +867,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                   size: 16,
                   color: AppColors.secondaryTextLight,
                 ),
-
-                // DIUBAH: Expanded di dalam label dihapus
                 label: Text(
                   buttonText,
                   overflow: TextOverflow.ellipsis,
@@ -883,7 +882,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  // Padding di sini untuk memastikan ada ruang antara ikon dan teks
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                 ),
               ),
@@ -896,22 +894,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Icons.visibility_outlined,
                     color: AppColors.primaryLight,
                   ),
-                  onPressed: () async {
-                    final uri = Uri.parse(existingFileUrl);
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(
-                        uri,
-                        mode: LaunchMode.externalApplication,
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Tidak bisa membuka URL: $existingFileUrl',
-                          ),
-                        ),
-                      );
-                    }
+                  tooltip: 'Lihat Dokumen',
+                  // DIUBAH: Logika onPressed sekarang menggunakan Navigator
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) => DocumentViewerScreen(
+                              title: label, // Menggunakan label sebagai judul
+                              url: existingFileUrl,
+                            ),
+                      ),
+                    );
                   },
                 ),
               ),
