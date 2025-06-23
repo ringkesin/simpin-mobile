@@ -10,6 +10,8 @@ import '../../../theme.dart'; // Assuming this path is correct
 import 'package:intl/intl.dart';
 import 'package:kkba_mobile/model/berita.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+// Di bagian atas home_widget.dart
+import '../../berita/screens/berita_detail.dart';
 
 // import 'package:kkba_mobile/feature/pencairan/screens/pencairan.dart';
 // import 'dart:math' as math;
@@ -248,6 +250,8 @@ class BannerWidget extends StatelessWidget {
 }
 
 // Widget: BeritaListWidget (Telah disesuaikan dengan AppTheme)
+// Di dalam file home_widget.dart
+
 class BeritaListWidget extends StatelessWidget {
   final List<BeritaItem> beritaList;
 
@@ -259,23 +263,19 @@ class BeritaListWidget extends StatelessWidget {
       final DateTime dateTime = DateTime.parse(dateString);
       return DateFormat('dd MMM yy', 'id_ID').format(dateTime);
     } catch (e) {
-      return dateString;
+      return dateString; // fallback
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // PENYESUAIAN: Mengambil textTheme dari AppTheme
     final textTheme = AppTheme.textThemeLight;
-    final screenWidth = MediaQuery.of(context).size.width;
-
     final limitedBeritaList = beritaList.take(5).toList();
 
     if (limitedBeritaList.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 32.0),
-          // PENYESUAIAN: Menggunakan style dari AppTheme
           child: Text(
             "Saat ini belum ada berita.",
             style: textTheme.bodyMedium,
@@ -284,145 +284,179 @@ class BeritaListWidget extends StatelessWidget {
       );
     }
 
-    double responsiveCardWidth = (screenWidth * 0.55).clamp(180.0, 220.0);
-    double responsiveCardHeight = responsiveCardWidth * 1.15;
+    // Menggunakan LayoutBuilder untuk membuat layout 2 kartu yang presisi dan responsif
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double gutter = 12.0; // Jarak antar kartu
+        final double availableWidth = constraints.maxWidth;
+        // Rumus: (Lebar Total - Jarak Antar Kartu) / Jumlah Kartu
+        final double cardWidth = (availableWidth - gutter) / 2;
+        // Membuat tinggi kartu proporsional dengan lebarnya
+        final double cardHeight = cardWidth * 1.25;
 
-    return SizedBox(
-      height: responsiveCardHeight + 8,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: limitedBeritaList.length,
-        padding: const EdgeInsets.symmetric(horizontal: 4.0),
-        itemBuilder: (context, index) {
-          final berita = limitedBeritaList[index];
-          return Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: SizedBox(
-              width: responsiveCardWidth,
-              height: responsiveCardHeight,
-              child: Card(
-                elevation: 3.0,
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14.0),
+        return SizedBox(
+          height: cardHeight,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: limitedBeritaList.length,
+            // Padding diatur agar kartu pertama dan terakhir tidak terpotong
+            padding: const EdgeInsets.symmetric(horizontal: 0),
+            itemBuilder: (context, index) {
+              final berita = limitedBeritaList[index];
+              return Padding(
+                padding: EdgeInsets.only(
+                  right: index == limitedBeritaList.length - 1 ? 0 : gutter,
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () {
-                    print("Berita tapped: ${berita.id} - ${berita.title}");
-                    // TODO: Navigasi ke detail berita
-                  },
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      (berita.thumbnailPath != null &&
-                              berita.thumbnailPath!.isNotEmpty)
-                          ? Image.network(
-                            berita.thumbnailPath!,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (ctx, child, progress) {
-                              if (progress == null) return child;
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              );
-                            },
-                            errorBuilder: (ctx, error, stackTrace) {
-                              return Container(
-                                // PENYESUAIAN: Menggunakan warna dari AppTheme
+                child: SizedBox(
+                  width: cardWidth,
+                  height: cardHeight,
+                  child: Card(
+                    elevation: 3.0,
+                    margin: const EdgeInsets.symmetric(vertical: 1),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16.0),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () {
+                        // Pastikan ID tidak null sebelum navigasi
+                        if (berita.id != null && berita.id!.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => BeritaDetailScreen(
+                                    beritaId: berita.id!,
+                                    beritaTitle: berita.title,
+                                  ),
+                            ),
+                          );
+                        } else {
+                          // Opsional: Tampilkan pesan jika ID tidak valid
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Detail berita ini tidak tersedia.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Lapisan 1: Gambar Berita
+                          (berita.thumbnailPath != null &&
+                                  berita.thumbnailPath!.isNotEmpty)
+                              ? Image.network(
+                                berita.thumbnailPath!,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (ctx, child, progress) {
+                                  if (progress == null) return child;
+                                  return const Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (ctx, error, stackTrace) {
+                                  return Container(
+                                    color: AppColors.secondaryBackgroundLight,
+                                    child: Icon(
+                                      Icons.broken_image_outlined,
+                                      color: AppColors.secondaryTextLight,
+                                      size: 40,
+                                    ),
+                                  );
+                                },
+                              )
+                              : Container(
                                 color: AppColors.secondaryBackgroundLight,
                                 child: Icon(
-                                  Icons.broken_image_outlined,
+                                  Icons.image_not_supported_outlined,
                                   color: AppColors.secondaryTextLight,
                                   size: 40,
                                 ),
-                              );
-                            },
-                          )
-                          : Container(
-                            color: AppColors.secondaryBackgroundLight,
-                            child: Icon(
-                              Icons.image_not_supported_outlined,
-                              color: AppColors.secondaryTextLight,
-                              size: 40,
-                            ),
-                          ),
-                      Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.05),
-                                Colors.black.withOpacity(0.75),
-                              ],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              stops: const [0.4, 0.6, 1.0],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 10.0,
-                        left: 10.0,
-                        right: 10.0,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6.0,
-                                vertical: 2.0,
                               ),
+                          // Lapisan 2: Gradasi Gelap
+                          Positioned.fill(
+                            child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: AppColors.primaryLight.withOpacity(0.85),
-                                borderRadius: BorderRadius.circular(4.0),
-                              ),
-                              child: Text(
-                                _formatDisplayDate(berita.validFrom),
-                                // PENYESUAIAN: Menggunakan style dari AppTheme
-                                style: textTheme.labelSmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withOpacity(0.1),
+                                    Colors.black.withOpacity(0.8),
+                                  ],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  stops: const [0.4, 0.6, 1.0],
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            const SizedBox(height: 6.0),
-                            Text(
-                              berita.title,
-                              // PENYESUAIAN: Menggunakan style dari AppTheme
-                              style: textTheme.titleMedium?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                height: 1.25,
-                                // shadows: [
-                                //   Shadow(
-                                //     color: Colors.black.withOpacity(0.5),
-                                //     blurRadius: 2,
-                                //     offset: const Offset(0, 1),
-                                //   ),
-                                // ],
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                          ),
+                          // Lapisan 3: Teks
+                          Positioned(
+                            bottom: 12.0,
+                            left: 12.0,
+                            right: 12.0,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8.0,
+                                    vertical: 3.0,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryLight.withOpacity(
+                                      0.85,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6.0),
+                                  ),
+                                  child: Text(
+                                    _formatDisplayDate(berita.validFrom),
+                                    style: textTheme.labelSmall?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(height: 8.0),
+                                Text(
+                                  berita.title,
+                                  style: textTheme.titleMedium?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    height: 1.25,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black.withOpacity(0.5),
+                                        blurRadius: 2,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

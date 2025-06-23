@@ -1,15 +1,17 @@
-// Model untuk satu item berita/konten
+// lib/model/berita.dart
+
+import 'dart:convert';
+
+// Model Universal untuk satu item berita
+// Nama field disesuaikan dengan model yang Anda berikan (title, text)
 class BeritaItem {
   final String? id;
   final int contentTypeId;
-  final String? thumbnailPath; // Bisa null jika API memungkinkan
+  final String? thumbnailPath;
   final String title;
-  final String text; // Ini berisi HTML
-  final String validFrom; // Simpan sebagai String, parsing di UI jika perlu
-  final String? validTo; // Bisa null
-  final dynamic createdBy; // Tipe bisa int/String, gunakan dynamic atau int?
-  final dynamic updatedBy;
-  // Tambahkan field lain jika diperlukan (deleted_at, deleted_by, dll)
+  final String text; // Ini adalah field untuk 'content_text' dari API
+  final String validFrom;
+  final String? validTo;
 
   BeritaItem({
     required this.id,
@@ -19,81 +21,25 @@ class BeritaItem {
     required this.text,
     required this.validFrom,
     this.validTo,
-    this.createdBy,
-    this.updatedBy,
   });
 
   factory BeritaItem.fromJson(Map<String, dynamic> json) {
     return BeritaItem(
-      id: json['t_content_id'] as String?, // Default 0 jika null
+      id: json['t_content_id'] as String?,
       contentTypeId: json['p_content_type_id'] as int? ?? 0,
       thumbnailPath: json['thumbnail_path'] as String?,
-      title:
-          json['content_title'] as String? ??
-          'Tanpa Judul', // Default jika null
-      text: json['content_text'] as String? ?? '', // Default string kosong
+      title: json['content_title'] as String? ?? 'Tanpa Judul',
+      text: json['content_text'] as String? ?? '',
       validFrom: json['valid_from'] as String? ?? '',
       validTo: json['valid_to'] as String?,
-      createdBy: json['created_by'], // Biarkan dynamic atau cast ke int?
-      updatedBy: json['updated_by'], // Biarkan dynamic atau cast ke int?
     );
-  }
-
-  // Opsional: toJson jika perlu mengirim data kembali
-  Map<String, dynamic> toJson() {
-    return {
-      't_content_id': id,
-      'p_content_type_id': contentTypeId,
-      'thumbnail_path': thumbnailPath,
-      'content_title': title,
-      'content_text': text,
-      'valid_from': validFrom,
-      'valid_to': validTo,
-      'created_by': createdBy,
-      'updated_by': updatedBy,
-    };
-  }
-}
-
-// Model untuk object 'data' dalam response list
-class BeritaData {
-  final List<BeritaItem> content;
-
-  BeritaData({required this.content});
-
-  factory BeritaData.fromJson(Map<String, dynamic> json) {
-    var contentList = json['content'] as List?; // Ambil list, bisa null
-    List<BeritaItem> items = [];
-    if (contentList != null) {
-      items =
-          contentList.map((itemJson) {
-            // Pastikan itemJson adalah Map<String, dynamic>
-            if (itemJson is Map<String, dynamic>) {
-              return BeritaItem.fromJson(itemJson);
-            } else {
-              // Handle kasus jika item bukan map (meskipun seharusnya tidak terjadi)
-              // Anda bisa throw error atau return item default/null
-              print("Error: Item in content list is not a Map: $itemJson");
-              // Contoh fallback: return BeritaItem default atau lewati item ini
-              return BeritaItem(
-                id: '',
-                contentTypeId: -1,
-                title: 'Invalid Item',
-                text: '',
-                validFrom: '',
-              ); // Atau cara lain
-            }
-          }).toList();
-    }
-    return BeritaData(content: items);
   }
 }
 
 // Model untuk response API list berita (/api/konten)
 class BeritaResponse {
   final bool success;
-  final BeritaData?
-  data; // Buat nullable jika data bisa tidak ada saat success=false
+  final BeritaListData? data;
   final String message;
 
   BeritaResponse({required this.success, this.data, required this.message});
@@ -101,21 +47,29 @@ class BeritaResponse {
   factory BeritaResponse.fromJson(Map<String, dynamic> json) {
     return BeritaResponse(
       success: json['success'] as bool? ?? false,
-      // Parse 'data' hanya jika ada dan bukan null
-      data:
-          json['data'] != null && json['data'] is Map<String, dynamic>
-              ? BeritaData.fromJson(json['data'] as Map<String, dynamic>)
-              : null,
+      data: json['data'] != null ? BeritaListData.fromJson(json['data']) : null,
       message: json['message'] as String? ?? '',
     );
   }
 }
 
-// Model untuk response API detail berita (/api/konten/{id})
-// Asumsi struktur data mirip, tapi 'data' berisi satu BeritaItem
+class BeritaListData {
+  final List<BeritaItem> content;
+
+  BeritaListData({required this.content});
+
+  factory BeritaListData.fromJson(Map<String, dynamic> json) {
+    var contentList = json['content'] as List? ?? [];
+    List<BeritaItem> items =
+        contentList.map((item) => BeritaItem.fromJson(item)).toList();
+    return BeritaListData(content: items);
+  }
+}
+
+// DIUBAH: Model untuk response detail berita agar cocok dengan struktur JSON
 class SingleBeritaResponse {
   final bool success;
-  final BeritaItem? data; // Langsung ke BeritaItem, nullable
+  final SingleBeritaData? data;
   final String message;
 
   SingleBeritaResponse({
@@ -127,12 +81,20 @@ class SingleBeritaResponse {
   factory SingleBeritaResponse.fromJson(Map<String, dynamic> json) {
     return SingleBeritaResponse(
       success: json['success'] as bool? ?? false,
-      // Parse 'data' menjadi BeritaItem jika ada dan bukan null
       data:
-          json['data'] != null && json['data'] is Map<String, dynamic>
-              ? BeritaItem.fromJson(json['data'] as Map<String, dynamic>)
-              : null,
+          json['data'] != null ? SingleBeritaData.fromJson(json['data']) : null,
       message: json['message'] as String? ?? '',
     );
+  }
+}
+
+// BARU: Class perantara untuk menangani {"data": {"content": ...}}
+class SingleBeritaData {
+  final BeritaItem content;
+
+  SingleBeritaData({required this.content});
+
+  factory SingleBeritaData.fromJson(Map<String, dynamic> json) {
+    return SingleBeritaData(content: BeritaItem.fromJson(json['content']));
   }
 }

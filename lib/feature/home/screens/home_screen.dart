@@ -1,6 +1,7 @@
 // feature/home/screens/home_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:kkba_mobile/feature/berita/screens/semua_berita.dart';
 import 'package:kkba_mobile/feature/pencairan/screens/history.dart';
 import 'package:kkba_mobile/feature/tagihan/screens/tagihan_screens.dart';
 import 'package:kkba_mobile/feature/ticket/screens/ticket_list.dart';
@@ -719,7 +720,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         TextButton(
           onPressed: () {
-            _navigateToPlaceholder("Semua Berita");
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SemuaBeritaScreen(),
+              ),
+            );
           },
           child: Text(
             'Lihat Semua',

@@ -675,7 +675,7 @@ class ApiService {
   }
 
   /// Mengambil detail berita/konten berdasarkan ID (MEMERLUKAN TOKEN)
-  Future<SingleBeritaResponse> getBeritaById(int id) async {
+  Future<SingleBeritaResponse> getBeritaById(String id) async {
     final String endpoint = '/api/konten/$id';
     Options? requestOptions; // Deklarasikan options sebagai nullable
 
@@ -3109,6 +3109,66 @@ class ApiService {
       print("Gagal melakukan HEAD request untuk memeriksa Content-Type: $e");
       // Kembalikan null jika gagal, agar bisa ditangani di UI
       return null;
+    }
+  }
+
+  Future<BeritaResponse> searchBerita({
+    int page = 1,
+    int perpage = 10,
+    String? search, // Parameter search opsional
+  }) async {
+    const String endpoint = '/api/konten/grid';
+    try {
+      final String? token = await _getAuthToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('Token tidak ditemukan. Silakan login ulang.');
+      }
+
+      // Membangun payload sesuai spesifikasi
+      final Map<String, dynamic> dataPayload = {};
+      if (search != null && search.isNotEmpty) {
+        dataPayload['search'] = search;
+      }
+
+      final Map<String, dynamic> payload = {
+        "page": page,
+        "perpage": perpage,
+        "data": dataPayload,
+      };
+
+      print(
+        "[ApiService.searchBerita] Posting to $endpoint with payload: ${json.encode(payload)}",
+      );
+
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        // Menggunakan kembali model BeritaResponse yang sudah ada
+        return BeritaResponse.fromJson(response.data as Map<String, dynamic>);
+      } else {
+        throw Exception(
+          response.data?['message'] ??
+              'Gagal mengambil daftar berita. Status: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      print('[ApiService.searchBerita] DioError: ${e.message}');
+      throw Exception(
+        'Gagal mengambil daftar berita: ${e.response?.data?['message'] ?? e.message}',
+      );
+    } catch (e) {
+      print('[ApiService.searchBerita] Error: $e');
+      rethrow;
     }
   }
 }

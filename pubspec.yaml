@@ -61,6 +61,7 @@ dependencies:
   url_launcher: ^6.2.6
   flutter_inappwebview: ^6.0.0
   barcode_widget: ^2.0.4
+  flutter_html: ^3.0.0-beta.2
 
 
 
