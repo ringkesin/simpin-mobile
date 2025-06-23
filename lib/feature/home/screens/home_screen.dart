@@ -7,7 +7,7 @@ import 'package:kkba_mobile/feature/ticket/screens/ticket_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kkba_mobile/page_wrapper.dart';
 import 'package:kkba_mobile/theme.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+// import 'package:qr_flutter/qr_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../service/api_service.dart';
 import 'package:kkba_mobile/model/berita.dart';
@@ -21,7 +21,7 @@ import 'package:kkba_mobile/feature/list_pinjaman/screens/list_pinjaman.dart'; /
 // import 'package:kkba_mobile/feature/riwayat_tagihan/screens/riwayat_tagihan.dart'; // Create this screen
 import 'package:kkba_mobile/feature/tabungan/screens/tabungan.dart'; // For "Mutasi Tabungan" / "Info Tabungan"
 import 'package:kkba_mobile/feature/pencairan/screens/pencairan.dart'; // For "Form Pencairan Tabungan"
-// import 'package:kkba_mobile/feature/riwayat_pencairan/screens/riwayat_pencairan.dart'; // Create this screen
+import 'package:barcode_widget/barcode_widget.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -117,6 +117,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final String? url = prefs.getString('profile_photo_url');
+      // DEBUG PRINT 1: Lihat nilai mentah yang didapat dari SharedPreferences
+      print("--- [DEBUG FOTO PROFIL] 1. URL dari SharedPreferences: '$url'");
+
       if (!mounted) return;
       setState(() {
         _profilePhotoUrl = url;
@@ -268,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _handleGenerateQr() {
+  void _handleGenerateBarcode() {
     if (_nomorAnggota != null &&
         _nomorAnggota!.isNotEmpty &&
         _nomorAnggotaError == null) {
@@ -276,16 +279,24 @@ class _HomeScreenState extends State<HomeScreen> {
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
-            title: const Text('Scan Nomor Anggota Anda'),
+            title: const Text('Scan Barcode Anggota Anda'),
+            // DIUBAH: Ukuran content disesuaikan untuk barcode
             content: SizedBox(
-              width: 250,
-              height: 250,
+              width: 300,
+              height:
+                  150, // Dibuat lebih pendek karena barcode berbentuk persegi panjang
               child: Center(
-                child: QrImageView(
-                  data: _nomorAnggota!,
-                  version: QrVersions.auto,
-                  size: 230.0,
-                  gapless: false,
+                // DIUBAH: Menggunakan BarcodeWidget
+                child: BarcodeWidget(
+                  barcode:
+                      Barcode.code128(), // Jenis barcode, Code128 sangat umum
+                  data: _nomorAnggota!, // Data yang akan di-encode
+                  width: 280,
+                  height: 100,
+                  drawText: true, // Menampilkan teks data di bawah barcode
+                  style: const TextStyle(
+                    letterSpacing: 2.0,
+                  ), // Atur jarak huruf jika perlu
                 ),
               ),
             ),
@@ -299,9 +310,9 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       );
     } else {
-      String message = 'Nomor Anggota tidak tersedia untuk generate QR Code.';
+      String message = 'Nomor Anggota tidak tersedia untuk generate Barcode.';
       if (_nomorAnggotaError != null) {
-        message = "Tidak bisa generate QR: $_nomorAnggotaError";
+        message = "Tidak bisa generate Barcode: $_nomorAnggotaError";
       } else if (_nomorAnggota == null || _nomorAnggota!.isEmpty) {
         message = "Nomor Anggota kosong atau tidak valid.";
       }
@@ -452,7 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
     );
-    const Color defaultIconColor = Colors.black;
+    const Color defaultIconColor = const Color(0xFF0F172A);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -729,7 +740,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final double bannerHeight = screenWidth * 0.35; //
     // Seberapa banyak banner akan "turun" dari header
     final double bannerOverlap =
-        bannerHeight / 3.5; // Sekitar sepertiga tinggi banner
+        bannerHeight / 2.2; // Sekitar sepertiga tinggi banner
 
     return Scaffold(
       backgroundColor: AppColors.primaryBackgroundLight,
@@ -823,8 +834,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                             ? ClipOval(
                                               child: Image.network(
                                                 _profilePhotoUrl!,
-                                                width: 36,
-                                                height: 36,
+                                                width: 42,
+                                                height: 42,
                                                 fit: BoxFit.cover,
                                                 errorBuilder: (
                                                   ctx,
@@ -845,24 +856,32 @@ class _HomeScreenState extends State<HomeScreen> {
                                               color: Colors.grey[600],
                                             ),
                                   ),
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: 8),
 
                                   // **** PERUBAHAN DI SINI ****
                                   // Ikon Logout dibungkus dengan Padding untuk diturunkan sedikit
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      top: 4.0,
-                                    ), // Beri sedikit padding atas
-                                    child: IconButton(
-                                      icon: const Icon(
-                                        Icons.logout_outlined,
-                                        color: AppColors.errorLight,
+                                  InkWell(
+                                    onTap: _logoutUser,
+                                    customBorder:
+                                        const CircleBorder(), // Membuat efek ripple menjadi lingkaran
+                                    child: Container(
+                                      padding: const EdgeInsets.all(
+                                        8.0,
+                                      ), // Jarak antara ikon dan tepi lingkaran
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE2E8F0),
+                                        shape:
+                                            BoxShape
+                                                .circle, // Membuat bentuknya menjadi lingkaran
                                       ),
-                                      iconSize: 26,
-                                      tooltip: 'Logout',
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      onPressed: _logoutUser,
+                                      child: const Icon(
+                                        Icons.logout_outlined,
+                                        color:
+                                            AppColors
+                                                .errorLight, // Warna ikon logout
+                                        size:
+                                            20, // Ukuran ikon di dalam lingkaran
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -887,7 +906,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         nomorAnggota: _nomorAnggota,
                         usernameError: _userNameError,
                         nomorAnggotaError: _nomorAnggotaError,
-                        onGenerateQr: _handleGenerateQr,
+                        onGenerateQr: _handleGenerateBarcode,
                         // onKeanggotaanTap: () {
                         //   _navigateToPlaceholder("Halaman Keanggotaan");
                         // },
@@ -899,9 +918,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             // Spacer untuk memberi ruang setelah banner yang overlap
-            SliverToBoxAdapter(
-              child: SizedBox(height: 24 + bannerOverlap * 0.5),
-            ),
+            SliverToBoxAdapter(child: SizedBox(height: 24)),
 
             // SliverToBoxAdapter untuk menu dan berita
             SliverToBoxAdapter(
@@ -916,7 +933,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _isLoadingBanner // Tampilkan loader jika data user belum siap
                         ? const Center(
                           child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 40.0),
+                            padding: EdgeInsets.symmetric(vertical: 240.0),
                             child: CircularProgressIndicator(),
                           ),
                         )
@@ -927,13 +944,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildPinjamanMenu(context),
-                            const SizedBox(height: 28),
+                            const SizedBox(height: 18),
                             _buildTabunganMenu(context),
                           ],
                         ),
 
                     // **** AKHIR PERUBAHAN UTAMA ****
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 18),
                     _buildBeritaSectionTitle(context),
                     const SizedBox(height: 12),
                     _buildBeritaSectionContent(),

@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:kkba_mobile/feature/profile/screens/profile.dart';
-import 'package:kkba_mobile/feature/simulasi_pinjaman/screens/simulasi_pinjaman.dart';
+import 'package:kkba_mobile/feature/shu/screens/shu.dart';
 import 'package:kkba_mobile/feature/ticket/screens/ticket_list.dart';
-import '../theme.dart'; // <-- Import AppTheme Anda
+import 'package:lucide_icons/lucide_icons.dart';
+import '../theme.dart';
 
-// Import halaman-halaman Anda
 import 'feature/home/screens/home_screen.dart';
-import 'feature/tabungan/screens/tabungan.dart';
-import 'feature/shu/screens/shu.dart';
-import 'feature/form_pinjaman/screens/form_pinjaman.dart'; // Sesuaikan path jika perlu
 
 class MainWrapper extends StatefulWidget {
   const MainWrapper({super.key});
@@ -18,15 +15,13 @@ class MainWrapper extends StatefulWidget {
 }
 
 class _MainWrapperState extends State<MainWrapper> {
-  int _selectedIndex = 0; // Indeks halaman yang aktif
+  int _selectedIndex = 0;
 
-  // Daftar halaman yang akan dinavigasi (pastikan nama class benar)
   static final List<Widget> _widgetOptions = <Widget>[
-    HomeScreen(), // Halaman Beranda Anda
-    ShuPage(), // Halaman Tabungan Anda
-    TicketListPage(), // Halaman SHU Anda
-    ProfileScreen(), // Halaman Pinjaman/Formulir Anda
-    // Tambahkan halaman lain jika perlu
+    HomeScreen(),
+    ShuPage(),
+    TicketListPage(),
+    ProfileScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -35,98 +30,106 @@ class _MainWrapperState extends State<MainWrapper> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Ambil warna dari AppTheme (asumsi menggunakan light theme)
-    // Anda mungkin perlu logika tambahan jika mendukung dark mode di sini
-    final Color navBarBackgroundColor =
-        AppColors.secondaryLight; // Warna background NavBar (Putih)
-    final Color shadowColor = AppColors.secondaryTextLight.withOpacity(
-      0.3,
-    ); // Warna shadow (Abu-abu transparan)
-    final Color indicatorColor = AppColors.primaryLight.withOpacity(
-      0.15,
-    ); // Warna indikator item terpilih
-    final Color selectedItemColor =
-        AppColors.primaryLight; // Warna ikon/label terpilih (Hijau)
-    final Color unselectedItemColor =
-        AppColors
-            .secondaryTextLight; // Warna ikon/label tidak terpilih (Abu-abu)
-    final TextStyle? labelStyle =
-        AppTheme.textThemeLight.labelSmall; // Style teks label
+  Widget _buildNavItem({
+    required IconData icon,
+    required String label,
+    required int index,
+  }) {
+    final bool isSelected = _selectedIndex == index;
+    final Color color =
+        isSelected ? AppColors.primaryLight : AppColors.secondaryTextLight;
 
-    return Scaffold(
-      // Biarkan AppBar di masing-masing halaman jika berbeda
-      body: Center(child: _widgetOptions.elementAt(_selectedIndex)),
-      // --- Perubahan untuk Floating Navigation Bar ---
-      bottomNavigationBar: Container(
-        // Margin untuk efek mengambang
-        margin: const EdgeInsets.only(left: 20, right: 20, bottom: 20, top: 20),
-        decoration: BoxDecoration(
-          color: navBarBackgroundColor, // Background putih untuk container
-          borderRadius: BorderRadius.circular(30), // Sudut melengkung
-          boxShadow: [
-            BoxShadow(
-              color: shadowColor, // Warna shadow
-              spreadRadius: 1,
-              blurRadius: 8,
-              offset: const Offset(0, 4), // Posisi shadow
+    return InkWell(
+      onTap: () => _onItemTapped(index),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              height: 3,
+              width: isSelected ? 30 : 0,
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, color: color, size: 26),
+                // if (label == 'Inbox')
+                //   Positioned(
+                //     top: -2,
+                //     right: 1,
+                //     child: Container(
+                //       width: 12,
+                //       height: 12,
+                //       decoration: BoxDecoration(
+                //         color: AppColors.errorLight,
+                //         shape: BoxShape.circle,
+                //         border: Border.all(color: Colors.white, width: 1.5),
+                //       ),
+                //     ),
+                //   ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: AppTheme.textThemeLight.labelSmall?.copyWith(
+                color: color,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
             ),
           ],
-        ),
-        // Penting: Clip agar NavigationBar mengikuti lengkungan container
-        clipBehavior: Clip.antiAlias,
-        child: NavigationBar(
-          onDestinationSelected: _onItemTapped,
-          selectedIndex: _selectedIndex,
-          backgroundColor: Colors.transparent, // NavBar dibuat transparan
-          indicatorColor: indicatorColor, // Warna indicator dari theme
-          elevation:
-              0, // Hilangkan shadow default NavBar, sudah dihandle Container
-          height: 65, // Sesuaikan tinggi jika perlu
-          labelBehavior:
-              NavigationDestinationLabelBehavior
-                  .alwaysShow, // Atau .alwaysHide jika hanya ikon
-          // destinations di-styling menggunakan NavigationBarThemeData di AppTheme
-          destinations: <NavigationDestination>[
-            NavigationDestination(
-              // Gunakan warna dari theme, tapi bisa override jika perlu
-              selectedIcon: Icon(Icons.home, color: selectedItemColor),
-              icon: Icon(Icons.home_outlined, color: unselectedItemColor),
-              label: 'Beranda',
-            ),
-            NavigationDestination(
-              selectedIcon: Icon(Icons.wallet, color: selectedItemColor),
-              icon: Icon(Icons.wallet_outlined, color: unselectedItemColor),
-              label: 'SHU',
-            ),
-            NavigationDestination(
-              selectedIcon: Icon(Icons.notifications, color: selectedItemColor),
-              icon: Icon(
-                Icons.notifications_outlined,
-                color: unselectedItemColor,
-              ), // pastikan icon benar
-              label: 'Inbox',
-            ),
-            NavigationDestination(
-              selectedIcon: Icon(Icons.person, color: selectedItemColor),
-              icon: Icon(Icons.person_outline, color: unselectedItemColor),
-              label: 'Profile',
-            ),
-          ],
-          // Terapkan style label dari theme
-          labelTextStyle: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return labelStyle?.copyWith(
-                color: selectedItemColor,
-                fontWeight: FontWeight.bold,
-              );
-            }
-            return labelStyle?.copyWith(color: unselectedItemColor);
-          }),
         ),
       ),
-      // --- Akhir Perubahan ---
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(child: _widgetOptions.elementAt(_selectedIndex)),
+
+      // GANTI KESELURUHAN BAGIAN bottomNavigationBar DENGAN INI
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          // DIUBAH: Menambahkan sudut melengkung hanya di atas
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20.0),
+            topRight: Radius.circular(20.0),
+          ),
+          // DIUBAH: Mengganti border dengan boxShadow agar lebih halus
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              spreadRadius: 0,
+              offset: const Offset(0, -2), // Shadow hanya ke arah atas
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: <Widget>[
+              _buildNavItem(icon: LucideIcons.home, label: 'Home', index: 0),
+              _buildNavItem(icon: LucideIcons.wallet, label: 'SHU', index: 1),
+              _buildNavItem(icon: LucideIcons.bell, label: 'Inbox', index: 2),
+              _buildNavItem(icon: LucideIcons.user, label: 'Profil', index: 3),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

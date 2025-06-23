@@ -52,78 +52,78 @@ class AppTheme {
   // --- TextThemes (tetap sama) ---
   static final TextTheme textThemeLight = TextTheme(
     // ... (kode textThemeLight Anda) ...
-    displayLarge: GoogleFonts.inter(
+    displayLarge: GoogleFonts.lexendDeca(
       fontSize: 64,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextLight,
     ),
-    displayMedium: GoogleFonts.inter(
+    displayMedium: GoogleFonts.lexendDeca(
       fontSize: 44,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextLight,
     ),
-    displaySmall: GoogleFonts.inter(
+    displaySmall: GoogleFonts.lexendDeca(
       fontSize: 36,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextLight,
     ),
 
-    headlineLarge: GoogleFonts.inter(
+    headlineLarge: GoogleFonts.lexendDeca(
       fontSize: 32,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextLight,
     ),
-    headlineMedium: GoogleFonts.inter(
+    headlineMedium: GoogleFonts.lexendDeca(
       fontSize: 28,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextLight,
     ),
-    headlineSmall: GoogleFonts.inter(
+    headlineSmall: GoogleFonts.lexendDeca(
       fontSize: 24,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextLight,
     ),
 
-    titleLarge: GoogleFonts.inter(
+    titleLarge: GoogleFonts.lexendDeca(
       fontSize: 20,
       fontWeight: FontWeight.bold,
       color: AppColors.primaryTextLight,
     ),
-    titleMedium: GoogleFonts.inter(
+    titleMedium: GoogleFonts.lexendDeca(
       fontSize: 18,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextLight,
     ),
-    titleSmall: GoogleFonts.inter(
+    titleSmall: GoogleFonts.lexendDeca(
       fontSize: 16,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextLight,
     ),
 
-    bodyLarge: GoogleFonts.inter(
+    bodyLarge: GoogleFonts.lexendDeca(
       fontSize: 18,
       color: AppColors.secondaryTextLight,
     ),
-    bodyMedium: GoogleFonts.inter(
+    bodyMedium: GoogleFonts.lexendDeca(
       fontSize: 16,
       color: AppColors.secondaryTextLight,
     ),
-    bodySmall: GoogleFonts.inter(
+    bodySmall: GoogleFonts.lexendDeca(
       fontSize: 14,
       color: AppColors.secondaryTextLight,
     ),
 
-    labelLarge: GoogleFonts.inter(
+    labelLarge: GoogleFonts.lexendDeca(
       fontSize: 16,
       fontWeight: FontWeight.bold,
       color: AppColors.primaryTextLight,
     ),
-    labelMedium: GoogleFonts.inter(
+    labelMedium: GoogleFonts.lexendDeca(
       fontSize: 14,
       fontWeight: FontWeight.w500,
       color: AppColors.primaryTextLight,
     ),
-    labelSmall: GoogleFonts.inter(
+    labelSmall: GoogleFonts.lexendDeca(
       fontSize: 12,
       fontWeight: FontWeight.w400,
       color: AppColors.primaryTextLight,
@@ -131,78 +131,78 @@ class AppTheme {
   );
   static final TextTheme textThemeDark = TextTheme(
     // ... (kode textThemeDark Anda) ...
-    displayLarge: GoogleFonts.inter(
+    displayLarge: GoogleFonts.lexendDeca(
       fontSize: 64,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextDark,
     ),
-    displayMedium: GoogleFonts.inter(
+    displayMedium: GoogleFonts.lexendDeca(
       fontSize: 44,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextDark,
     ),
-    displaySmall: GoogleFonts.inter(
+    displaySmall: GoogleFonts.lexendDeca(
       fontSize: 36,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextDark,
     ),
 
-    headlineLarge: GoogleFonts.inter(
+    headlineLarge: GoogleFonts.lexendDeca(
       fontSize: 32,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextDark,
     ),
-    headlineMedium: GoogleFonts.inter(
+    headlineMedium: GoogleFonts.lexendDeca(
       fontSize: 28,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextDark,
     ),
-    headlineSmall: GoogleFonts.inter(
+    headlineSmall: GoogleFonts.lexendDeca(
       fontSize: 24,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextDark,
     ),
 
-    titleLarge: GoogleFonts.inter(
+    titleLarge: GoogleFonts.lexendDeca(
       fontSize: 20,
       fontWeight: FontWeight.bold,
       color: AppColors.primaryTextDark,
     ),
-    titleMedium: GoogleFonts.inter(
+    titleMedium: GoogleFonts.lexendDeca(
       fontSize: 18,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextDark,
     ),
-    titleSmall: GoogleFonts.inter(
+    titleSmall: GoogleFonts.lexendDeca(
       fontSize: 16,
       fontWeight: FontWeight.w600,
       color: AppColors.primaryTextDark,
     ),
 
-    bodyLarge: GoogleFonts.inter(
+    bodyLarge: GoogleFonts.lexendDeca(
       fontSize: 18,
       color: AppColors.secondaryTextDark,
     ),
-    bodyMedium: GoogleFonts.inter(
+    bodyMedium: GoogleFonts.lexendDeca(
       fontSize: 16,
       color: AppColors.secondaryTextDark,
     ),
-    bodySmall: GoogleFonts.inter(
+    bodySmall: GoogleFonts.lexendDeca(
       fontSize: 14,
       color: AppColors.secondaryTextDark,
     ),
 
-    labelLarge: GoogleFonts.inter(
+    labelLarge: GoogleFonts.lexendDeca(
       fontSize: 16,
       fontWeight: FontWeight.bold,
       color: AppColors.primaryTextDark,
     ),
-    labelMedium: GoogleFonts.inter(
+    labelMedium: GoogleFonts.lexendDeca(
       fontSize: 14,
       fontWeight: FontWeight.w500,
       color: AppColors.primaryTextDark,
     ),
-    labelSmall: GoogleFonts.inter(
+    labelSmall: GoogleFonts.lexendDeca(
       fontSize: 12,
       fontWeight: FontWeight.w400,
       color: AppColors.primaryTextDark,
