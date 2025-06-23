@@ -3082,4 +3082,33 @@ class ApiService {
       throw Exception(message);
     }
   }
+  // Di dalam file api_service.dart -> class ApiService
+
+  // BARU: Metode untuk memeriksa Content-Type dari sebuah URL
+  Future<String?> checkUrlContentType(String url) async {
+    try {
+      final String? token = await _getAuthToken();
+      if (token == null || token.isEmpty) {
+        // Untuk URL publik, mungkin tidak perlu token. Sesuaikan jika perlu.
+        print("Mencoba HEAD request tanpa token.");
+      }
+
+      // Menggunakan dio.head untuk efisiensi
+      final response = await _dio.head(
+        url,
+        options: Options(
+          headers: {if (token != null) 'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      // Ambil header 'content-type'
+      final contentType = response.headers.value('content-type');
+      print("URL Content-Type: $contentType");
+      return contentType;
+    } catch (e) {
+      print("Gagal melakukan HEAD request untuk memeriksa Content-Type: $e");
+      // Kembalikan null jika gagal, agar bisa ditangani di UI
+      return null;
+    }
+  }
 }
