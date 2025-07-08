@@ -1190,9 +1190,9 @@ class ApiService {
       );
 
       final Map<String, dynamic> payload = {
-        'old_password': oldPassword,
+        'current_password': oldPassword,
         'new_password': newPassword,
-        'password_confirmation': confirmNewPassword,
+        'new_password_confirmation': confirmNewPassword,
       };
 
       print("[ApiService.changePassword] Submitting to $endpoint");
@@ -2938,12 +2938,14 @@ class ApiService {
     String? noKartuKeluarga,
     XFile? attachmentNpwp,
     String? noNpwp,
-    // BARU: Tambahkan parameter untuk buku nikah
     XFile? attachmentBukuNikah,
     String? noBukuNikah,
   }) async {
     const String endpoint = '/api/profile/update-doc';
-    final String? token = await _getAuthToken();
+    // Menggunakan _getAuthToken() dari service lain atau pastikan ada di sini
+    // final String? token = await _getAuthToken();
+    final prefs = await SharedPreferences.getInstance();
+    final String? token = prefs.getString('token');
 
     if (token == null || token.isEmpty) {
       throw Exception('Sesi tidak valid. Silakan login kembali.');
@@ -2951,63 +2953,69 @@ class ApiService {
 
     final Map<String, dynamic> formDataMap = {};
 
-    // Blok untuk KTP (tidak berubah)
-    if (attachmentKtp != null && noKtp != null && noKtp.isNotEmpty) {
+    // --- LOGIKA BARU YANG DIPERBAIKI ---
+
+    // 1. Tambahkan semua nomor dokumen yang diisi (tidak null)
+    if (noKtp != null) {
+      formDataMap['attr_no_ktp'] = noKtp;
+    }
+    if (noKartuPegawai != null) {
+      formDataMap['attr_no_kartu_pegawai'] = noKartuPegawai;
+    }
+    if (noKartuKeluarga != null) {
+      formDataMap['attr_no_kartu_keluarga'] = noKartuKeluarga;
+    }
+    if (noNpwp != null) {
+      formDataMap['attr_npwp'] = noNpwp;
+    }
+    if (noBukuNikah != null) {
+      formDataMap['attr_buku_nikah'] = noBukuNikah;
+    }
+
+    // 2. Tambahkan semua file yang dipilih (tidak null) secara terpisah
+    if (attachmentKtp != null) {
       formDataMap['attachment_ktp'] = await MultipartFile.fromFile(
         attachmentKtp.path,
         filename: attachmentKtp.name,
       );
-      formDataMap['attr_no_ktp'] = noKtp;
     }
-    // Blok untuk Kartu Pegawai (tidak berubah)
-    if (attachmentKartuPegawai != null &&
-        noKartuPegawai != null &&
-        noKartuPegawai.isNotEmpty) {
+    if (attachmentKartuPegawai != null) {
       formDataMap['attachment_kartu_pegawai'] = await MultipartFile.fromFile(
         attachmentKartuPegawai.path,
         filename: attachmentKartuPegawai.name,
       );
-      formDataMap['attr_no_kartu_pegawai'] = noKartuPegawai;
     }
-    // Blok untuk Kartu Keluarga (tidak berubah)
-    if (attachmentKartuKeluarga != null &&
-        noKartuKeluarga != null &&
-        noKartuKeluarga.isNotEmpty) {
+    if (attachmentKartuKeluarga != null) {
       formDataMap['attachment_kartu_keluarga'] = await MultipartFile.fromFile(
         attachmentKartuKeluarga.path,
         filename: attachmentKartuKeluarga.name,
       );
-      formDataMap['attr_no_kartu_keluarga'] = noKartuKeluarga;
     }
-    // Blok untuk NPWP (tidak berubah)
-    if (attachmentNpwp != null && noNpwp != null && noNpwp.isNotEmpty) {
+    if (attachmentNpwp != null) {
       formDataMap['attachment_npwp'] = await MultipartFile.fromFile(
         attachmentNpwp.path,
         filename: attachmentNpwp.name,
       );
-      formDataMap['attr_npwp'] = noNpwp;
     }
-
-    // BARU: Blok untuk menambahkan data buku nikah
-    if (attachmentBukuNikah != null &&
-        noBukuNikah != null &&
-        noBukuNikah.isNotEmpty) {
+    if (attachmentBukuNikah != null) {
       formDataMap['attachment_buku_nikah'] = await MultipartFile.fromFile(
         attachmentBukuNikah.path,
         filename: attachmentBukuNikah.name,
       );
-      formDataMap['attr_buku_nikah'] = noBukuNikah;
     }
 
-    if (formDataMap.isEmpty) {
-      throw Exception(
-        "Tidak ada dokumen atau nomor yang diisi untuk diperbarui.",
-      );
-    }
+    // Validasi ini dihapus agar pengguna bisa mengirim form meskipun kosong,
+    // Sesuai permintaan "tanpa perlu validator"
+    // if (formDataMap.isEmpty) {
+    //   throw Exception(
+    //     "Tidak ada dokumen atau nomor yang diisi untuk diperbarui.",
+    //   );
+    // }
 
     final formData = FormData.fromMap(formDataMap);
 
     try {
+      // Asumsi Anda menggunakan Dio, jika tidak, sesuaikan dengan http.MultipartRequest
       final response = await _dio.post(
         endpoint,
         data: formData,

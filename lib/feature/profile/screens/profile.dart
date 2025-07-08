@@ -536,22 +536,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _handleUpdateDocuments() async {
-    if (!(_docFormKey.currentState?.validate() ?? false)) return;
+    // Baris validasi formKey ini bisa dihapus atau diabaikan karena validator di field sudah null
+    // if (!(_docFormKey.currentState?.validate() ?? false)) return;
 
-    if (_fileKtp == null &&
-        _fileKartuPegawai == null &&
-        _fileKartuKeluarga == null &&
-        _fileNpwp == null &&
-        _fileBukuNikah == null) {
-      // DIUBAH
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pilih minimal satu file dokumen untuk diunggah.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
+    // Logika untuk mengecek perubahan data DIHAPUS.
+    // Tombol simpan akan langsung menjalankan proses update.
 
     setState(() => _isUpdatingDocs = true);
 
@@ -565,7 +554,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         noKartuKeluarga: _noKartuKeluargaController.text,
         attachmentNpwp: _fileNpwp,
         noNpwp: _noNpwpController.text,
-        // BARU: Kirim data buku nikah ke API
         attachmentBukuNikah: _fileBukuNikah,
         noBukuNikah: _noBukuNikahController.text,
       );
@@ -578,12 +566,14 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
       );
 
+      await _fetchDocumentAttributes();
+
       setState(() {
         _fileKtp = null;
         _fileKartuPegawai = null;
         _fileKartuKeluarga = null;
         _fileNpwp = null;
-        _fileBukuNikah = null; // DIUBAH
+        _fileBukuNikah = null;
       });
     } on Exception catch (e) {
       if (!mounted) return;
@@ -817,6 +807,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     required VoidCallback onPickFile,
     String? existingFileUrl,
   }) {
+    // ... (Logika untuk buttonText dan lainnya tetap sama)
     bool hasExistingFile =
         existingFileUrl != null && existingFileUrl.isNotEmpty;
     bool hasNewFile = file != null;
@@ -849,12 +840,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
           keyboardType: TextInputType.text,
-          validator: (value) {
-            if (file != null && (value == null || value.isEmpty)) {
-              return 'Nomor tidak boleh kosong jika file diunggah';
-            }
-            return null;
-          },
+          // Properti validator dihapus dari sini agar tidak ada validasi per field
+          validator: null,
         ),
         const SizedBox(height: 8),
         Row(
@@ -895,14 +882,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                     color: AppColors.primaryLight,
                   ),
                   tooltip: 'Lihat Dokumen',
-                  // DIUBAH: Logika onPressed sekarang menggunakan Navigator
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder:
                             (context) => DocumentViewerScreen(
-                              title: label, // Menggunakan label sebagai judul
+                              title: label,
                               url: existingFileUrl,
                             ),
                       ),

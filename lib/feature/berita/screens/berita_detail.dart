@@ -7,6 +7,9 @@ import 'package:kkba_mobile/model/berita.dart';
 import 'package:kkba_mobile/service/api_service.dart';
 import 'package:kkba_mobile/theme.dart';
 
+// Impor halaman viewer yang baru dibuat
+import 'fullscreen_viewer.dart';
+
 class BeritaDetailScreen extends StatefulWidget {
   final String beritaId;
   final String beritaTitle;
@@ -37,7 +40,6 @@ class _BeritaDetailScreenState extends State<BeritaDetailScreen> {
     try {
       final response = await _apiService.getBeritaById(widget.beritaId);
       if (mounted) {
-        // DIUBAH: Akses data melalui response.data.content sesuai model baru
         if (response.success && response.data?.content != null) {
           setState(() => _beritaDetail = response.data!.content);
         } else {
@@ -59,6 +61,13 @@ class _BeritaDetailScreenState extends State<BeritaDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // --- PERUBAHAN: AppBar sekarang standar, tidak lagi SliverAppBar ---
+      appBar: AppBar(
+        title: Text(widget.beritaTitle),
+        backgroundColor:
+            AppColors.primaryLight, // Sesuaikan dengan warna tema Anda
+        foregroundColor: Colors.white,
+      ),
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -73,47 +82,52 @@ class _BeritaDetailScreenState extends State<BeritaDetailScreen> {
     );
   }
 
+  // --- PERUBAHAN: Struktur konten diubah menjadi SingleChildScrollView ---
   Widget _buildDetailContent() {
     if (_beritaDetail == null) {
       return const Center(child: Text("Data berita tidak ditemukan."));
     }
     final berita = _beritaDetail!;
-    return CustomScrollView(
-      slivers: [
-        SliverAppBar(
-          expandedHeight: 250.0,
-          pinned: true,
-          flexibleSpace: FlexibleSpaceBar(
-            title: Text(
-              widget.beritaTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                shadows: [Shadow(blurRadius: 2, color: Colors.black54)],
+    final heroTag = 'berita-image-${berita.id}'; // Tag unik untuk animasi Hero
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // --- BAGIAN GAMBAR UTAMA (HERO IMAGE) ---
+          if (berita.thumbnailPath != null && berita.thumbnailPath!.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (_) => FullScreenImageViewer(
+                          imageUrl: berita.thumbnailPath!,
+                          heroTag: heroTag,
+                        ),
+                  ),
+                );
+              },
+              child: Hero(
+                tag: heroTag,
+                child: Image.network(
+                  berita.thumbnailPath!,
+                  width: double.infinity,
+                  fit: BoxFit.fitWidth, // Memastikan lebar gambar penuh
+                  errorBuilder:
+                      (context, error, stackTrace) =>
+                          const Icon(Icons.broken_image, size: 100),
+                ),
               ),
             ),
-            background:
-                berita.thumbnailPath != null && berita.thumbnailPath!.isNotEmpty
-                    ? Image.network(
-                      berita.thumbnailPath!,
-                      fit: BoxFit.cover,
-                      color: Colors.black.withOpacity(0.3),
-                      colorBlendMode: BlendMode.darken,
-                    )
-                    : Container(color: Colors.grey),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
+
+          // --- BAGIAN KONTEN TEKS ---
+          Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  // DIUBAH: Menggunakan berita.title
                   berita.title,
                   style: AppTheme.textThemeLight.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
@@ -128,20 +142,20 @@ class _BeritaDetailScreenState extends State<BeritaDetailScreen> {
                 ),
                 const Divider(height: 32),
                 Html(
-                  // DIUBAH: Menggunakan berita.text untuk konten HTML
                   data: berita.text,
                   style: {
                     "body": Style(
                       fontSize: FontSize(16.0),
                       lineHeight: const LineHeight(1.5),
                     ),
+                    "p": Style(margin: Margins.zero),
                   },
                 ),
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
