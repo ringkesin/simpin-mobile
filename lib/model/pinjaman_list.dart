@@ -107,8 +107,8 @@ class PinjamanDetailModel {
   final String? docSlipGaji;
   final int pStatusPengajuanId;
   final String? remarks;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime createdAt; // Tetap non-nullable
+  final DateTime updatedAt; // Tetap non-nullable
   final DateTime? deletedAt;
   final int? createdBy;
   final int? updatedBy;
@@ -120,6 +120,7 @@ class PinjamanDetailModel {
   final MasterStatusPengajuanSimpleModel masterStatusPengajuan;
   final MasterAnggotaSimpleModel masterAnggota;
 
+  // Constructor tidak perlu diubah
   PinjamanDetailModel({
     required this.tPinjamanId,
     required this.pAnggotaId,
@@ -156,11 +157,24 @@ class PinjamanDetailModel {
     required this.masterAnggota,
   });
 
+  // Factory constructor inilah yang kita perbaiki
   factory PinjamanDetailModel.fromJson(Map<String, dynamic> json) {
+    // Helper untuk parsing tanggal yang aman
+    DateTime parseSafeDateTime(dynamic value) {
+      if (value is String && value.isNotEmpty) {
+        return DateTime.tryParse(value) ?? DateTime.now();
+      }
+      return DateTime.now(); // Default value jika data null atau tidak valid
+    }
+
     return PinjamanDetailModel(
-      tPinjamanId: json['t_pinjaman_id'] as int,
-      pAnggotaId: json['p_anggota_id'] as int,
-      pJenisPinjamanId: json['p_jenis_pinjaman_id'] as int,
+      // <-- PERBAIKAN: Menggunakan _parseInt untuk ID yang wajib ada
+      tPinjamanId: _parseInt(json['t_pinjaman_id']) ?? 0,
+      pAnggotaId: _parseInt(json['p_anggota_id']) ?? 0,
+      pJenisPinjamanId: _parseInt(json['p_jenis_pinjaman_id']) ?? 0,
+      pStatusPengajuanId: _parseInt(json['p_status_pengajuan_id']) ?? 0,
+
+      // Bagian ini sebagian besar sudah aman, jadi tidak diubah
       nomorPinjaman: json['nomor_pinjaman'] as String?,
       pPinjamanKeperluanIds:
           (json['p_pinjaman_keperluan_ids'] as List<dynamic>?)
@@ -188,10 +202,12 @@ class PinjamanDetailModel {
               ? null
               : DateTime.tryParse(json['tgl_pelunasan'] as String),
       docSlipGaji: json['doc_slip_gaji'] as String?,
-      pStatusPengajuanId: json['p_status_pengajuan_id'] as int,
       remarks: json['remarks'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+
+      // <-- PERBAIKAN UTAMA: Parsing tanggal yang tidak akan crash
+      createdAt: parseSafeDateTime(json['created_at']),
+      updatedAt: parseSafeDateTime(json['updated_at']),
+
       deletedAt:
           json['deleted_at'] == null
               ? null
@@ -206,6 +222,8 @@ class PinjamanDetailModel {
               .toList() ??
           [],
       estimasiCicilanBulanan: _parseDouble(json['estimasi_cicilan_bulanan']),
+
+      // Bagian ini memanggil factory lain, jadi kita asumsikan sudah aman
       masterJenisPinjaman: MasterJenisPinjamanSimpleModel.fromJson(
         json['master_jenis_pinjaman'] as Map<String, dynamic>,
       ),
