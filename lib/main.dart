@@ -6,11 +6,21 @@ import './theme.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/rendering.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // debugPaintSizeEnabled = true; // Tambahkan di main() saat debug
   await dotenv.load(); // Memuat file .env
+  // Hapus komentar dan debug log untuk rilis produksi
+  OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+
+  // Inisialisasi OneSignal dengan App ID Anda
+  OneSignal.initialize("cd4090a6-6bd3-42ab-a653-6b4686484d5b");
+
+  // Minta izin notifikasi (penting untuk iOS)
+  OneSignal.Notifications.requestPermission(true);
+
   await initializeDateFormatting('id_ID', null);
   runApp(const MyApp());
 }
