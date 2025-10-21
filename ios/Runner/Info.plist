@@ -39,6 +39,8 @@
 	<string>Aplikasi ini memerlukan akses mikrofon jika Anda merekam video (opsional untuk foto).</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Kami menggunakan lokasi untuk mendapatkan data yang akurat untuk pengembangan aplikasi</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

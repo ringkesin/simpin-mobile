@@ -22,6 +22,9 @@ import '../model/tagihan_anggota.dart';
 import '../model/ticket_response.dart';
 import '../model/pinjaman_preview.dart';
 import '../model/document_attribute.dart';
+import '../model/list_penyertaan_response.dart';
+import '../model/pengajuan_penyertaan_response.dart';
+import '../model/list_perubahan_penyertaan_response.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
@@ -3177,6 +3180,253 @@ class ApiService {
     } catch (e) {
       print('[ApiService.searchBerita] Error: $e');
       rethrow;
+    }
+  }
+
+  Future<ListPenyertaanResponse> getListPenyertaan({
+    int page = 1,
+    int perPage = 10,
+  }) async {
+    const String endpoint = '/api/tabungan/penyertaan/pengajuan/list';
+    final String? token = await _getAuthToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception("Token otentikasi diperlukan.");
+    }
+
+    try {
+      final response = await _dio.get(
+        endpoint,
+        queryParameters: {'page': page, 'per_page': perPage},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200) {
+        return ListPenyertaanResponse.fromJson(response.data);
+      } else {
+        throw Exception('Gagal memuat daftar penyertaan.');
+      }
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? "Terjadi kesalahan jaringan.";
+      throw Exception(message);
+    }
+  }
+
+  Future<PengajuanPenyertaanResponse> submitPenyertaan({
+    required int pAnggotaId,
+    required int pJenisTabunganId,
+    required int jumlah,
+    required String tanggalPenyertaan, // Format "YYYY/MM/DD"
+  }) async {
+    const String endpoint = '/api/tabungan/penyertaan/pengajuan';
+    final String? token = await _getAuthToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception("Token otentikasi diperlukan.");
+    }
+
+    final Map<String, dynamic> payload = {
+      'p_anggota_id': pAnggotaId,
+      'p_jenis_tabungan_id': pJenisTabunganId,
+      'jumlah': jumlah,
+      'tanggal_penyertaan': tanggalPenyertaan,
+    };
+
+    try {
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return PengajuanPenyertaanResponse.fromJson(response.data);
+      } else {
+        throw Exception('Gagal mengajukan penyertaan.');
+      }
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? "Terjadi kesalahan jaringan.";
+      throw Exception(message);
+    }
+  }
+
+  Future<Map<String, dynamic>> approvePenyertaan({
+    required String id,
+    required int pJenisTabunganId,
+    required String statusPenyertaan,
+    required int jumlah,
+    required String tanggalPenyertaan, // Format "YYYY/MM/DD"
+    String? catatanApprover,
+  }) async {
+    const String endpoint = '/api/tabungan/penyertaan/approval';
+    final String? token = await _getAuthToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception("Token otentikasi diperlukan.");
+    }
+
+    final Map<String, dynamic> payload = {
+      'id': id,
+      'p_jenis_tabungan_id': pJenisTabunganId,
+      'status_penyertaan': statusPenyertaan,
+      'jumlah': jumlah,
+      'tanggal_penyertaan': tanggalPenyertaan,
+    };
+    if (catatanApprover != null) {
+      payload['catatan_approver'] = catatanApprover;
+    }
+
+    try {
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      return response.data;
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? "Gagal melakukan approval.";
+      throw Exception(message);
+    }
+  }
+
+  Future<Map<String, dynamic>> cancelPenyertaan(
+    String tTabunganPenyertaanId,
+  ) async {
+    final String endpoint =
+        '/api/tabungan/penyertaan/pembatalan/$tTabunganPenyertaanId';
+    final String? token = await _getAuthToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception("Token otentikasi diperlukan.");
+    }
+
+    try {
+      final response = await _dio.delete(
+        endpoint,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      return response.data;
+    } on DioException catch (e) {
+      final message = e.response?.data?['message'] ?? "Gagal membatalkan.";
+      throw Exception(message);
+    }
+  }
+
+  Future<ListPerubahanPenyertaanResponse> getListPerubahanPenyertaan({
+    int page = 1,
+    int perPage = 10,
+  }) async {
+    const String endpoint = '/api/tabungan/perubahan-penyertaan/pengajuan/list';
+    final String? token = await _getAuthToken();
+    if (token == null || token.isEmpty)
+      throw Exception("Token otentikasi diperlukan.");
+
+    try {
+      final response = await _dio.get(
+        endpoint,
+        queryParameters: {'page': page, 'per_page': perPage},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return ListPerubahanPenyertaanResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? "Terjadi kesalahan jaringan.";
+      throw Exception(message);
+    }
+  }
+
+  Future<Map<String, dynamic>> submitPerubahanPenyertaan({
+    required int pAnggotaId,
+    required int pJenisTabunganId,
+    required int nilaiBaru,
+    required String validFrom, // Format "YYYY/MM/DD"
+    String? catatanUser,
+  }) async {
+    const String endpoint = '/api/tabungan/perubahan-penyertaan/pengajuan';
+    final String? token = await _getAuthToken();
+    if (token == null || token.isEmpty)
+      throw Exception("Token otentikasi diperlukan.");
+
+    final Map<String, dynamic> payload = {
+      'p_anggota_id': pAnggotaId,
+      'p_jenis_tabungan_id': pJenisTabunganId,
+      'nilai_baru': nilaiBaru,
+      'valid_from': validFrom,
+      if (catatanUser != null) 'catatan_user': catatanUser,
+    };
+
+    try {
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return response.data;
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? "Gagal mengajukan perubahan.";
+      throw Exception(message);
+    }
+  }
+
+  Future<Map<String, dynamic>> approvePerubahanPenyertaan({
+    required String id,
+    required int pJenisTabunganId,
+    required String statusPerubahan,
+    required int nilaiBaru,
+    int? nilaiSebelum,
+    required String validFrom, // Format "YYYY/MM/DD"
+    String? catatanApprover,
+  }) async {
+    const String endpoint = '/api/tabungan/perubahan-penyertaan/approval';
+    final String? token = await _getAuthToken();
+    if (token == null || token.isEmpty)
+      throw Exception("Token otentikasi diperlukan.");
+
+    final Map<String, dynamic> payload = {
+      'id': id,
+      'p_jenis_tabungan_id': pJenisTabunganId,
+      'status_perubahan_penyertaan': statusPerubahan,
+      'nilai_baru': nilaiBaru,
+      'valid_from': validFrom,
+      if (nilaiSebelum != null) 'nilai_sebelum': nilaiSebelum,
+      if (catatanApprover != null) 'catatan_approver': catatanApprover,
+    };
+
+    try {
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return response.data;
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? "Gagal melakukan approval.";
+      throw Exception(message);
+    }
+  }
+
+  Future<Map<String, dynamic>> cancelPerubahanPenyertaan(String id) async {
+    final String endpoint = '/api/tabungan/perubahan-penyertaan/pembatalan/$id';
+    final String? token = await _getAuthToken();
+    if (token == null || token.isEmpty)
+      throw Exception("Token otentikasi diperlukan.");
+
+    try {
+      final response = await _dio.delete(
+        endpoint,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return response.data;
+    } on DioException catch (e) {
+      final message = e.response?.data?['message'] ?? "Gagal membatalkan.";
+      throw Exception(message);
     }
   }
 }

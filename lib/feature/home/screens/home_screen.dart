@@ -1,8 +1,7 @@
-// feature/home/screens/home_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:kkba_mobile/feature/berita/screens/semua_berita.dart';
 import 'package:kkba_mobile/feature/pencairan/screens/history.dart';
+import 'package:kkba_mobile/feature/tabungan/screens/penyertaan_tab_page.dart';
 import 'package:kkba_mobile/feature/tagihan/screens/tagihan_screens.dart';
 import 'package:kkba_mobile/feature/ticket/screens/ticket_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,6 +22,9 @@ import 'package:kkba_mobile/feature/list_pinjaman/screens/list_pinjaman.dart'; /
 import 'package:kkba_mobile/feature/tabungan/screens/tabungan.dart'; // For "Mutasi Tabungan" / "Info Tabungan"
 import 'package:kkba_mobile/feature/pencairan/screens/pencairan.dart'; // For "Form Pencairan Tabungan"
 import 'package:barcode_widget/barcode_widget.dart';
+
+// --- BARU: Import halaman Penyertaan ---
+import 'package:kkba_mobile/feature/tabungan/screens/penyertaan_list_view.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -611,32 +613,33 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // --- WIDGET YANG DIMODIFIKASI ---
   Widget _buildTabunganMenu(BuildContext context) {
-    // DIUBAH: Mendefinisikan Gradient menggunakan Hex Code
     final Gradient mutasiGradient = const LinearGradient(
-      colors: [
-        Color(0xFFF0F9FF),
-        Color(0xFFE0F2FE),
-      ], // Contoh: Light Cyan -> Teal
+      colors: [Color(0xFFF0F9FF), Color(0xFFE0F2FE)],
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
     );
     final Gradient pencairanGradient = const LinearGradient(
-      colors: [
-        Color(0xFFFFF1F2),
-        Color(0xFFFFE4E6),
-      ], // Contoh: Light Red -> Pink
+      colors: [Color(0xFFFFF1F2), Color(0xFFFFE4E6)],
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
     );
     final Gradient riwayatPencairanGradient = const LinearGradient(
-      colors: [
-        Color(0xFFECFDF5),
-        Color(0xFFD1FAE5),
-      ], // Contoh: Light Indigo -> Blue
+      colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
     );
+    // BARU: Gradient untuk menu Penyertaan
+    final Gradient penyertaanGradient = const LinearGradient(
+      colors: [
+        Color(0xFFF5F3FF), // Light Violet
+        Color(0xFFEDE9FE), // Deeper Violet
+      ],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+    );
+
     const Color defaultIconColor = Colors.black;
 
     return Column(
@@ -648,7 +651,7 @@ class _HomeScreenState extends State<HomeScreen> {
             'Tabungan',
             style: AppTheme.textThemeLight.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.primaryTextLight, // Pastikan warna sesuai tema
+              color: AppColors.primaryTextLight,
             ),
           ),
         ),
@@ -698,7 +701,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
             ),
-            Expanded(child: Container()), // Kolom ke-4 kosong
+            const SizedBox(width: 16), // Jarak antar item
+            // --- MENU BARU DITAMBAHKAN DI SINI ---
+            _buildMenuItem(
+              icon: LucideIcons.coins, // Gunakan SVG icon yang sesuai
+              label: "Penyertaan",
+              context: context,
+              iconBackgroundGradient: penyertaanGradient,
+              iconColor: defaultIconColor,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PenyertaanTabPage(),
+                    ),
+                  ),
+            ),
           ],
         ),
       ],

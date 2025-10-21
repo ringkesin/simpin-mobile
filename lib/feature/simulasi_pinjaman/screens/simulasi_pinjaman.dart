@@ -239,8 +239,8 @@ class _SimulasiPinjamanScreenState extends State<SimulasiPinjamanScreen> {
                       return 'Masukkan jumlah yang valid';
                     }
                     if (amount < 500000) return 'Minimal pinjaman Rp 500.000';
-                    if (amount > 100000000) {
-                      return 'Maksimal pinjaman Rp 100.000.000';
+                    if (amount > 500000000) {
+                      return 'Maksimal pinjaman Rp 500.000.000';
                     }
                     return null;
                   },
