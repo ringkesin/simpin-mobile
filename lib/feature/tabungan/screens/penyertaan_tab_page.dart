@@ -1,6 +1,7 @@
 // lib/feature/penyertaan/screens/penyertaan_tab_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // IMPORT BARU
 import 'penyertaan_universal_form.dart';
 import 'penyertaan_list_view.dart';
 import 'perubahan_penyertaan_list_view.dart';
@@ -22,10 +23,16 @@ class _PenyertaanTabPageState extends State<PenyertaanTabPage>
   final GlobalKey<PerubahanPenyertaanListViewState> _perubahanListKey =
       GlobalKey<PerubahanPenyertaanListViewState>();
 
+  // --- TAMBAHAN BARU: Variabel untuk Role Checking ---
+  bool _isAdmin = false;
+  bool _isRoleLoading = true;
+  // ---------------------------------------------------
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadUserRole(); // Panggil fungsi cek role saat inisialisasi
   }
 
   @override
@@ -33,6 +40,21 @@ class _PenyertaanTabPageState extends State<PenyertaanTabPage>
     _tabController.dispose();
     super.dispose();
   }
+
+  // --- TAMBAHAN BARU: Fungsi untuk memuat peran pengguna ---
+  Future<void> _loadUserRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Asumsi: Peran admin disimpan sebagai 'MOBILE_ADMIN'
+    final role = prefs.getString('role');
+
+    if (mounted) {
+      setState(() {
+        _isAdmin = role == 'mobile_admin';
+        _isRoleLoading = false;
+      });
+    }
+  }
+  // --------------------------------------------------------
 
   void _handleFabPress() async {
     // Selalu navigasi ke form universal yang baru
@@ -80,12 +102,21 @@ class _PenyertaanTabPageState extends State<PenyertaanTabPage>
           PerubahanPenyertaanListView(key: _perubahanListKey),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _handleFabPress,
-        backgroundColor: AppColors.primaryLight,
-        child: const Icon(Icons.add, color: Colors.white),
-        tooltip: 'Buat Pengajuan Baru',
-      ),
+
+      // --- PERUBAHAN UTAMA DI SINI ---
+      // Tombol hanya ditampilkan jika TIDAK Admin dan loading sudah selesai.
+      floatingActionButton:
+          _isRoleLoading
+              ? null // Sembunyikan saat role masih dimuat
+              : _isAdmin
+              ? null // Sembunyikan jika role adalah Admin
+              : FloatingActionButton(
+                onPressed: _handleFabPress,
+                backgroundColor: AppColors.primaryLight,
+                child: const Icon(Icons.add, color: Colors.white),
+                tooltip: 'Buat Pengajuan Baru',
+              ),
+      // -------------------------------
     );
   }
 }

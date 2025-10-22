@@ -604,8 +604,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (_) => const TicketListPage()),
                   ),
             ),
+            const SizedBox(width: 16),
+            _buildMenuItem(
+              icon: LucideIcons.coins,
+              label: "Approve Penyertaan",
+              context: context,
+              iconBackgroundGradient: inboxGradient,
+              iconColor: defaultIconColor,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PenyertaanTabPage(),
+                    ),
+                  ),
+            ),
             // Sisa 2 kolom kita beri Expanded kosong agar alignment rapi
-            Expanded(child: Container()),
             Expanded(child: Container()),
           ],
         ),
