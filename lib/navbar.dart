@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../theme.dart';
 
 import 'feature/home/screens/home_screen.dart';
+import 'feature/belanja/screens/belanjaan_page.dart';
 
 class MainWrapper extends StatefulWidget {
   const MainWrapper({super.key});
@@ -125,7 +126,8 @@ class _MainWrapperState extends State<MainWrapper> {
               _buildNavItem(icon: LucideIcons.home, label: 'Home', index: 0),
               _buildNavItem(icon: LucideIcons.wallet, label: 'SHU', index: 1),
               _buildNavItem(icon: LucideIcons.bell, label: 'Inbox', index: 2),
-              _buildNavItem(icon: LucideIcons.user, label: 'Profil', index: 3),
+              _buildNavItem(icon: LucideIcons.shoppingBag, label: 'Belanjaan', index: 3),
+              _buildNavItem(icon: LucideIcons.user, label: 'Profil', index: 4),
             ],
           ),
         ),

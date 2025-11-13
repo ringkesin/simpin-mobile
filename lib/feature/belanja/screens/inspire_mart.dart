@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
+import '../models/product.dart';
+import 'product_detail_page.dart';
+import 'cart_confirm_page.dart';
+import '../components/product_card.dart';
+import 'mart_search_page.dart';
+import 'belanjaan_page.dart';
 
 class InspireMartScreen extends StatefulWidget {
   const InspireMartScreen({super.key});
@@ -15,6 +21,8 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   int _currentTabIndex = 0; // 0: Explor, 1: Pencarian, 2: Kategori, 3: Belanja
   final PageController _headerPageController = PageController();
   int _headerPageIndex = 0;
+  // Riwayat pencarian sederhana (in-memory)
+  final List<String> _searchHistory = [];
 
   // Gambar header (gunakan aset yang tersedia sebagai contoh)
   final List<String> _headerImages = const [
@@ -40,6 +48,9 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     Product(name: 'Japota Keripik Kentang Happy', price: 11000, discountPercent: 0),
     Product(name: 'Cheetos Twists Jagung Bakar', price: 6600, discountPercent: 6),
   ];
+
+  // Gabungan produk untuk pencarian sederhana
+  late final List<Product> _allProducts = [..._flashDeals, ..._snacks];
 
   // Minimal cart state for demo
   int _cartCount = 0;
@@ -68,11 +79,60 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     setState(() {});
   }
 
+  // --- Belanjaan (Orders) state ---
+  int _orderTabIndex = 0; // 0: Dalam proses, 1: Riwayat
+  final List<Map<String, dynamic>> _ordersInProcess = const [];
+  final List<Map<String, dynamic>> _ordersHistory = const [
+    {
+      'code': 'MT-0459254916',
+      'datetime': 'Jun 24, 2025 17:05',
+      'summary': '1 Proguard Antibacterial Sabun, 1 Susu Ultra Cokelat, 1 Tolak Angin Madu',
+      'items': 3,
+      'total': 'Rp84.000',
+      'status': 'DIBATALKAN',
+      'statusColor': Color(0xFFEF4444),
+    },
+    {
+      'code': 'MT-0459254916',
+      'datetime': 'Jun 24, 2025 17:05',
+      'summary': '1 Proguard Antibacterial Sabun, 1 Susu Ultra Cokelat, 1 Tolak Angin Madu',
+      'items': 3,
+      'total': 'Rp84.000',
+      'status': 'SUKSES',
+      'statusColor': Color(0xFF22C55E),
+    },
+  ];
+
   @override
   void dispose() {
     _searchController.dispose();
     _headerPageController.dispose();
     super.dispose();
+  }
+
+  void _openSearchPage() async {
+    FocusScope.of(context).unfocus();
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MartSearchPage(
+          history: _searchHistory,
+          products: _allProducts,
+          getQty: _getQty,
+          onAdd: _increment,
+          onInc: _increment,
+          onDec: _decrement,
+          onSearched: (q) {
+            if (q.trim().isEmpty) return;
+            _searchHistory.removeWhere((e) => e.toLowerCase() == q.toLowerCase());
+            _searchHistory.insert(0, q);
+            setState(() {});
+          },
+        ),
+      ),
+    );
+    if (result is int) {
+      setState(() => _currentTabIndex = result);
+    }
   }
 
   @override
@@ -93,7 +153,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         children: [
           _buildHeader(),
           const SizedBox(height: 48),
-          Text('Hasil Pencarian', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight)),
+          Text('Hasil Pencarian', style: GoogleFonts.lexendDeca(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight)),
           const SizedBox(height: 8),
           _buildHorizontalProducts(_flashDeals),
           const SizedBox(height: 12),
@@ -110,7 +170,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           const SizedBox(height: 48),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Kategori', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight)),
+            child: Text('Kategori', style: GoogleFonts.lexendDeca(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight)),
           ),
           const SizedBox(height: 8),
           _buildIconGrid(),
@@ -119,27 +179,43 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
       );
     }
     if (_currentTabIndex == 3) {
-      // Belanja tab: placeholder isi keranjang
+      // Belanjaan tab: hanya daftar pesanan (tanpa header/search bar)
       return ListView(
         children: [
-          _buildHeader(),
-          const SizedBox(height: 48),
+          const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Keranjang Belanja', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight)),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
+            child: Text(
+              'Belanjaan',
+              style: GoogleFonts.lexendDeca(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: AppColors.primaryTextLight,
               ),
-              child: Text('Keranjang masih menggunakan data dummy.', style: GoogleFonts.inter(color: Colors.grey.shade700)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildOrdersTabs(),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                ...(_orderTabIndex == 0 ? _ordersInProcess : _ordersHistory)
+                    .map((o) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _buildOrderCard(o),
+                        ))
+                    .toList(),
+                const SizedBox(height: 16),
+                Text(
+                  _orderTabIndex == 1 ? 'Memuat riwayat ...' : 'Memuat dalam proses ...',
+                  style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.secondaryTextLight),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 100),
@@ -178,8 +254,20 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         pageController: _headerPageController,
         pageIndex: _headerPageIndex,
         onBack: () => Navigator.of(context).maybePop(),
-        onCart: () => setState(() => _currentTabIndex = 3),
+        onCart: () {
+          final items = _allProducts.where((p) => _getQty(p) > 0).toList();
+          if (items.isEmpty) return;
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => CartConfirmPage(
+              items: items,
+              getQty: _getQty,
+              onIncrement: _increment,
+              onDecrement: _decrement,
+            ),
+          ));
+        },
         searchController: _searchController,
+        onSearchTap: _openSearchPage,
       ),
     );
   }
@@ -230,11 +318,13 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                         Expanded(
                           child: Text(
                             'Inspire Mart',
-                            style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A)),
+                            style: GoogleFonts.lexendDeca(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A)),
                           ),
                         ),
                         InkWell(
-                          onTap: () => setState(() => _currentTabIndex = 3),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const BelanjaanPage()),
+                          ),
                           borderRadius: BorderRadius.circular(22),
                           child: Container(
                             width: 44,
@@ -309,7 +399,13 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                         Expanded(
                           child: TextField(
                             controller: _searchController,
-                            decoration: const InputDecoration.collapsed(hintText: 'Pepsodent Pasta Gigi'),
+                            readOnly: true,
+                            onTap: _openSearchPage,
+                            decoration: InputDecoration.collapsed(
+                              hintText: 'Pepsodent Pasta Gigi',
+                              hintStyle: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.secondaryTextLight),
+                            ),
+                            style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.primaryTextLight),
                           ),
                         ),
                       ],
@@ -358,7 +454,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                 ),
                 child: Row(
                   children: [
-                    Text('Lihat', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                    Text('Lihat', style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
                     const SizedBox(width: 6),
                     const Icon(Icons.arrow_forward, size: 16, color: Colors.white),
                   ],
@@ -375,7 +471,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.grey.shade300),
             ),
-            child: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryTextLight)),
+            child: Text(label, style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryTextLight)),
           );
         },
       ),
@@ -390,7 +486,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         children: [
           Text(
             title,
-            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight, height: 1.0),
+            style: GoogleFonts.lexendDeca(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight, height: 1.0),
             textHeightBehavior: const TextHeightBehavior(
               applyHeightToFirstAscent: false,
               applyHeightToLastDescent: false,
@@ -399,7 +495,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           if (showSeeAll)
             TextButton(
               onPressed: () {},
-              child: Text('Lihat Semua', style: GoogleFonts.inter(color: AppColors.primaryLight, fontWeight: FontWeight.w600)),
+              child: Text('Lihat Semua', style: GoogleFonts.lexendDeca(color: AppColors.primaryLight, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
@@ -416,12 +512,24 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final p = products[index];
-          return _ProductCard(
+          return ProductCard(
             product: p,
             quantity: _getQty(p),
             onAdd: () => _increment(p),
             onIncrement: () => _increment(p),
             onDecrement: () => _decrement(p),
+            onTap: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ProductDetailPage(
+                  product: p,
+                  getQty: _getQty,
+                  onAdd: _increment,
+                  onIncrement: _increment,
+                  onDecrement: _decrement,
+                  related: _allProducts.where((e) => e != p).toList(),
+                ),
+              ));
+            },
           );
         },
       ),
@@ -467,7 +575,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                 child: Icon(item.icon, color: item.color),
               ),
               const SizedBox(height: 4),
-              Text(item.label, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600)),
+              Text(item.label, textAlign: TextAlign.center, style: GoogleFonts.lexendDeca(fontSize: 11, fontWeight: FontWeight.w600)),
             ],
           );
         },
@@ -490,7 +598,18 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           children: [
             Expanded(
               child: InkWell(
-                onTap: () => setState(() => _currentTabIndex = 3),
+                onTap: () {
+                  final items = _allProducts.where((p) => _getQty(p) > 0).toList();
+                  if (items.isEmpty) return;
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => CartConfirmPage(
+                      items: items,
+                      getQty: _getQty,
+                      onIncrement: _increment,
+                      onDecrement: _decrement,
+                    ),
+                  ));
+                },
                 borderRadius: BorderRadius.circular(100),
                 child: Container(
                   height: effectiveHeight - 8,
@@ -509,7 +628,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                           children: [
                             Text(
                               '$_cartCount item',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.lexendDeca(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white,
@@ -520,7 +639,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                               'Harga yang tertera merupakan esti...',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.lexendDeca(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
                                 color: Colors.white.withOpacity(0.9),
@@ -533,7 +652,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                       // Harga di kanan
                       Text(
                         'Rp${_cartTotal}',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.lexendDeca(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
                           color: Colors.white,
@@ -607,7 +726,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                     _buildMartNavItem(icon: LucideIcons.compass, label: 'Explor', index: 0),
                     _buildMartNavItem(icon: LucideIcons.search, label: 'Pencarian', index: 1),
                     _buildMartNavItem(icon: Icons.grid_view, label: 'Kategori', index: 2),
-                    _buildMartNavItem(icon: LucideIcons.shoppingBag, label: 'Belanja', index: 3),
+                    _buildMartNavItem(icon: LucideIcons.shoppingBag, label: 'Belanjaan', index: 3),
                   ],
                 ),
               ),
@@ -631,7 +750,19 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     final double gap2 = isSmallHeight ? 3.0 : 4.0;
 
     return InkWell(
-      onTap: () => setState(() => _currentTabIndex = index),
+      onTap: () {
+        if (index == 1) {
+          _openSearchPage();
+          return;
+        }
+        if (index == 3) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const BelanjaanPage()),
+          );
+          return;
+        }
+        setState(() => _currentTabIndex = index);
+      },
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 6.0),
@@ -652,7 +783,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             SizedBox(height: gap2),
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.lexendDeca(
                 fontSize: fontSize,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: color,
@@ -666,217 +797,139 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   }
 }
 
-class Product {
-  final String name;
-  final int price;
-  final int discountPercent;
-  const Product({required this.name, required this.price, this.discountPercent = 0});
-}
-
-// Helper untuk format rupiah sederhana: 6000 -> Rp6.000
-String _formatRp(int value) {
-  final s = value.toString();
-  final buffer = StringBuffer();
-  int count = 0;
-  for (int i = s.length - 1; i >= 0; i--) {
-    buffer.write(s[i]);
-    count++;
-    if (count == 3 && i != 0) {
-      buffer.write('.');
-      count = 0;
-    }
-  }
-  final formatted = buffer.toString().split('').reversed.join();
-  return 'Rp$formatted';
-}
-
-int _originalPrice(int price, int discountPercent) {
-  if (discountPercent <= 0) return price;
-  return (price / (1 - discountPercent / 100)).round();
-}
-
-class _ProductCard extends StatelessWidget {
-  final Product product;
-  final int quantity;
-  final VoidCallback onAdd;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
-  const _ProductCard({
-    required this.product,
-    required this.quantity,
-    required this.onAdd,
-    required this.onIncrement,
-    required this.onDecrement,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final bool hasDiscount = product.discountPercent > 0;
-    final int oldPrice = _originalPrice(product.price, product.discountPercent);
+// --- Belanjaan helpers ---
+extension on _InspireMartScreenState {
+  Widget _buildOrdersTabs() {
     return Container(
-      width: 160,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDDE5ED)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // Area gambar full tanpa padding, mengikuti radius atas kartu
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              topRight: Radius.circular(16),
-            ),
-            child: SizedBox(
-              height: 120,
-              width: double.infinity,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.grey.shade100,
-                      child: const Center(
-                        child: Icon(LucideIcons.image, color: Color(0xFF9CA3AF)),
-                      ),
-                    ),
-                  ),
-                  if (hasDiscount)
-                    Positioned(
-                      top: 6,
-                      left: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          '${product.discountPercent}%',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (quantity <= 0)
-                    Positioned(
-                      right: 8,
-                      bottom: 8,
-                      child: InkWell(
-                        onTap: onAdd,
-                        borderRadius: BorderRadius.circular(18),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.add, color: Color(0xFF22C55E)),
-                        ),
-                      ),
-                    )
-                  else
-                    Positioned(
-                      left: 10,
-                      right: 10,
-                      bottom: 8,
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4)),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            InkWell(
-                              onTap: onDecrement,
-                              borderRadius: BorderRadius.circular(20),
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Icon(Icons.remove, color: const Color(0xFF22C55E)),
-                              ),
-                            ),
-                            Text(
-                              '$quantity',
-                              style: GoogleFonts.inter(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF0F172A),
-                              ),
-                            ),
-                            InkWell(
-                              onTap: onIncrement,
-                              borderRadius: BorderRadius.circular(20),
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Icon(Icons.add, color: const Color(0xFF22C55E)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Konten teks dengan padding internal
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _formatRp(product.price),
-                  style: GoogleFonts.inter(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryTextLight,
-                  ),
-                ),
-                if (hasDiscount)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2.0),
-                    child: Text(
-                      _formatRp(oldPrice),
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF9CA3AF),
-                        decoration: TextDecoration.lineThrough,
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 6),
-                Text(
-                  product.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryTextLight,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _ordersTabButton('Dalam proses', 0),
+          _ordersTabButton('Riwayat', 1),
         ],
       ),
     );
   }
+
+  Widget _ordersTabButton(String label, int index) {
+    final bool selected = _orderTabIndex == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _orderTabIndex = index),
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: selected
+                ? [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))]
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: GoogleFonts.lexendDeca(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              color: selected ? AppColors.primaryTextLight : AppColors.secondaryTextLight,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderCard(Map<String, dynamic> o) {
+    final Color borderColor = const Color(0xFFDDE5ED);
+    final Color statusColor = o['statusColor'] as Color? ?? AppColors.primaryLight;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        o['code'] as String,
+                        style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        o['datetime'] as String,
+                        style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.secondaryTextLight),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    o['status'] as String,
+                    style: GoogleFonts.lexendDeca(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              o['summary'] as String,
+              style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.primaryTextLight),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${o['items']} item | ${o['total']}',
+                    style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight),
+                  ),
+                ),
+                InkWell(
+                  onTap: () {},
+                  borderRadius: BorderRadius.circular(100),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text(
+                      'Mau lagi',
+                      style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+
 
 class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
   final List<String> images;
@@ -885,6 +938,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback onBack;
   final VoidCallback onCart;
   final TextEditingController searchController;
+  final VoidCallback onSearchTap;
 
   _MartHeaderDelegate({
     required this.images,
@@ -893,6 +947,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.onBack,
     required this.onCart,
     required this.searchController,
+    required this.onSearchTap,
   });
 
   @override
@@ -946,7 +1001,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                       Expanded(
                         child: Text(
                           'Inspire Mart',
-                          style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A)),
+                          style: GoogleFonts.lexendDeca(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A)),
                         ),
                       ),
                       InkWell(
@@ -982,7 +1037,13 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                                 Expanded(
                                   child: TextField(
                                     controller: searchController,
-                                    decoration: const InputDecoration.collapsed(hintText: 'Restock sugar'),
+                                    readOnly: true,
+                                    onTap: onSearchTap,
+                                    decoration: InputDecoration.collapsed(
+                                      hintText: 'Restock sugar',
+                                      hintStyle: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.secondaryTextLight),
+                                    ),
+                                    style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.primaryTextLight),
                                   ),
                                 ),
                               ],
@@ -1053,6 +1114,8 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                           Expanded(
                             child: TextField(
                               controller: searchController,
+                              readOnly: true,
+                              onTap: onSearchTap,
                               decoration: const InputDecoration.collapsed(hintText: 'Restock sugar'),
                             ),
                           ),
@@ -1080,3 +1143,5 @@ class _MiniCategory {
   final Color color;
   const _MiniCategory(this.label, this.icon, this.color);
 }
+
+// Halaman Pencarian telah dipisahkan ke file: lib/feature/belanja/screens/mart_search_page.dart
