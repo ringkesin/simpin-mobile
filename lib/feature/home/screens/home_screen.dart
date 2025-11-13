@@ -22,6 +22,7 @@ import 'package:kkba_mobile/feature/list_pinjaman/screens/list_pinjaman.dart'; /
 import 'package:kkba_mobile/feature/tabungan/screens/tabungan.dart'; // For "Mutasi Tabungan" / "Info Tabungan"
 import 'package:kkba_mobile/feature/pencairan/screens/pencairan.dart'; // For "Form Pencairan Tabungan"
 import 'package:barcode_widget/barcode_widget.dart';
+import 'package:kkba_mobile/feature/belanja/screens/inspire_mart.dart';
 
 // --- BARU: Import halaman Penyertaan ---
 import 'package:kkba_mobile/feature/tabungan/screens/penyertaan_list_view.dart';
@@ -546,6 +547,53 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Menu Belanja (Inspire Mart)
+  Widget _buildBelanjaMenu(BuildContext context) {
+    final Gradient belanjaGradient = const LinearGradient(
+      colors: [Color(0xFFF0FDF4), Color(0xFFDCFCE7)],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+    );
+    const Color defaultIconColor = Color(0xFF0F172A);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4.0),
+          child: Text(
+            'Belanja',
+            style: AppTheme.textThemeLight.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryTextLight,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildMenuItem(
+              icon: LucideIcons.shoppingCart,
+              label: "Inspire Mart",
+              context: context,
+              iconBackgroundGradient: belanjaGradient,
+              iconColor: defaultIconColor,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const InspireMartScreen()),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(child: Container()),
+            Expanded(child: Container()),
+            Expanded(child: Container()),
+          ],
+        ),
+      ],
+    );
+  }
+
   // BARU: Widget untuk membangun menu khusus admin
   Widget _buildAdminMenu(BuildContext context) {
     final Gradient riwayatGradient = const LinearGradient(
@@ -984,6 +1032,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             _buildPinjamanMenu(context),
                             const SizedBox(height: 18),
                             _buildTabunganMenu(context),
+                            const SizedBox(height: 18),
+                            _buildBelanjaMenu(context),
                           ],
                         ),
 
