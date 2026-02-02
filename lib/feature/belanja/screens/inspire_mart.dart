@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
+import '../models/banner_model.dart';
+import '../models/category_model.dart';
+import '../service/mart_api_service.dart';
+import '../models/section_model.dart';
 import '../models/product.dart';
 import 'product_detail_page.dart';
 import 'cart_confirm_page.dart';
@@ -24,33 +28,20 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   // Riwayat pencarian sederhana (in-memory)
   final List<String> _searchHistory = [];
 
-  // Gambar header (gunakan aset yang tersedia sebagai contoh)
-  final List<String> _headerImages = const [
-    'assets/images/background_simpin_mobile.png',
-    'assets/images/cardbg.png',
-    'assets/images/logokkba_header.png',
-  ];
+  // Categories
+  List<CategoryModel> _categories = [];
+  bool _isLoadingCategories = true;
 
-  // Dummy categories
-  final List<String> _categories = const [
-    'Alat Mandi', 'Snack', 'Minuman', 'Obat', 'Bahan Pokok', 'Susu', 'Makanan Instan', 'Buah & Sayuran', 'Roti', 'Air Mineral', 'Deterjen', 'Tisu'
-  ];
+  // Sections
+  List<SectionModel> _sections = [];
+  bool _isLoadingSections = true;
 
-  // Dummy products
-  final List<Product> _flashDeals = const [
-    Product(name: 'Ultra Milk Susu UHT Full Cream 1 L', price: 14900, discountPercent: 27),
-    Product(name: 'Sunlight Sabun Cuci Piring Jeruk Nipis 1L', price: 6000, discountPercent: 50),
-    Product(name: 'Minyak Goreng Pet 2L', price: 35800, discountPercent: 18),
-  ];
-
-  final List<Product> _snacks = const [
-    Product(name: 'Chitato Keripik Kentang Sapi Panggang', price: 17500, discountPercent: 0),
-    Product(name: 'Japota Keripik Kentang Happy', price: 11000, discountPercent: 0),
-    Product(name: 'Cheetos Twists Jagung Bakar', price: 6600, discountPercent: 6),
-  ];
+  // Dummy products (deprecated)
+  final List<Product> _flashDeals = const [];
+  final List<Product> _snacks = const [];
 
   // Gabungan produk untuk pencarian sederhana
-  late final List<Product> _allProducts = [..._flashDeals, ..._snacks];
+  List<Product> _allProducts = [];
 
   // Minimal cart state for demo
   int _cartCount = 0;
@@ -66,6 +57,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     _cartTotal += p.price;
     setState(() {});
   }
+
   void _decrement(Product p) {
     final current = _cartQuantities[p.name] ?? 0;
     if (current <= 0) return;
@@ -86,7 +78,8 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     {
       'code': 'MT-0459254916',
       'datetime': 'Jun 24, 2025 17:05',
-      'summary': '1 Proguard Antibacterial Sabun, 1 Susu Ultra Cokelat, 1 Tolak Angin Madu',
+      'summary':
+          '1 Proguard Antibacterial Sabun, 1 Susu Ultra Cokelat, 1 Tolak Angin Madu',
       'items': 3,
       'total': 'Rp84.000',
       'status': 'DIBATALKAN',
@@ -95,13 +88,58 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     {
       'code': 'MT-0459254916',
       'datetime': 'Jun 24, 2025 17:05',
-      'summary': '1 Proguard Antibacterial Sabun, 1 Susu Ultra Cokelat, 1 Tolak Angin Madu',
+      'summary':
+          '1 Proguard Antibacterial Sabun, 1 Susu Ultra Cokelat, 1 Tolak Angin Madu',
       'items': 3,
       'total': 'Rp84.000',
       'status': 'SUKSES',
       'statusColor': Color(0xFF22C55E),
     },
   ];
+
+  // Banners state
+  List<BannerModel> _banners = [];
+  bool _isLoadingBanners = true;
+  final MartApiService _martApiService = MartApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    setState(() {
+      _isLoadingBanners = true;
+      _isLoadingCategories = true;
+      _isLoadingSections = true;
+    });
+
+    // Run in parallel
+    final results = await Future.wait([
+      _martApiService.getBanners(),
+      _martApiService.getCategories(),
+      _martApiService.getSections(),
+    ]);
+
+    if (mounted) {
+      setState(() {
+        _banners = results[0] as List<BannerModel>;
+        _categories = results[1] as List<CategoryModel>;
+        _sections = results[2] as List<SectionModel>;
+        // Collect products for search/cart logic
+        _allProducts =
+            _sections
+                .expand((section) => section.items)
+                .where((item) => item.product != null)
+                .map((item) => item.product!)
+                .toList();
+        _isLoadingBanners = false;
+        _isLoadingCategories = false;
+        _isLoadingSections = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -114,20 +152,23 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     FocusScope.of(context).unfocus();
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MartSearchPage(
-          history: _searchHistory,
-          products: _allProducts,
-          getQty: _getQty,
-          onAdd: _increment,
-          onInc: _increment,
-          onDec: _decrement,
-          onSearched: (q) {
-            if (q.trim().isEmpty) return;
-            _searchHistory.removeWhere((e) => e.toLowerCase() == q.toLowerCase());
-            _searchHistory.insert(0, q);
-            setState(() {});
-          },
-        ),
+        builder:
+            (_) => MartSearchPage(
+              history: _searchHistory,
+              products: _allProducts,
+              getQty: _getQty,
+              onAdd: _increment,
+              onInc: _increment,
+              onDec: _decrement,
+              onSearched: (q) {
+                if (q.trim().isEmpty) return;
+                _searchHistory.removeWhere(
+                  (e) => e.toLowerCase() == q.toLowerCase(),
+                );
+                _searchHistory.insert(0, q);
+                setState(() {});
+              },
+            ),
       ),
     );
     if (result is int) {
@@ -153,7 +194,14 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         children: [
           _buildHeader(),
           const SizedBox(height: 48),
-          Text('Hasil Pencarian', style: GoogleFonts.lexendDeca(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight)),
+          Text(
+            'Hasil Pencarian',
+            style: GoogleFonts.lexendDeca(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primaryTextLight,
+            ),
+          ),
           const SizedBox(height: 8),
           _buildHorizontalProducts(_flashDeals),
           const SizedBox(height: 12),
@@ -170,7 +218,14 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           const SizedBox(height: 48),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Kategori', style: GoogleFonts.lexendDeca(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight)),
+            child: Text(
+              'Kategori',
+              style: GoogleFonts.lexendDeca(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryTextLight,
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           _buildIconGrid(),
@@ -205,15 +260,23 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             child: Column(
               children: [
                 ...(_orderTabIndex == 0 ? _ordersInProcess : _ordersHistory)
-                    .map((o) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _buildOrderCard(o),
-                        ))
+                    .map(
+                      (o) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildOrderCard(o),
+                      ),
+                    )
                     .toList(),
                 const SizedBox(height: 16),
                 Text(
-                  _orderTabIndex == 1 ? 'Memuat riwayat ...' : 'Memuat dalam proses ...',
-                  style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.secondaryTextLight),
+                  _orderTabIndex == 1
+                      ? 'Memuat riwayat ...'
+                      : 'Memuat dalam proses ...',
+                  style: GoogleFonts.lexendDeca(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.secondaryTextLight,
+                  ),
                 ),
               ],
             ),
@@ -229,19 +292,142 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         SliverToBoxAdapter(child: const SizedBox(height: 50)),
         SliverToBoxAdapter(child: _buildCategoryChips()),
         SliverToBoxAdapter(child: const SizedBox(height: 12)),
-        SliverToBoxAdapter(child: _buildSectionTitle('Gajian pasti untung s.d 60%')),
-        SliverToBoxAdapter(child: const SizedBox(height: 8)),
-        SliverToBoxAdapter(child: _buildHorizontalProducts(_flashDeals)),
-        SliverToBoxAdapter(child: const SizedBox(height: 16)),
-        SliverToBoxAdapter(child: _buildSectionTitle('Kebutuhan rumah tangga', showSeeAll: false)),
-        SliverToBoxAdapter(child: const SizedBox(height: 16)),
-        SliverToBoxAdapter(child: _buildIconGrid()),
-        SliverToBoxAdapter(child: const SizedBox(height: 16)),
-        SliverToBoxAdapter(child: _buildSectionTitle('Jajanan enak')),
-        SliverToBoxAdapter(child: const SizedBox(height: 8)),
-        SliverToBoxAdapter(child: _buildHorizontalProducts(_snacks)),
+
+        // Dynamic sections from API
+        if (_isLoadingSections)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          )
+        else if (_sections.isEmpty)
+          const SliverToBoxAdapter(child: SizedBox.shrink())
+        else
+          SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final section = _sections[index];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitle(section.title, showSeeAll: true),
+                  const SizedBox(height: 8),
+                  if (section.displayType == 'produk')
+                    _buildSectionProducts(section.items)
+                  else if (section.displayType == 'kategori')
+                    _buildSectionCategories(section.items)
+                  else
+                    const SizedBox.shrink(),
+                  const SizedBox(height: 16),
+                ],
+              );
+            }, childCount: _sections.length),
+          ),
+
         SliverPadding(padding: const EdgeInsets.only(bottom: 100)),
       ],
+    );
+  }
+
+  Widget _buildSectionProducts(List<SectionItemModel> items) {
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    // Map SectionItemModel to Product for compatibility
+    // Note: SectionItemModel should contain Product data
+    final products =
+        items.where((i) => i.product != null).map((i) => i.product!).toList();
+
+    return SizedBox(
+      height: 250, // Height for product cards
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: products.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final product = products[index];
+          final qty = _getQty(product);
+          return SizedBox(
+            width: 150,
+            child: ProductCard(
+              product: product,
+              quantity: qty,
+              onAdd: () => _increment(product),
+              onIncrement: () => _increment(product),
+              onDecrement: () => _decrement(product),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSectionCategories(List<SectionItemModel> items) {
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    final categories =
+        items.where((i) => i.category != null).map((i) => i.category!).toList();
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        childAspectRatio: 0.8,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 8,
+      ),
+      itemCount: categories.length,
+      itemBuilder: (context, index) {
+        final cat = categories[index];
+        return InkWell(
+          onTap: () {
+            // TODO: Navigate to category products
+          },
+          child: Column(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    cat.gambarKategoriUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder:
+                        (context, error, stackTrace) =>
+                            const Icon(Icons.image_not_supported),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                cat.kategori,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.lexendDeca(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.primaryTextLight,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -250,21 +436,24 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     return SliverPersistentHeader(
       pinned: true,
       delegate: _MartHeaderDelegate(
-        images: _headerImages,
+        banners: _banners,
         pageController: _headerPageController,
         pageIndex: _headerPageIndex,
         onBack: () => Navigator.of(context).maybePop(),
         onCart: () {
           final items = _allProducts.where((p) => _getQty(p) > 0).toList();
           if (items.isEmpty) return;
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => CartConfirmPage(
-              items: items,
-              getQty: _getQty,
-              onIncrement: _increment,
-              onDecrement: _decrement,
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder:
+                  (_) => CartConfirmPage(
+                    items: items,
+                    getQty: _getQty,
+                    onIncrement: _increment,
+                    onDecrement: _decrement,
+                  ),
             ),
-          ));
+          );
         },
         searchController: _searchController,
         onSearchTap: _openSearchPage,
@@ -283,21 +472,42 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: PageView.builder(
-                    controller: _headerPageController,
-                    itemCount: _headerImages.length,
-                    onPageChanged: (i) => setState(() => _headerPageIndex = i),
-                    itemBuilder: (context, index) {
-                      final path = _headerImages[index];
-                      return Image.asset(path, fit: BoxFit.cover);
-                    },
-                  ),
+                  child:
+                      _isLoadingBanners
+                          ? const Center(child: CircularProgressIndicator())
+                          : PageView.builder(
+                            controller: _headerPageController,
+                            itemCount: _banners.isEmpty ? 1 : _banners.length,
+                            onPageChanged:
+                                (i) => setState(() => _headerPageIndex = i),
+                            itemBuilder: (context, index) {
+                              if (_banners.isEmpty) {
+                                return Image.asset(
+                                  'assets/images/background_simpin_mobile.png',
+                                  fit: BoxFit.cover,
+                                );
+                              }
+                              final banner = _banners[index];
+                              return Image.network(
+                                banner.image,
+                                fit: BoxFit.cover,
+                                errorBuilder:
+                                    (context, error, stackTrace) => Image.asset(
+                                      'assets/images/background_simpin_mobile.png',
+                                      fit: BoxFit.cover,
+                                    ),
+                              );
+                            },
+                          ),
                 ),
                 // Overlay atas: tombol kembali, judul, keranjang
                 SafeArea(
                   bottom: false,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         InkWell(
@@ -309,22 +519,37 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.08),
+                                  blurRadius: 8,
+                                ),
+                              ],
                             ),
-                            child: const Icon(LucideIcons.arrowLeft, color: Color(0xFF0F172A)),
+                            child: const Icon(
+                              LucideIcons.arrowLeft,
+                              color: Color(0xFF0F172A),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             'Inspire Mart',
-                            style: GoogleFonts.lexendDeca(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A)),
+                            style: GoogleFonts.lexendDeca(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                            ),
                           ),
                         ),
                         InkWell(
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const BelanjaanPage()),
-                          ),
+                          onTap:
+                              () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const BelanjaanPage(),
+                                ),
+                              ),
                           borderRadius: BorderRadius.circular(22),
                           child: Container(
                             width: 44,
@@ -332,9 +557,17 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.08),
+                                  blurRadius: 8,
+                                ),
+                              ],
                             ),
-                            child: const Icon(LucideIcons.shoppingCart, color: Color(0xFF0F172A)),
+                            child: const Icon(
+                              LucideIcons.shoppingCart,
+                              color: Color(0xFF0F172A),
+                            ),
                           ),
                         ),
                       ],
@@ -342,38 +575,48 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                   ),
                 ),
                 // Indikator slider tepat di atas search bar
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 6,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(_headerImages.length, (i) {
-                          final bool active = i == _headerPageIndex;
-                          return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: active ? 8 : 6,
-                            height: active ? 8 : 6,
-                            decoration: BoxDecoration(
-                              color: active ? AppColors.primaryLight : const Color(0xFFCBD5E1),
-                              shape: BoxShape.circle,
+                if (!_isLoadingBanners && _banners.isNotEmpty)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 6,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.12),
+                              blurRadius: 8,
                             ),
-                          );
-                        }),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(_banners.length, (i) {
+                            final bool active = i == _headerPageIndex;
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              width: active ? 8 : 6,
+                              height: active ? 8 : 6,
+                              decoration: BoxDecoration(
+                                color:
+                                    active
+                                        ? AppColors.primaryLight
+                                        : const Color(0xFFCBD5E1),
+                                shape: BoxShape.circle,
+                              ),
+                            );
+                          }),
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -386,11 +629,20 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(24),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 6))],
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
                     child: Row(
                       children: [
@@ -403,9 +655,17 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                             onTap: _openSearchPage,
                             decoration: InputDecoration.collapsed(
                               hintText: 'Pepsodent Pasta Gigi',
-                              hintStyle: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.secondaryTextLight),
+                              hintStyle: GoogleFonts.lexendDeca(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: AppColors.secondaryTextLight,
+                              ),
                             ),
-                            style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.primaryTextLight),
+                            style: GoogleFonts.lexendDeca(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: AppColors.primaryTextLight,
+                            ),
                           ),
                         ),
                       ],
@@ -419,7 +679,13 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF22C55E),
                     shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 12, offset: const Offset(0, 6))],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
                   child: const Icon(Icons.tune, color: Colors.white),
                 ),
@@ -432,38 +698,68 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   }
 
   Widget _buildCategoryChips() {
+    if (_isLoadingCategories) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Ambil maksimal 8 kategori
+    final displayCategories = _categories.take(8).toList();
+
     return SizedBox(
       height: 40,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
-        itemCount: _categories.length + 1, // tambah tombol "Lihat"
+        itemCount: displayCategories.length + 1, // tambah tombol "Lihat"
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final bool isSeeButton = index == _categories.length;
+          final bool isSeeButton = index == displayCategories.length;
           if (isSeeButton) {
             return InkWell(
               onTap: () => setState(() => _currentTabIndex = 2),
               borderRadius: BorderRadius.circular(20),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF22C55E),
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Row(
                   children: [
-                    Text('Lihat', style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                    Text(
+                      'Lihat',
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
                     const SizedBox(width: 6),
-                    const Icon(Icons.arrow_forward, size: 16, color: Colors.white),
+                    const Icon(
+                      Icons.arrow_forward,
+                      size: 16,
+                      color: Colors.white,
+                    ),
                   ],
                 ),
               ),
             );
           }
 
-          final label = _categories[index];
+          final cat = displayCategories[index];
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
@@ -471,7 +767,14 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.grey.shade300),
             ),
-            child: Text(label, style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryTextLight)),
+            child: Text(
+              cat.kategori,
+              style: GoogleFonts.lexendDeca(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primaryTextLight,
+              ),
+            ),
           );
         },
       ),
@@ -482,11 +785,19 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
-        mainAxisAlignment: showSeeAll ? MainAxisAlignment.spaceBetween : MainAxisAlignment.start,
+        mainAxisAlignment:
+            showSeeAll
+                ? MainAxisAlignment.spaceBetween
+                : MainAxisAlignment.start,
         children: [
           Text(
             title,
-            style: GoogleFonts.lexendDeca(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight, height: 1.0),
+            style: GoogleFonts.lexendDeca(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primaryTextLight,
+              height: 1.0,
+            ),
             textHeightBehavior: const TextHeightBehavior(
               applyHeightToFirstAscent: false,
               applyHeightToLastDescent: false,
@@ -495,7 +806,13 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           if (showSeeAll)
             TextButton(
               onPressed: () {},
-              child: Text('Lihat Semua', style: GoogleFonts.lexendDeca(color: AppColors.primaryLight, fontWeight: FontWeight.w600)),
+              child: Text(
+                'Lihat Semua',
+                style: GoogleFonts.lexendDeca(
+                  color: AppColors.primaryLight,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
         ],
       ),
@@ -519,16 +836,19 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             onIncrement: () => _increment(p),
             onDecrement: () => _decrement(p),
             onTap: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => ProductDetailPage(
-                  product: p,
-                  getQty: _getQty,
-                  onAdd: _increment,
-                  onIncrement: _increment,
-                  onDecrement: _decrement,
-                  related: _allProducts.where((e) => e != p).toList(),
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder:
+                      (_) => ProductDetailPage(
+                        product: p,
+                        getQty: _getQty,
+                        onAdd: _increment,
+                        onIncrement: _increment,
+                        onDecrement: _decrement,
+                        related: _allProducts.where((e) => e != p).toList(),
+                      ),
                 ),
-              ));
+              );
             },
           );
         },
@@ -537,16 +857,12 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   }
 
   Widget _buildIconGrid() {
-    final List<_MiniCategory> items = const [
-      _MiniCategory('Bahan Pokok', Icons.rice_bowl, Colors.blueGrey),
-      _MiniCategory('Susu', Icons.local_drink, Colors.orange),
-      _MiniCategory('Makanan Instan', Icons.fastfood, Colors.teal),
-      _MiniCategory('Buah & Sayuran', Icons.eco, Colors.green),
-      _MiniCategory('Roti', Icons.bakery_dining, Colors.brown),
-      _MiniCategory('Air Mineral', Icons.water_drop, Colors.lightBlue),
-      _MiniCategory('Deterjen', Icons.cleaning_services, Colors.indigo),
-      _MiniCategory('Tisu', Icons.layers, Colors.deepPurple),
-    ];
+    if (_isLoadingCategories) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -556,27 +872,58 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         padding: EdgeInsets.zero,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
-          childAspectRatio: 0.9,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
+          childAspectRatio: 0.8,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 8,
         ),
-        itemCount: items.length,
+        itemCount: _categories.length,
         itemBuilder: (context, index) {
-          final item = items[index];
-          return Column(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: item.color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(16),
+          final cat = _categories[index];
+          return InkWell(
+            onTap: () {
+              // TODO: Navigate to category products
+            },
+            child: Column(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      cat.gambarKategoriUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder:
+                          (context, error, stackTrace) =>
+                              const Icon(Icons.image_not_supported),
+                    ),
+                  ),
                 ),
-                child: Icon(item.icon, color: item.color),
-              ),
-              const SizedBox(height: 4),
-              Text(item.label, textAlign: TextAlign.center, style: GoogleFonts.lexendDeca(fontSize: 11, fontWeight: FontWeight.w600)),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  cat.kategori,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.lexendDeca(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.primaryTextLight,
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -589,7 +936,13 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
         border: Border(top: BorderSide(color: Colors.grey.shade200)),
       ),
       child: SizedBox(
@@ -599,16 +952,20 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             Expanded(
               child: InkWell(
                 onTap: () {
-                  final items = _allProducts.where((p) => _getQty(p) > 0).toList();
+                  final items =
+                      _allProducts.where((p) => _getQty(p) > 0).toList();
                   if (items.isEmpty) return;
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => CartConfirmPage(
-                      items: items,
-                      getQty: _getQty,
-                      onIncrement: _increment,
-                      onDecrement: _decrement,
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder:
+                          (_) => CartConfirmPage(
+                            items: items,
+                            getQty: _getQty,
+                            onIncrement: _increment,
+                            onDecrement: _decrement,
+                          ),
                     ),
-                  ));
+                  );
                 },
                 borderRadius: BorderRadius.circular(100),
                 child: Container(
@@ -723,10 +1080,26 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildMartNavItem(icon: LucideIcons.compass, label: 'Explor', index: 0),
-                    _buildMartNavItem(icon: LucideIcons.search, label: 'Pencarian', index: 1),
-                    _buildMartNavItem(icon: Icons.grid_view, label: 'Kategori', index: 2),
-                    _buildMartNavItem(icon: LucideIcons.shoppingBag, label: 'Belanjaan', index: 3),
+                    _buildMartNavItem(
+                      icon: LucideIcons.compass,
+                      label: 'Explor',
+                      index: 0,
+                    ),
+                    _buildMartNavItem(
+                      icon: LucideIcons.search,
+                      label: 'Pencarian',
+                      index: 1,
+                    ),
+                    _buildMartNavItem(
+                      icon: Icons.grid_view,
+                      label: 'Kategori',
+                      index: 2,
+                    ),
+                    _buildMartNavItem(
+                      icon: LucideIcons.shoppingBag,
+                      label: 'Belanjaan',
+                      index: 3,
+                    ),
                   ],
                 ),
               ),
@@ -737,15 +1110,21 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     );
   }
 
-  Widget _buildMartNavItem({required IconData icon, required String label, required int index}) {
+  Widget _buildMartNavItem({
+    required IconData icon,
+    required String label,
+    required int index,
+  }) {
     final bool isSelected = _currentTabIndex == index;
-    final Color color = isSelected ? AppColors.primaryLight : AppColors.secondaryTextLight;
+    final Color color =
+        isSelected ? AppColors.primaryLight : AppColors.secondaryTextLight;
     final media = MediaQuery.of(context);
     final bool isSmallHeight = media.size.height < 700;
     final double fontSize = isSmallHeight ? 10.0 : 11.0;
     final double iconSize = isSmallHeight ? 22.0 : 24.0;
     final double indicatorHeight = isSmallHeight ? 2.0 : 3.0;
-    final double indicatorWidth = isSelected ? (isSmallHeight ? 20.0 : 24.0) : 0.0;
+    final double indicatorWidth =
+        isSelected ? (isSmallHeight ? 20.0 : 24.0) : 0.0;
     final double gap1 = isSmallHeight ? 4.0 : 6.0;
     final double gap2 = isSmallHeight ? 3.0 : 4.0;
 
@@ -756,9 +1135,9 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           return;
         }
         if (index == 3) {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const BelanjaanPage()),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const BelanjaanPage()));
           return;
         }
         setState(() => _currentTabIndex = index);
@@ -828,9 +1207,16 @@ extension on _InspireMartScreenState {
           decoration: BoxDecoration(
             color: selected ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: selected
-                ? [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))]
-                : null,
+            boxShadow:
+                selected
+                    ? [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                    : null,
           ),
           alignment: Alignment.center,
           child: Text(
@@ -838,7 +1224,10 @@ extension on _InspireMartScreenState {
             style: GoogleFonts.lexendDeca(
               fontSize: 13,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-              color: selected ? AppColors.primaryTextLight : AppColors.secondaryTextLight,
+              color:
+                  selected
+                      ? AppColors.primaryTextLight
+                      : AppColors.secondaryTextLight,
             ),
           ),
         ),
@@ -848,13 +1237,20 @@ extension on _InspireMartScreenState {
 
   Widget _buildOrderCard(Map<String, dynamic> o) {
     final Color borderColor = const Color(0xFFDDE5ED);
-    final Color statusColor = o['statusColor'] as Color? ?? AppColors.primaryLight;
+    final Color statusColor =
+        o['statusColor'] as Color? ?? AppColors.primaryLight;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -869,25 +1265,40 @@ extension on _InspireMartScreenState {
                     children: [
                       Text(
                         o['code'] as String,
-                        style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight),
+                        style: GoogleFonts.lexendDeca(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryTextLight,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         o['datetime'] as String,
-                        style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.secondaryTextLight),
+                        style: GoogleFonts.lexendDeca(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.secondaryTextLight,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     o['status'] as String,
-                    style: GoogleFonts.lexendDeca(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
+                    style: GoogleFonts.lexendDeca(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
                   ),
                 ),
               ],
@@ -895,7 +1306,11 @@ extension on _InspireMartScreenState {
             const SizedBox(height: 10),
             Text(
               o['summary'] as String,
-              style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.primaryTextLight),
+              style: GoogleFonts.lexendDeca(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.primaryTextLight,
+              ),
             ),
             const SizedBox(height: 14),
             Row(
@@ -903,21 +1318,32 @@ extension on _InspireMartScreenState {
                 Expanded(
                   child: Text(
                     '${o['items']} item | ${o['total']}',
-                    style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight),
+                    style: GoogleFonts.lexendDeca(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryTextLight,
+                    ),
                   ),
                 ),
                 InkWell(
                   onTap: () {},
                   borderRadius: BorderRadius.circular(100),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF22C55E),
                       borderRadius: BorderRadius.circular(100),
                     ),
                     child: Text(
                       'Mau lagi',
-                      style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -930,9 +1356,8 @@ extension on _InspireMartScreenState {
   }
 }
 
-
 class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final List<String> images;
+  final List<BannerModel> banners;
   final PageController pageController;
   final int pageIndex;
   final VoidCallback onBack;
@@ -941,7 +1366,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback onSearchTap;
 
   _MartHeaderDelegate({
-    required this.images,
+    required this.banners,
     required this.pageController,
     required this.pageIndex,
     required this.onBack,
@@ -957,7 +1382,11 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => 340;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     final t = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
     final collapsed = t > 0.8;
     return Container(
@@ -965,17 +1394,33 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          if (!collapsed)
-            Positioned.fill(
+          Positioned.fill(
+            child: Opacity(
+              opacity: (1.0 - t).clamp(0.0, 1.0),
               child: PageView.builder(
                 controller: pageController,
-                itemCount: images.length,
+                itemCount: banners.isEmpty ? 1 : banners.length,
                 itemBuilder: (context, index) {
-                  final path = images[index];
-                  return Image.asset(path, fit: BoxFit.cover);
+                  if (banners.isEmpty) {
+                    return Image.asset(
+                      'assets/images/background_simpin_mobile.png',
+                      fit: BoxFit.cover,
+                    );
+                  }
+                  final banner = banners[index];
+                  return Image.network(
+                    banner.image,
+                    fit: BoxFit.cover,
+                    errorBuilder:
+                        (context, error, stackTrace) => Image.asset(
+                          'assets/images/background_simpin_mobile.png',
+                          fit: BoxFit.cover,
+                        ),
+                  );
                 },
               ),
             ),
+          ),
 
           // Overlay controls (berbeda saat collapsed)
           SafeArea(
@@ -993,15 +1438,25 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                         child: Container(
                           width: 44,
                           height: 44,
-                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                          child: const Icon(LucideIcons.x, color: Color(0xFF0F172A)),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            LucideIcons.x,
+                            color: Color(0xFF0F172A),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'Inspire Mart',
-                          style: GoogleFonts.lexendDeca(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A)),
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0F172A),
+                          ),
                         ),
                       ),
                       InkWell(
@@ -1010,8 +1465,14 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                         child: Container(
                           width: 44,
                           height: 44,
-                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                          child: const Icon(LucideIcons.shoppingCart, color: Color(0xFF0F172A)),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            LucideIcons.shoppingCart,
+                            color: Color(0xFF0F172A),
+                          ),
                         ),
                       ),
                     ],
@@ -1025,14 +1486,20 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                       children: [
                         Expanded(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(24),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.search, color: Color(0xFF0F172A)),
+                                const Icon(
+                                  Icons.search,
+                                  color: Color(0xFF0F172A),
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: TextField(
@@ -1041,9 +1508,17 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                                     onTap: onSearchTap,
                                     decoration: InputDecoration.collapsed(
                                       hintText: 'Restock sugar',
-                                      hintStyle: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.secondaryTextLight),
+                                      hintStyle: GoogleFonts.lexendDeca(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w400,
+                                        color: AppColors.secondaryTextLight,
+                                      ),
                                     ),
-                                    style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.primaryTextLight),
+                                    style: GoogleFonts.lexendDeca(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w400,
+                                      color: AppColors.primaryTextLight,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1067,22 +1542,33 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
               bottom: 6,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(12),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8)],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 8,
+                      ),
+                    ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: List.generate(images.length, (i) {
+                    children: List.generate(banners.length, (i) {
                       final bool active = i == pageIndex;
                       return Container(
                         margin: const EdgeInsets.symmetric(horizontal: 4),
                         width: active ? 8 : 6,
                         height: active ? 8 : 6,
                         decoration: BoxDecoration(
-                          color: active ? AppColors.primaryLight : const Color(0xFFCBD5E1),
+                          color:
+                              active
+                                  ? AppColors.primaryLight
+                                  : const Color(0xFFCBD5E1),
                           shape: BoxShape.circle,
                         ),
                       );
@@ -1101,11 +1587,20 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                 children: [
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 6))],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
                       child: Row(
                         children: [
@@ -1116,7 +1611,9 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                               controller: searchController,
                               readOnly: true,
                               onTap: onSearchTap,
-                              decoration: const InputDecoration.collapsed(hintText: 'Restock sugar'),
+                              decoration: const InputDecoration.collapsed(
+                                hintText: 'Restock sugar',
+                              ),
                             ),
                           ),
                         ],
@@ -1133,15 +1630,8 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(covariant _MartHeaderDelegate oldDelegate) {
-    return oldDelegate.pageIndex != pageIndex || oldDelegate.images != images;
+    return oldDelegate.pageIndex != pageIndex || oldDelegate.banners != banners;
   }
-}
-
-class _MiniCategory {
-  final String label;
-  final IconData icon;
-  final Color color;
-  const _MiniCategory(this.label, this.icon, this.color);
 }
 
 // Halaman Pencarian telah dipisahkan ke file: lib/feature/belanja/screens/mart_search_page.dart
