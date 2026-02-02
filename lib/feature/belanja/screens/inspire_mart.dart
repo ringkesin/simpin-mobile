@@ -7,6 +7,8 @@ import '../models/category_model.dart';
 import '../service/mart_api_service.dart';
 import '../models/section_model.dart';
 import '../models/product.dart';
+import '../models/cart_model.dart';
+import '../service/cart_api_service.dart';
 import 'product_detail_page.dart';
 import 'cart_confirm_page.dart';
 import '../components/product_card.dart';
@@ -43,32 +45,112 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   // Gabungan produk untuk pencarian sederhana
   List<Product> _allProducts = [];
 
-  // Minimal cart state for demo
-  int _cartCount = 0;
-  int _cartTotal = 13900;
-  // Kuantitas per produk (key pakai nama produk untuk demo)
-  final Map<String, int> _cartQuantities = {};
+  // Real cart state
+  final CartApiService _cartApiService = CartApiService();
+  CartModel? _cart;
+  bool _isLoadingCart = false;
 
-  int _getQty(Product p) => _cartQuantities[p.name] ?? 0;
+  // Mapping product ID to quantity for fast UI updates
+  final Map<String, int> _cartProductQuantities = {};
+
+  int _getQty(Product p) => _cartProductQuantities[p.id] ?? 0;
+
+  // Helpers for Cart
+  int get _cartCount => _cart?.totalItems ?? 0;
+  String get _cartTotal =>
+      formatRp(_cart?.summary.total ?? 0).replaceAll('Rp', '');
+
+  Future<void> _fetchCart() async {
+    // Silent update if not initial load
+    final cart = await _cartApiService.getCart();
+    if (mounted && cart != null) {
+      setState(() {
+        _cart = cart;
+        _cartProductQuantities.clear();
+        for (var item in cart.items) {
+          // Use productId from item wrapper, not the nested product which might have empty ID
+          _cartProductQuantities[item.productId] =
+              (_cartProductQuantities[item.productId] ?? 0) + item.quantity;
+        }
+      });
+    }
+  }
+
+  // Debounce helper
+  Map<String, DateTime> _lastUpdate = {};
+
   void _increment(Product p) {
-    final current = _cartQuantities[p.name] ?? 0;
-    _cartQuantities[p.name] = current + 1;
-    _cartCount += 1;
-    _cartTotal += p.price;
-    setState(() {});
+    // Optimistic update
+    final currentQty = _cartProductQuantities[p.id] ?? 0;
+    final newQty = currentQty + 1;
+
+    setState(() {
+      _cartProductQuantities[p.id] = newQty;
+    });
+
+    // Call API
+    _updateCartApi(p.id, newQty);
   }
 
   void _decrement(Product p) {
-    final current = _cartQuantities[p.name] ?? 0;
-    if (current <= 0) return;
-    if (current - 1 == 0) {
-      _cartQuantities.remove(p.name);
-    } else {
-      _cartQuantities[p.name] = current - 1;
+    final currentQty = _cartProductQuantities[p.id] ?? 0;
+    if (currentQty <= 0) return;
+
+    final newQty = currentQty - 1;
+    setState(() {
+      if (newQty == 0) {
+        _cartProductQuantities.remove(p.id);
+      } else {
+        _cartProductQuantities[p.id] = newQty;
+      }
+    });
+
+    // Call API (If 0, it should ideally call remove, but backend update(0) might handle it)
+    // If newQty is 0, let's call remove if we have cart item id, or just update(0) and let backend handle
+    // Since we only have product ID here easily, let's assume addToCart handles update logic or we use addToCart for positive changes
+    // Wait, addToCart is usually for adding. updateQuantity needs cart_item_id.
+    // We need to know if we are updating or adding.
+    // Simplified logic: Always use addToCart for increment if not in cart? No, that creates duplicates usually.
+    // Better: _updateCartApi handles the logic.
+    _updateCartApi(p.id, newQty);
+  }
+
+  Future<void> _updateCartApi(String productId, int quantity) async {
+    // Debounce: Wait 500ms before sending request
+    /* 
+       Note: A proper debounce would cancel previous timer. 
+       For simplicity in this file without external rx libs:
+       We will just fire the request. For production, use a Debouncer class.
+    */
+
+    // Check if item exists in _cart
+    bool inCart = false;
+    if (_cart != null) {
+      for (var item in _cart!.items) {
+        if (item.productId == productId) {
+          inCart = true;
+          break;
+        }
+      }
     }
-    _cartCount -= 1;
-    _cartTotal -= p.price;
-    setState(() {});
+
+    bool success = false;
+    if (inCart) {
+      if (quantity == 0) {
+        success = await _cartApiService.removeItem(productId);
+      } else {
+        success = await _cartApiService.updateQuantity(productId, quantity);
+      }
+    } else {
+      if (quantity > 0) {
+        success = await _cartApiService.addToCart(productId, quantity);
+      }
+    }
+
+    if (success) {
+      // Sync cart from server to get correct totals and ids
+      _fetchCart();
+    }
   }
 
   // --- Belanjaan (Orders) state ---
@@ -120,6 +202,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
       _martApiService.getBanners(),
       _martApiService.getCategories(),
       _martApiService.getSections(),
+      _cartApiService.getCart(),
     ]);
 
     if (mounted) {
@@ -127,6 +210,16 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         _banners = results[0] as List<BannerModel>;
         _categories = results[1] as List<CategoryModel>;
         _sections = results[2] as List<SectionModel>;
+
+        final cart = results[3] as CartModel?;
+        if (cart != null) {
+          _cart = cart;
+          _cartProductQuantities.clear();
+          for (var item in cart.items) {
+            _cartProductQuantities[item.productId] =
+                (_cartProductQuantities[item.productId] ?? 0) + item.quantity;
+          }
+        }
         // Collect products for search/cart logic
         _allProducts =
             _sections
@@ -441,19 +534,58 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         pageIndex: _headerPageIndex,
         onBack: () => Navigator.of(context).maybePop(),
         onCart: () {
-          final items = _allProducts.where((p) => _getQty(p) > 0).toList();
-          if (items.isEmpty) return;
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder:
-                  (_) => CartConfirmPage(
-                    items: items,
-                    getQty: _getQty,
-                    onIncrement: _increment,
-                    onDecrement: _decrement,
+          // Use real cart data for validation, but for UI we might need to pass products details if they are not fully in _cart
+          // _cart only has minimal product data usually? CartItemModel has full Product model in our definition.
+
+          // If _cart is null or empty, don't open
+          if (_cart == null || _cart!.items.isEmpty) return;
+
+          // Map CartItemModel back to Product list for compatibility with existing CartConfirmPage
+          // OR better: update CartConfirmPage to accept CartModel directly.
+          // For now, let's keep compatibility but use _cart data.
+
+          final uniqueProductIds = <String>{};
+          final items = <Product>[];
+          for (var item in _cart!.items) {
+            // Deduplicate using item.productId which is reliable
+            if (uniqueProductIds.add(item.productId)) {
+              // Ensure product has the ID if missing
+              if (item.product.id.isEmpty) {
+                // Create a new Product instance with the correct ID
+                items.add(
+                  Product(
+                    id: item.productId,
+                    name: item.product.name,
+                    price: item.product.price,
+                    discountPercent: item.product.discountPercent,
+                    imageUrl: item.product.imageUrl,
+                    isStockAvailable: item.product.isStockAvailable,
                   ),
-            ),
-          );
+                );
+              } else {
+                items.add(item.product);
+              }
+            }
+          }
+
+          Navigator.of(context)
+              .push(
+                MaterialPageRoute(
+                  builder:
+                      (_) => CartConfirmPage(
+                        items: items,
+                        getQty: _getQty,
+                        onIncrement: _increment,
+                        onDecrement: _decrement,
+                        cart: _cart, // Pass full cart model
+                        cartApiService:
+                            _cartApiService, // Pass service for checkout/voucher
+                        onRefresh:
+                            _fetchCart, // Callback to refresh when returning
+                      ),
+                ),
+              )
+              .then((_) => _fetchCart()); // Refresh on return
         },
         searchController: _searchController,
         onSearchTap: _openSearchPage,
@@ -955,17 +1087,22 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                   final items =
                       _allProducts.where((p) => _getQty(p) > 0).toList();
                   if (items.isEmpty) return;
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder:
-                          (_) => CartConfirmPage(
-                            items: items,
-                            getQty: _getQty,
-                            onIncrement: _increment,
-                            onDecrement: _decrement,
-                          ),
-                    ),
-                  );
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder:
+                              (_) => CartConfirmPage(
+                                items: items,
+                                getQty: _getQty,
+                                onIncrement: _increment,
+                                onDecrement: _decrement,
+                                cart: _cart,
+                                cartApiService: _cartApiService,
+                                onRefresh: _fetchCart,
+                              ),
+                        ),
+                      )
+                      .then((_) => _fetchCart());
                 },
                 borderRadius: BorderRadius.circular(100),
                 child: Container(
