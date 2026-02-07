@@ -57,13 +57,13 @@ class ProductCard extends StatelessWidget {
                   children: [
                     Positioned.fill(
                       child: Container(
-                        color: Colors.grey.shade100,
+                        color: Colors.white,
                         child:
                             product.imageUrl != null &&
                                     product.imageUrl!.isNotEmpty
                                 ? Image.network(
                                   product.imageUrl!,
-                                  fit: BoxFit.cover,
+                                  fit: BoxFit.contain,
                                   errorBuilder:
                                       (context, error, stackTrace) =>
                                           const Center(

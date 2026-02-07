@@ -36,6 +36,7 @@ class CartConfirmPage extends StatefulWidget {
 class _CartConfirmPageState extends State<CartConfirmPage> {
   late CartModel? _currentCart;
   final TextEditingController _voucherController = TextEditingController();
+  final TextEditingController _remarksController = TextEditingController();
   bool _isApplyingVoucher = false;
   bool _isCheckingOut = false;
   List<VoucherModel> _availableVouchers = [];
@@ -80,6 +81,13 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
         _isLoadingVouchers = false;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _voucherController.dispose();
+    _remarksController.dispose();
+    super.dispose();
   }
 
   int get totalPrice {
@@ -639,10 +647,7 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(24),
@@ -650,20 +655,16 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(
-                              LucideIcons.badgeInfo,
-                              color: Color(0xFF0F172A),
-                              size: 18,
-                            ),
+                            const Icon(LucideIcons.badgeInfo, color: Color(0xFF0F172A), size: 18),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                'Catatan untuk pengantar ...',
-                                style: GoogleFonts.lexendDeca(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.secondaryTextLight,
+                              child: TextField(
+                                controller: _remarksController,
+                                decoration: const InputDecoration(
+                                  hintText: 'Catatan untuk pengantar ...',
+                                  border: InputBorder.none,
                                 ),
+                                style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.primaryTextLight),
                               ),
                             ),
                           ],
@@ -703,9 +704,34 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Column(
-                        children:
-                            widget.items.map((p) {
+                        children: () {
+                          final Set<String> _seenIds = {};
+                          return widget.items
+                              .where((p) => _seenIds.add(p.id))
+                              .map((p) {
                               final qty = widget.getQty(p);
+                              final ci = _currentCart?.items.firstWhere(
+                                (it) => it.productId == p.id || it.product.id == p.id,
+                                orElse: () => CartItemModel(
+                                  id: '',
+                                  productId: p.id,
+                                  product: p,
+                                  quantity: qty,
+                                  price: p.price,
+                                  totalPrice: p.price * qty,
+                                ),
+                              );
+                              final displayImageUrl = (p.imageUrl != null && p.imageUrl!.isNotEmpty)
+                                  ? p.imageUrl
+                                  : (ci?.product.imageUrl);
+                              final qtyDisplay = ci?.quantity ?? qty;
+                              final unitFromItem = (ci?.price ?? 0);
+                              final unitFromTotal = ((ci?.totalPrice ?? 0) > 0 && qtyDisplay > 0)
+                                  ? ((ci!.totalPrice ~/ qtyDisplay))
+                                  : 0;
+                              final displayPrice = unitFromItem > 0
+                                  ? unitFromItem
+                                  : (unitFromTotal > 0 ? unitFromTotal : p.price);
                               if (qty <= 0) return const SizedBox.shrink();
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -718,24 +744,21 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                                       width: 40,
                                       height: 40,
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
+                                        color: Colors.white,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child:
-                                          p.imageUrl != null &&
-                                                  p.imageUrl!.isNotEmpty
-                                              ? ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                child: Image.network(
-                                                  p.imageUrl!,
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              )
-                                              : const Icon(
-                                                LucideIcons.image,
-                                                color: Color(0xFF9CA3AF),
+                                      child: (displayImageUrl != null && displayImageUrl.isNotEmpty)
+                                          ? ClipRRect(
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Image.network(
+                                                displayImageUrl,
+                                                fit: BoxFit.contain,
                                               ),
+                                            )
+                                          : const Icon(
+                                              LucideIcons.image,
+                                              color: Color(0xFF9CA3AF),
+                                        ),
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
@@ -753,7 +776,7 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
-                                            formatRp(p.price),
+                                            formatRp(displayPrice),
                                             style: GoogleFonts.lexendDeca(
                                               fontSize: 11.5,
                                               fontWeight: FontWeight.w500,
@@ -811,7 +834,8 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                                   ],
                                 ),
                               );
-                            }).toList(),
+                              }).toList();
+                        }(),
                       ),
                     ),
                     _sectionBreak(),
@@ -963,56 +987,6 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                     ),
                     _sectionBreak(),
                     const SizedBox(height: 16),
-                    // Pembayaran via GoPay (non-interaktif)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              LucideIcons.wallet,
-                              color: Color(0xFF0F172A),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Pembayaran via GoPay',
-                                style: GoogleFonts.lexendDeca(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primaryTextLight,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              formatRp(
-                                _currentCart?.summary.total ?? totalPrice,
-                              ),
-                              style: GoogleFonts.lexendDeca(
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.primaryTextLight,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(
-                              Icons.more_vert,
-                              color: Color(0xFF0F172A),
-                              size: 18,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    _sectionBreak(),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -1039,7 +1013,7 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                   children: [
                     Expanded(
                       child: InkWell(
-                        onTap: () {},
+                        onTap: _submitToAdmin,
                         borderRadius: BorderRadius.circular(100),
                         child: Container(
                           height: isSmallHeight ? 46 : 52,
@@ -1052,7 +1026,7 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'Bayar sekarang',
+                                'Submit ke admin',
                                 style: GoogleFonts.lexendDeca(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
@@ -1089,6 +1063,26 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _submitToAdmin() async {
+    if (widget.cartApiService == null) return;
+    final lokasiId = _selectedLocation?.id ?? 2;
+    final remarks = _remarksController.text.trim();
+    final ok = await widget.cartApiService!.submitCart(
+      lokasiDeliveryId: lokasiId,
+      deliveryRemarks: remarks,
+    );
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Permintaan berhasil dikirim ke admin')),
+      );
+      Navigator.of(context).pop();
+    } else {
+      final msg = widget.cartApiService!.lastErrorMessage ?? 'Gagal submit ke admin';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
   }
 
   Widget _priceRow(

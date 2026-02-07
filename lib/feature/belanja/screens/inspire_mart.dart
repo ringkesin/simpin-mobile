@@ -14,6 +14,7 @@ import 'cart_confirm_page.dart';
 import '../components/product_card.dart';
 import 'mart_search_page.dart';
 import 'belanjaan_page.dart';
+import 'category_products_page.dart';
 
 class InspireMartScreen extends StatefulWidget {
   const InspireMartScreen({super.key});
@@ -37,6 +38,8 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   // Sections
   List<SectionModel> _sections = [];
   bool _isLoadingSections = true;
+
+  bool get _isGlobalLoading => _isLoadingBanners || _isLoadingCategories || _isLoadingSections;
 
   // Dummy products (deprecated)
   final List<Product> _flashDeals = const [];
@@ -150,6 +153,24 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     if (success) {
       // Sync cart from server to get correct totals and ids
       _fetchCart();
+    } else {
+      // Revert optimistic update
+      final prevQty = _cart?.items
+              .where((it) => it.productId == productId)
+              .map((it) => it.quantity)
+              .fold<int>(0, (a, b) => a + b) ??
+          0;
+      setState(() {
+        if (prevQty == 0) {
+          _cartProductQuantities.remove(productId);
+        } else {
+          _cartProductQuantities[productId] = prevQty;
+        }
+      });
+      final msg = _cartApiService.lastErrorMessage ?? 'Gagal memperbarui keranjang (422)';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg)),
+      );
     }
   }
 
@@ -261,6 +282,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                 _searchHistory.insert(0, q);
                 setState(() {});
               },
+              martApiService: _martApiService,
             ),
       ),
     );
@@ -280,6 +302,9 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   }
 
   Widget _buildBodyByTab() {
+    if (_currentTabIndex == 0 && _isGlobalLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (_currentTabIndex == 1) {
       // Pencarian tab: fokus ke pencarian dan hasil dummy
       return ListView(
@@ -448,6 +473,21 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
               onAdd: () => _increment(product),
               onIncrement: () => _increment(product),
               onDecrement: () => _decrement(product),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ProductDetailPage(
+                      product: product,
+                      getQty: _getQty,
+                      onAdd: _increment,
+                      onIncrement: _increment,
+                      onDecrement: _decrement,
+                      related:
+                          _allProducts.where((e) => e.id != product.id).toList(),
+                    ),
+                  ),
+                );
+              },
             ),
           );
         },
@@ -476,7 +516,18 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         final cat = categories[index];
         return InkWell(
           onTap: () {
-            // TODO: Navigate to category products
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => CategoryProductsPage(
+                  kategoriId: cat.id,
+                  kategoriName: cat.kategori,
+                  getQty: _getQty,
+                  onAdd: _increment,
+                  onIncrement: _increment,
+                  onDecrement: _decrement,
+                ),
+              ),
+            );
           },
           child: Column(
             children: [
@@ -540,31 +591,35 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           // If _cart is null or empty, don't open
           if (_cart == null || _cart!.items.isEmpty) return;
 
-          // Map CartItemModel back to Product list for compatibility with existing CartConfirmPage
-          // OR better: update CartConfirmPage to accept CartModel directly.
-          // For now, let's keep compatibility but use _cart data.
-
+          // Map CartItemModel back to Product list using enriched data from _allProducts (ensures imageUrl loaded)
           final uniqueProductIds = <String>{};
           final items = <Product>[];
           for (var item in _cart!.items) {
-            // Deduplicate using item.productId which is reliable
-            if (uniqueProductIds.add(item.productId)) {
-              // Ensure product has the ID if missing
-              if (item.product.id.isEmpty) {
-                // Create a new Product instance with the correct ID
-                items.add(
-                  Product(
-                    id: item.productId,
-                    name: item.product.name,
-                    price: item.product.price,
-                    discountPercent: item.product.discountPercent,
-                    imageUrl: item.product.imageUrl,
-                    isStockAvailable: item.product.isStockAvailable,
-                  ),
+            if (!uniqueProductIds.add(item.productId)) continue;
+            // Try find enriched product from sections
+            final enriched = _allProducts.where((p) => p.id == item.productId).cast<Product?>().firstWhere(
+                  (p) => p != null,
+                  orElse: () => null,
                 );
-              } else {
-                items.add(item.product);
-              }
+            if (enriched != null) {
+              items.add(enriched);
+              continue;
+            }
+            // Fallback to product from cart (may have limited fields)
+            final base = item.product;
+            if (base.id.isEmpty) {
+              items.add(
+                Product(
+                  id: item.productId,
+                  name: base.name,
+                  price: base.price,
+                  discountPercent: base.discountPercent,
+                  imageUrl: base.imageUrl,
+                  isStockAvailable: base.isStockAvailable,
+                ),
+              );
+            } else {
+              items.add(base);
             }
           }
 
@@ -892,19 +947,36 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           }
 
           final cat = displayCategories[index];
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Text(
-              cat.kategori,
-              style: GoogleFonts.lexendDeca(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primaryTextLight,
+          return InkWell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CategoryProductsPage(
+                    kategoriId: cat.id,
+                    kategoriName: cat.kategori,
+                    getQty: _getQty,
+                    onAdd: _increment,
+                    onIncrement: _increment,
+                    onDecrement: _decrement,
+                  ),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Text(
+                cat.kategori,
+                style: GoogleFonts.lexendDeca(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryTextLight,
+                ),
               ),
             ),
           );
@@ -1013,7 +1085,18 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           final cat = _categories[index];
           return InkWell(
             onTap: () {
-              // TODO: Navigate to category products
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CategoryProductsPage(
+                    kategoriId: cat.id,
+                    kategoriName: cat.kategori,
+                    getQty: _getQty,
+                    onAdd: _increment,
+                    onIncrement: _increment,
+                    onDecrement: _decrement,
+                  ),
+                ),
+              );
             },
             child: Column(
               children: [
@@ -1084,8 +1167,21 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             Expanded(
               child: InkWell(
                 onTap: () {
-                  final items =
-                      _allProducts.where((p) => _getQty(p) > 0).toList();
+                  // Deduplicate by product id and prefer entries with imageUrl
+                  final Map<String, Product> unique = {};
+                  for (final p in _allProducts) {
+                    final qty = _getQty(p);
+                    if (qty <= 0) continue;
+                    final prev = unique[p.id];
+                    if (prev == null) {
+                      unique[p.id] = p;
+                    } else {
+                      final prevHasImg = prev.imageUrl != null && prev.imageUrl!.isNotEmpty;
+                      final newHasImg = p.imageUrl != null && p.imageUrl!.isNotEmpty;
+                      if (!prevHasImg && newHasImg) unique[p.id] = p;
+                    }
+                  }
+                  final items = unique.values.toList();
                   if (items.isEmpty) return;
                   Navigator.of(context)
                       .push(

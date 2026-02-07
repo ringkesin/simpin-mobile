@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
 import '../models/product.dart';
+import '../service/mart_api_service.dart';
 import '../components/product_card.dart';
 import 'product_detail_page.dart';
 
@@ -14,6 +15,7 @@ class MartSearchPage extends StatefulWidget {
   final void Function(Product) onInc;
   final void Function(Product) onDec;
   final void Function(String) onSearched;
+  final MartApiService? martApiService;
 
   const MartSearchPage({
     super.key,
@@ -24,6 +26,7 @@ class MartSearchPage extends StatefulWidget {
     required this.onInc,
     required this.onDec,
     required this.onSearched,
+    this.martApiService,
   });
 
   @override
@@ -33,9 +36,12 @@ class MartSearchPage extends StatefulWidget {
 class _MartSearchPageState extends State<MartSearchPage> {
   final TextEditingController _controller = TextEditingController();
   String _query = '';
+  bool _loading = false;
+  List<Product> _serverResults = [];
 
   List<Product> get _filtered {
     if (_query.trim().isEmpty) return [];
+    if (widget.martApiService != null) return _serverResults;
     final q = _query.toLowerCase();
     return widget.products.where((p) => p.name.toLowerCase().contains(q)).toList();
   }
@@ -43,6 +49,23 @@ class _MartSearchPageState extends State<MartSearchPage> {
   void _doSearch(String q) {
     setState(() => _query = q);
     widget.onSearched(q);
+    if (widget.martApiService != null) {
+      _searchServer(q);
+    }
+  }
+
+  Future<void> _searchServer(String q) async {
+    if (q.trim().isEmpty) {
+      setState(() => _serverResults = []);
+      return;
+    }
+    setState(() => _loading = true);
+    final res = await widget.martApiService!.searchProducts(keywords: q.trim(), page: 1, perPage: 50);
+    if (!mounted) return;
+    setState(() {
+      _serverResults = res.items;
+      _loading = false;
+    });
   }
 
   @override
@@ -183,38 +206,44 @@ class _MartSearchPageState extends State<MartSearchPage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  SizedBox(
-                    height: 240,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      scrollDirection: Axis.horizontal,
-                      itemCount: (_query.trim().isEmpty ? widget.products.length : _filtered.length),
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (context, index) {
-                        final list = _query.trim().isEmpty ? widget.products : _filtered;
-                        final p = list[index];
-                        return ProductCard(
-                          product: p,
-                          quantity: widget.getQty(p),
-                          onAdd: () => widget.onAdd(p),
-                          onIncrement: () => widget.onInc(p),
-                          onDecrement: () => widget.onDec(p),
-                          onTap: () {
-                            Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => ProductDetailPage(
-                                product: p,
-                                getQty: widget.getQty,
-                                onAdd: widget.onAdd,
-                                onIncrement: widget.onInc,
-                                onDecrement: widget.onDec,
-                                related: (list.where((e) => e != p).toList()),
-                              ),
-                            ));
-                          },
-                        );
-                      },
+                  if (_loading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else
+                    SizedBox(
+                      height: 240,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: (_query.trim().isEmpty ? widget.products.length : _filtered.length),
+                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        itemBuilder: (context, index) {
+                          final list = _query.trim().isEmpty ? widget.products : _filtered;
+                          final p = list[index];
+                          return ProductCard(
+                            product: p,
+                            quantity: widget.getQty(p),
+                            onAdd: () => widget.onAdd(p),
+                            onIncrement: () => widget.onInc(p),
+                            onDecrement: () => widget.onDec(p),
+                            onTap: () {
+                              Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => ProductDetailPage(
+                                  product: p,
+                                  getQty: widget.getQty,
+                                  onAdd: widget.onAdd,
+                                  onIncrement: widget.onInc,
+                                  onDecrement: widget.onDec,
+                                  related: (list.where((e) => e != p).toList()),
+                                ),
+                              ));
+                            },
+                          );
+                        },
+                      ),
                     ),
-                  ),
 
                   const SizedBox(height: 120),
                 ],

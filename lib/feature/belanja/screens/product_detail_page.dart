@@ -65,7 +65,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               ),
             ),
 
-            // Image placeholder
+            // Image from API (fallback to placeholder)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ClipRRect(
@@ -73,8 +73,22 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 child: SizedBox(
                   height: 200,
                   child: Container(
-                    color: Colors.grey.shade100,
-                    child: const Center(child: Icon(LucideIcons.image, color: Color(0xFF9CA3AF), size: 64)),
+                    color: Colors.white,
+                    child: (p.imageUrl != null && p.imageUrl!.isNotEmpty)
+                        ? Image.network(
+                            p.imageUrl!,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) => const Center(
+                              child: Icon(LucideIcons.image, color: Color(0xFF9CA3AF), size: 64),
+                            ),
+                          )
+                        : const Center(
+                            child: Icon(
+                              LucideIcons.image,
+                              color: Color(0xFF9CA3AF),
+                              size: 64,
+                            ),
+                          ),
                   ),
                 ),
               ),

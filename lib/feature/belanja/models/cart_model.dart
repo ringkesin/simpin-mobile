@@ -41,16 +41,32 @@ class CartItemModel {
   });
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) {
+    final int qty = json['quantity'] ?? json['qty'] ?? 0;
+    final dynamic priceRaw = json['price'] ??
+        json['harga'] ??
+        json['harga_satuan'] ??
+        json['harga_item'] ??
+        json['harga_jual'] ??
+        (json['product'] is Map ? (json['product']['harga_jual']) : null);
+    final int price = priceRaw is num
+        ? priceRaw.round()
+        : int.tryParse('${priceRaw ?? ''}') ?? 0;
+
+    final dynamic totalRaw = json['total_price'] ??
+        json['total_harga'] ??
+        json['subtotal'] ??
+        (price > 0 && qty > 0 ? price * qty : null);
+    final int totalPrice = totalRaw is num
+        ? totalRaw.round()
+        : int.tryParse('${totalRaw ?? ''}') ?? 0;
+
     return CartItemModel(
       id: json['id']?.toString() ?? '',
-      productId:
-          json['product_id']?.toString() ??
-          json['produk_item_id']?.toString() ??
-          '',
+      productId: json['product_id']?.toString() ?? json['produk_item_id']?.toString() ?? '',
       product: Product.fromApiJson(json['product'] ?? {}),
-      quantity: json['quantity'] ?? json['qty'] ?? 0,
-      price: json['price'] ?? 0,
-      totalPrice: json['total_price'] ?? 0,
+      quantity: qty,
+      price: price,
+      totalPrice: totalPrice,
       remarks: json['remarks'],
     );
   }

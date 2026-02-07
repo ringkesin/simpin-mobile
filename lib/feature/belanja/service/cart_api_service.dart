@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cart_model.dart';
 import '../models/voucher_model.dart';
@@ -7,11 +8,13 @@ import '../models/delivery_location_model.dart';
 class CartApiService {
   static final Dio _dio = Dio(
     BaseOptions(
-      baseUrl: 'https://kkba-mart.laravel.cloud',
+      baseUrl: dotenv.env['martBaseUrl'] ?? 'https://kkba-mart.laravel.cloud',
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
     ),
   );
+
+  String? lastErrorMessage;
 
   Future<Options?> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
@@ -25,7 +28,10 @@ class CartApiService {
   Future<List<VoucherModel>> getVouchers() async {
     try {
       final options = await _getHeaders();
-      final response = await _dio.get('/api/vouchers', options: options);
+      final response = await _dio.get(
+        '/api/vouchers',
+        options: options?.copyWith(validateStatus: (status) => true),
+      );
 
       if (response.statusCode == 200) {
         final data = response.data;
@@ -34,10 +40,12 @@ class CartApiService {
               .map((e) => VoucherModel.fromJson(e))
               .toList();
         }
+        lastErrorMessage = _extractMessage(data);
       }
       return [];
-    } catch (e) {
-      print('Error fetching vouchers: $e');
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      print('Error fetching vouchers: ${lastErrorMessage ?? e}');
       return [];
     }
   }
@@ -48,7 +56,7 @@ class CartApiService {
       final options = await _getHeaders();
       final response = await _dio.get(
         '/api/delivery/locations',
-        options: options,
+        options: options?.copyWith(validateStatus: (status) => true),
       );
 
       if (response.statusCode == 200) {
@@ -58,10 +66,12 @@ class CartApiService {
               .map((e) => DeliveryLocationModel.fromJson(e))
               .toList();
         }
+        lastErrorMessage = _extractMessage(data);
       }
       return [];
-    } catch (e) {
-      print('Error fetching delivery locations: $e');
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      print('Error fetching delivery locations: ${lastErrorMessage ?? e}');
       return [];
     }
   }
@@ -70,17 +80,22 @@ class CartApiService {
   Future<CartModel?> getCart() async {
     try {
       final options = await _getHeaders();
-      final response = await _dio.get('/api/cart', options: options);
+      final response = await _dio.get(
+        '/api/cart',
+        options: options?.copyWith(validateStatus: (status) => true),
+      );
 
       if (response.statusCode == 200) {
         final data = response.data;
         if (data['status'] == true && data['data'] != null) {
           return CartModel.fromJson(data['data']);
         }
+        lastErrorMessage = _extractMessage(data);
       }
       return null;
-    } catch (e) {
-      print('Error fetching cart: $e');
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      print('Error fetching cart: ${lastErrorMessage ?? e}');
       return null;
     }
   }
@@ -100,12 +115,17 @@ class CartApiService {
           'qty': quantity,
           'remarks': remarks,
         },
-        options: options,
+        options: options?.copyWith(validateStatus: (status) => true),
       );
 
-      return response.statusCode == 200 && response.data['status'] == true;
-    } catch (e) {
-      print('Error adding to cart: $e');
+      if (response.statusCode == 200 && response.data['status'] == true) {
+        return true;
+      }
+      lastErrorMessage = _extractMessage(response.data);
+      return false;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      print('Error adding to cart: ${lastErrorMessage ?? e}');
       return false;
     }
   }
@@ -117,12 +137,17 @@ class CartApiService {
       final response = await _dio.post(
         '/api/cart/items/update',
         data: {'produk_item_id': productId, 'qty': quantity},
-        options: options,
+        options: options?.copyWith(validateStatus: (status) => true),
       );
 
-      return response.statusCode == 200 && response.data['status'] == true;
-    } catch (e) {
-      print('Error updating cart: $e');
+      if (response.statusCode == 200 && response.data['status'] == true) {
+        return true;
+      }
+      lastErrorMessage = _extractMessage(response.data);
+      return false;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      print('Error updating cart: ${lastErrorMessage ?? e}');
       return false;
     }
   }
@@ -134,12 +159,17 @@ class CartApiService {
       final response = await _dio.post(
         '/api/cart/items/remove',
         data: {'produk_item_id': productId},
-        options: options,
+        options: options?.copyWith(validateStatus: (status) => true),
       );
 
-      return response.statusCode == 200 && response.data['status'] == true;
-    } catch (e) {
-      print('Error removing item: $e');
+      if (response.statusCode == 200 && response.data['status'] == true) {
+        return true;
+      }
+      lastErrorMessage = _extractMessage(response.data);
+      return false;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      print('Error removing item: ${lastErrorMessage ?? e}');
       return false;
     }
   }
@@ -151,12 +181,17 @@ class CartApiService {
       final response = await _dio.post(
         '/api/cart/voucher/apply',
         data: {'kode_voucher': code},
-        options: options,
+        options: options?.copyWith(validateStatus: (status) => true),
       );
 
-      return response.statusCode == 200 && response.data['status'] == true;
-    } catch (e) {
-      print('Error applying voucher: $e');
+      if (response.statusCode == 200 && response.data['status'] == true) {
+        return true;
+      }
+      lastErrorMessage = _extractMessage(response.data);
+      return false;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      print('Error applying voucher: ${lastErrorMessage ?? e}');
       return false;
     }
   }
@@ -167,12 +202,17 @@ class CartApiService {
       final options = await _getHeaders();
       final response = await _dio.post(
         '/api/cart/voucher/remove',
-        options: options,
+        options: options?.copyWith(validateStatus: (status) => true),
       );
 
-      return response.statusCode == 200 && response.data['status'] == true;
-    } catch (e) {
-      print('Error removing voucher: $e');
+      if (response.statusCode == 200 && response.data['status'] == true) {
+        return true;
+      }
+      lastErrorMessage = _extractMessage(response.data);
+      return false;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      print('Error removing voucher: ${lastErrorMessage ?? e}');
       return false;
     }
   }
@@ -181,11 +221,62 @@ class CartApiService {
   Future<bool> checkout() async {
     try {
       final options = await _getHeaders();
-      final response = await _dio.post('/api/cart/checkout', options: options);
+      final response = await _dio.post(
+        '/api/cart/checkout',
+        options: options?.copyWith(validateStatus: (status) => true),
+      );
 
-      return response.statusCode == 200 && response.data['status'] == true;
-    } catch (e) {
-      print('Error checking out: $e');
+      if (response.statusCode == 200 && response.data['status'] == true) {
+        return true;
+      }
+      lastErrorMessage = _extractMessage(response.data);
+      return false;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      print('Error checking out: ${lastErrorMessage ?? e}');
+      return false;
+    }
+  }
+
+  String? _extractMessage(dynamic data) {
+    if (data == null) return null;
+    try {
+      if (data is Map<String, dynamic>) {
+        if (data['message'] is String) return data['message'] as String;
+        if (data['error'] is String) return data['error'] as String;
+        if (data['errors'] is Map) {
+          final errs = data['errors'] as Map;
+          if (errs.isNotEmpty) {
+            final firstKey = errs.keys.first;
+            final val = errs[firstKey];
+            if (val is List && val.isNotEmpty) return val.first.toString();
+            return val.toString();
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<bool> submitCart({required int lokasiDeliveryId, required String deliveryRemarks}) async {
+    try {
+      final options = await _getHeaders();
+      final response = await _dio.post(
+        '/api/cart/submit',
+        data: {
+          'lokasi_delivery_id': lokasiDeliveryId,
+          'delivery_remarks': deliveryRemarks,
+        },
+        options: options?.copyWith(validateStatus: (status) => true),
+      );
+
+      if (response.statusCode == 200 && response.data['status'] == true) {
+        return true;
+      }
+      lastErrorMessage = _extractMessage(response.data);
+      return false;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
       return false;
     }
   }
