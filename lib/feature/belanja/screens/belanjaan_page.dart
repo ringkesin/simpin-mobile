@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
+import '../models/product.dart';
+import '../service/cart_api_service.dart';
+import '../models/tracking_cart_model.dart';
+import 'dart:async';
 
 class BelanjaanPage extends StatefulWidget {
   const BelanjaanPage({super.key});
@@ -11,29 +15,49 @@ class BelanjaanPage extends StatefulWidget {
 }
 
 class _BelanjaanPageState extends State<BelanjaanPage> {
-  int _tabIndex = 0; // 0: Dalam proses, 1: Riwayat
+  int _tabIndex = 0; // 0: Waiting, 1: Confirmed, 2: Cancelled, 3: Delivery, 4: History
+  final CartApiService _cartApiService = CartApiService();
+  bool _loading = false;
+  List<TrackingCart> _waiting = [];
+  List<TrackingCart> _confirmed = [];
+  List<TrackingCart> _cancelled = [];
+  List<TrackingCart> _delivery = [];
+  List<TrackingCart> _history = [];
+  int _page = 1;
+  int _lastPage = 1;
 
-  final List<Map<String, dynamic>> _ordersInProcess = const [];
-  final List<Map<String, dynamic>> _ordersHistory = const [
-    {
-      'code': 'MT-0459254916',
-      'datetime': 'Jun 24, 2025 17:05',
-      'summary': '1 Proguard Antibacterial Sabun, 1 Susu Ultra Cokelat, 1 Tolak Angin Madu',
-      'items': 3,
-      'total': 'Rp84.000',
-      'status': 'DIBATALKAN',
-      'statusColor': Color(0xFFEF4444),
-    },
-    {
-      'code': 'MT-0459254916',
-      'datetime': 'Jun 24, 2025 17:05',
-      'summary': '1 Proguard Antibacterial Sabun, 1 Susu Ultra Cokelat, 1 Tolak Angin Madu',
-      'items': 3,
-      'total': 'Rp84.000',
-      'status': 'SUKSES',
-      'statusColor': Color(0xFF22C55E),
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetch(page: 1);
+  }
+
+  Future<void> _fetch({required int page}) async {
+    setState(() => _loading = true);
+    PagedTrackingCarts res;
+    if (_tabIndex == 0) {
+      res = await _cartApiService.getWaitingAdminCarts(page: page, perPage: 10);
+      _waiting = res.items;
+    } else if (_tabIndex == 1) {
+      res = await _cartApiService.getConfirmedCarts(page: page, perPage: 10);
+      _confirmed = res.items;
+    } else if (_tabIndex == 2) {
+      res = await _cartApiService.getCancelledCarts(page: page, perPage: 10);
+      _cancelled = res.items;
+    } else if (_tabIndex == 3) {
+      res = await _cartApiService.getDeliveryStatusCarts(page: page, perPage: 10);
+      _delivery = res.items;
+    } else {
+      res = await _cartApiService.getHistoryCarts(page: page, perPage: 10);
+      _history = res.items;
+    }
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _page = res.currentPage;
+      _lastPage = res.lastPage;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +84,7 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
           ),
         ),
         title: Text(
-          'Belanjaan',
+          'Tracking Belanjaan',
           style: GoogleFonts.lexendDeca(
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -84,15 +108,36 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
               children: [
-                ...(_tabIndex == 0 ? _ordersInProcess : _ordersHistory)
-                    .map((o) => Padding(
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else ...((_tabIndex == 0
+                        ? _waiting
+                        : _tabIndex == 1
+                            ? _confirmed
+                            : _tabIndex == 2
+                                ? _cancelled
+                                : _tabIndex == 3
+                                    ? _delivery
+                                    : _history)
+                    .map((c) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: _buildOrderCard(o),
+                          child: _buildTrackingCard(c),
                         ))
-                    .toList(),
+                    .toList()),
                 const SizedBox(height: 16),
                 Text(
-                  _tabIndex == 1 ? 'Memuat riwayat ...' : 'Memuat dalam proses ...',
+                  _tabIndex == 0
+                      ? 'Menunggu konfirmasi admin ...'
+                      : _tabIndex == 1
+                          ? 'Menunggu pembayaran ...'
+                          : _tabIndex == 2
+                              ? 'Pesanan dibatalkan'
+                              : _tabIndex == 3
+                                  ? 'Status pengantaran'
+                                  : 'Riwayat pesanan',
                   style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.secondaryTextLight),
                 ),
                 const SizedBox(height: 100),
@@ -112,11 +157,17 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFDDE5ED)),
       ),
-      child: Row(
-        children: [
-          _tabButton('Dalam proses', 0),
-          _tabButton('Riwayat', 1),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            SizedBox(width: 80, child: _tabButton('Waiting', 0)),
+            SizedBox(width: 100, child: _tabButton('Confirmed', 1)),
+            SizedBox(width: 100, child: _tabButton('Cancelled', 2)),
+            SizedBox(width: 90, child: _tabButton('Delivery', 3)),
+            SizedBox(width: 80, child: _tabButton('History', 4)),
+          ],
+        ),
       ),
     );
   }
@@ -125,7 +176,10 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
     final bool selected = _tabIndex == index;
     return Expanded(
       child: InkWell(
-        onTap: () => setState(() => _tabIndex = index),
+        onTap: () {
+          setState(() => _tabIndex = index);
+          _fetch(page: 1);
+        },
         borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -151,9 +205,13 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
     );
   }
 
-  Widget _buildOrderCard(Map<String, dynamic> o) {
+  Widget _buildTrackingCard(TrackingCart c) {
     final Color borderColor = const Color(0xFFDDE5ED);
-    final Color statusColor = o['statusColor'] as Color? ?? AppColors.primaryLight;
+    final Color statusColor = c.status == 'waiting_admin'
+        ? const Color(0xFFF59E0B)
+        : c.status == 'canceled'
+            ? const Color(0xFFEF4444)
+            : AppColors.primaryLight;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -173,12 +231,12 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        o['code'] as String,
+                        c.lokasiDeliveryNama,
                         style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        o['datetime'] as String,
+                        c.createdAt,
                         style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.secondaryTextLight),
                       ),
                     ],
@@ -191,23 +249,42 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    o['status'] as String,
+                    c.status,
                     style: GoogleFonts.lexendDeca(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            Text(
-              o['summary'] as String,
-              style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.primaryTextLight),
-            ),
+            if (c.deliveryRemarks != null)
+              Text(
+                c.deliveryRemarks!,
+                style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.primaryTextLight),
+              ),
+            if (c.status == 'canceled' && c.remarks != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  c.remarks!,
+                  style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFFEF4444)),
+                ),
+              ),
+            if (c.status == 'confirmed' && c.expiredAt != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.schedule, size: 16, color: Color(0xFFEF4444)),
+                  const SizedBox(width: 6),
+                  _CountdownTimer(endTime: DateTime.parse(c.expiredAt!)),
+                ],
+              ),
+            ],
             const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    '${o['items']} item | ${o['total']}',
+                    '${c.items.length} item | ${formatRp(c.subtotalAfterVoucher)}',
                     style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight),
                   ),
                 ),
@@ -221,7 +298,7 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
                       borderRadius: BorderRadius.circular(100),
                     ),
                     child: Text(
-                      'Mau lagi',
+                      'Detail',
                       style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
                     ),
                   ),
@@ -229,6 +306,70 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CountdownTimer extends StatefulWidget {
+  final DateTime endTime;
+  const _CountdownTimer({required this.endTime});
+  @override
+  State<_CountdownTimer> createState() => _CountdownTimerState();
+}
+
+class _CountdownTimerState extends State<_CountdownTimer> {
+  Timer? _t;
+  Duration _remaining = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick();
+    _t = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  void _tick() {
+    final now = DateTime.now().toUtc();
+    final end = widget.endTime.toUtc();
+    final diff = end.difference(now);
+    setState(() {
+      _remaining = diff.isNegative ? Duration.zero : diff;
+    });
+  }
+
+  @override
+  void dispose() {
+    _t?.cancel();
+    super.dispose();
+  }
+
+  String _fmt(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes % 60;
+    final s = d.inSeconds % 60;
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final expired = _remaining <= Duration.zero;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: expired ? const Color(0xFFEF4444).withOpacity(0.08) : const Color(0xFFF59E0B).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        expired ? 'Expired' : _fmt(_remaining),
+        style: GoogleFonts.lexendDeca(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: expired ? const Color(0xFFEF4444) : const Color(0xFFF59E0B),
         ),
       ),
     );

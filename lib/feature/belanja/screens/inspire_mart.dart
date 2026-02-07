@@ -9,6 +9,8 @@ import '../models/section_model.dart';
 import '../models/product.dart';
 import '../models/cart_model.dart';
 import '../service/cart_api_service.dart';
+import '../models/tracking_cart_model.dart';
+import 'dart:async';
 import 'product_detail_page.dart';
 import 'cart_confirm_page.dart';
 import '../components/product_card.dart';
@@ -174,31 +176,16 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     }
   }
 
-  // --- Belanjaan (Orders) state ---
-  int _orderTabIndex = 0; // 0: Dalam proses, 1: Riwayat
-  final List<Map<String, dynamic>> _ordersInProcess = const [];
-  final List<Map<String, dynamic>> _ordersHistory = const [
-    {
-      'code': 'MT-0459254916',
-      'datetime': 'Jun 24, 2025 17:05',
-      'summary':
-          '1 Proguard Antibacterial Sabun, 1 Susu Ultra Cokelat, 1 Tolak Angin Madu',
-      'items': 3,
-      'total': 'Rp84.000',
-      'status': 'DIBATALKAN',
-      'statusColor': Color(0xFFEF4444),
-    },
-    {
-      'code': 'MT-0459254916',
-      'datetime': 'Jun 24, 2025 17:05',
-      'summary':
-          '1 Proguard Antibacterial Sabun, 1 Susu Ultra Cokelat, 1 Tolak Angin Madu',
-      'items': 3,
-      'total': 'Rp84.000',
-      'status': 'SUKSES',
-      'statusColor': Color(0xFF22C55E),
-    },
-  ];
+  // --- Belanjaan (Tracking Orders) state ---
+  int _orderTabIndex = 0; // 0: Waiting, 1: Confirmed, 2: Cancelled, 3: Delivery, 4: History
+  bool _isLoadingTrack = false;
+  List<TrackingCart> _waitingAdminCarts = [];
+  List<TrackingCart> _confirmedCarts = [];
+  List<TrackingCart> _cancelledCarts = [];
+  List<TrackingCart> _deliveryCarts = [];
+  List<TrackingCart> _historyCarts = [];
+  int _trackPage = 1;
+  int _trackLastPage = 1;
 
   // Banners state
   List<BannerModel> _banners = [];
@@ -352,14 +339,19 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
       );
     }
     if (_currentTabIndex == 3) {
-      // Belanjaan tab: hanya daftar pesanan (tanpa header/search bar)
+      // Belanjaan tab: tracking orders
+      if (!_isLoadingTrack &&
+          _waitingAdminCarts.isEmpty &&
+          _confirmedCarts.isEmpty) {
+        _fetchTrackingCarts(page: 1);
+      }
       return ListView(
         children: [
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'Belanjaan',
+              'Tracking Belanjaan',
               style: GoogleFonts.lexendDeca(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
@@ -377,19 +369,38 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
               children: [
-                ...(_orderTabIndex == 0 ? _ordersInProcess : _ordersHistory)
+                if (_isLoadingTrack)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else ...((_orderTabIndex == 0
+                        ? _waitingAdminCarts
+                        : _orderTabIndex == 1
+                            ? _confirmedCarts
+                            : _orderTabIndex == 2
+                                ? _cancelledCarts
+                                : _orderTabIndex == 3
+                                    ? _deliveryCarts
+                                    : _historyCarts)
                     .map(
-                      (o) => Padding(
+                      (c) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildOrderCard(o),
+                        child: _buildTrackingCard(c),
                       ),
                     )
-                    .toList(),
+                    .toList()),
                 const SizedBox(height: 16),
                 Text(
-                  _orderTabIndex == 1
-                      ? 'Memuat riwayat ...'
-                      : 'Memuat dalam proses ...',
+                  _orderTabIndex == 0
+                      ? 'Menunggu konfirmasi admin ...'
+                      : _orderTabIndex == 1
+                          ? 'Menunggu pembayaran ...'
+                          : _orderTabIndex == 2
+                              ? 'Pesanan dibatalkan'
+                              : _orderTabIndex == 3
+                                  ? 'Status pengantaran'
+                                  : 'Riwayat pesanan',
                   style: GoogleFonts.lexendDeca(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -1421,8 +1432,11 @@ extension on _InspireMartScreenState {
       ),
       child: Row(
         children: [
-          _ordersTabButton('Dalam proses', 0),
-          _ordersTabButton('Riwayat', 1),
+          _ordersTabButton('Waiting', 0),
+          _ordersTabButton('Confirmed', 1),
+          _ordersTabButton('Cancelled', 2),
+          _ordersTabButton('Delivery', 3),
+          _ordersTabButton('History', 4),
         ],
       ),
     );
@@ -1432,7 +1446,10 @@ extension on _InspireMartScreenState {
     final bool selected = _orderTabIndex == index;
     return Expanded(
       child: InkWell(
-        onTap: () => setState(() => _orderTabIndex = index),
+        onTap: () {
+          setState(() => _orderTabIndex = index);
+          _fetchTrackingCarts(page: 1);
+        },
         borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -1468,10 +1485,13 @@ extension on _InspireMartScreenState {
     );
   }
 
-  Widget _buildOrderCard(Map<String, dynamic> o) {
+  Widget _buildTrackingCard(TrackingCart c) {
     final Color borderColor = const Color(0xFFDDE5ED);
-    final Color statusColor =
-        o['statusColor'] as Color? ?? AppColors.primaryLight;
+    final Color statusColor = c.status == 'waiting_admin'
+        ? const Color(0xFFF59E0B)
+        : c.status == 'canceled'
+            ? const Color(0xFFEF4444)
+            : AppColors.primaryLight;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1497,7 +1517,7 @@ extension on _InspireMartScreenState {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        o['code'] as String,
+                        c.lokasiDeliveryNama,
                         style: GoogleFonts.lexendDeca(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -1506,7 +1526,7 @@ extension on _InspireMartScreenState {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        o['datetime'] as String,
+                        c.createdAt,
                         style: GoogleFonts.lexendDeca(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -1526,7 +1546,7 @@ extension on _InspireMartScreenState {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    o['status'] as String,
+                    c.status,
                     style: GoogleFonts.lexendDeca(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -1537,20 +1557,43 @@ extension on _InspireMartScreenState {
               ],
             ),
             const SizedBox(height: 10),
-            Text(
-              o['summary'] as String,
-              style: GoogleFonts.lexendDeca(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: AppColors.primaryTextLight,
+            if (c.deliveryRemarks != null)
+              Text(
+                c.deliveryRemarks!,
+                style: GoogleFonts.lexendDeca(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.primaryTextLight,
+                ),
               ),
-            ),
+            if (c.status == 'canceled' && c.remarks != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  c.remarks!,
+                  style: GoogleFonts.lexendDeca(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFEF4444),
+                  ),
+                ),
+              ),
+            if (c.status == 'confirmed' && c.expiredAt != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.schedule, size: 16, color: Color(0xFFEF4444)),
+                  const SizedBox(width: 6),
+                  _CountdownTimer(endTime: DateTime.parse(c.expiredAt!)),
+                ],
+              ),
+            ],
             const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    '${o['items']} item | ${o['total']}',
+                    '${c.items.length} item | ${formatRp(c.subtotalAfterVoucher)}',
                     style: GoogleFonts.lexendDeca(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -1571,7 +1614,7 @@ extension on _InspireMartScreenState {
                       borderRadius: BorderRadius.circular(100),
                     ),
                     child: Text(
-                      'Mau lagi',
+                      'Detail',
                       style: GoogleFonts.lexendDeca(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -1583,6 +1626,98 @@ extension on _InspireMartScreenState {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _fetchTrackingCarts({required int page}) async {
+    setState(() => _isLoadingTrack = true);
+    PagedTrackingCarts res;
+    if (_orderTabIndex == 0) {
+      res = await _cartApiService.getWaitingAdminCarts(page: page, perPage: 10);
+      _waitingAdminCarts = res.items;
+    } else if (_orderTabIndex == 1) {
+      res = await _cartApiService.getConfirmedCarts(page: page, perPage: 10);
+      _confirmedCarts = res.items;
+    } else if (_orderTabIndex == 2) {
+      res = await _cartApiService.getCancelledCarts(page: page, perPage: 10);
+      _cancelledCarts = res.items;
+    } else if (_orderTabIndex == 3) {
+      res = await _cartApiService.getDeliveryStatusCarts(page: page, perPage: 10);
+      _deliveryCarts = res.items;
+    } else {
+      res = await _cartApiService.getHistoryCarts(page: page, perPage: 10);
+      _historyCarts = res.items;
+    }
+    if (mounted) {
+      setState(() {
+        _isLoadingTrack = false;
+        _trackPage = res.currentPage;
+        _trackLastPage = res.lastPage;
+      });
+    }
+  }
+}
+
+class _CountdownTimer extends StatefulWidget {
+  final DateTime endTime;
+  const _CountdownTimer({required this.endTime});
+  @override
+  State<_CountdownTimer> createState() => _CountdownTimerState();
+}
+
+class _CountdownTimerState extends State<_CountdownTimer> {
+  Timer? _t;
+  Duration _remaining = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick();
+    _t = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  void _tick() {
+    final now = DateTime.now().toUtc();
+    final end = widget.endTime.toUtc();
+    final diff = end.difference(now);
+    setState(() {
+      _remaining = diff.isNegative ? Duration.zero : diff;
+    });
+  }
+
+  @override
+  void dispose() {
+    _t?.cancel();
+    super.dispose();
+  }
+
+  String _fmt(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes % 60;
+    final s = d.inSeconds % 60;
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final expired = _remaining <= Duration.zero;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: expired ? const Color(0xFFEF4444).withOpacity(0.08) : const Color(0xFFF59E0B).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        expired ? 'Expired' : _fmt(_remaining),
+        style: GoogleFonts.lexendDeca(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: expired ? const Color(0xFFEF4444) : const Color(0xFFF59E0B),
         ),
       ),
     );
