@@ -3,8 +3,21 @@ import 'product.dart';
 class CartModel {
   final List<CartItemModel> items;
   final CartSummaryModel summary;
+  final String? lokasiDeliveryNama;
+  final String? deliveryPicName;
+  final String? deliveryPicPhone;
+  final String? deliveryRemarks;
+  final String? estimatedDeliveryAt;
 
-  CartModel({required this.items, required this.summary});
+  CartModel({
+    required this.items,
+    required this.summary,
+    this.lokasiDeliveryNama,
+    this.deliveryPicName,
+    this.deliveryPicPhone,
+    this.deliveryRemarks,
+    this.estimatedDeliveryAt,
+  });
 
   factory CartModel.fromJson(Map<String, dynamic> json) {
     return CartModel(
@@ -14,6 +27,11 @@ class CartModel {
               .toList() ??
           [],
       summary: CartSummaryModel.fromJson(json),
+      lokasiDeliveryNama: json['lokasi_delivery_nama'],
+      deliveryPicName: json['delivery_pic_name'],
+      deliveryPicPhone: json['delivery_pic_phone'],
+      deliveryRemarks: json['delivery_remarks'],
+      estimatedDeliveryAt: json['estimated_delivery_at']?.toString(),
     );
   }
 
@@ -42,28 +60,35 @@ class CartItemModel {
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) {
     final int qty = json['quantity'] ?? json['qty'] ?? 0;
-    final dynamic priceRaw = json['price'] ??
+    final dynamic priceRaw =
+        json['price'] ??
         json['harga'] ??
         json['harga_satuan'] ??
         json['harga_item'] ??
         json['harga_jual'] ??
         (json['product'] is Map ? (json['product']['harga_jual']) : null);
-    final int price = priceRaw is num
-        ? priceRaw.round()
-        : int.tryParse('${priceRaw ?? ''}') ?? 0;
+    final int price =
+        priceRaw is num
+            ? priceRaw.round()
+            : int.tryParse('${priceRaw ?? ''}') ?? 0;
 
-    final dynamic totalRaw = json['total_price'] ??
+    final dynamic totalRaw =
+        json['total_price'] ??
         json['total_harga'] ??
         json['subtotal'] ??
         (price > 0 && qty > 0 ? price * qty : null);
-    final int totalPrice = totalRaw is num
-        ? totalRaw.round()
-        : int.tryParse('${totalRaw ?? ''}') ?? 0;
+    final int totalPrice =
+        totalRaw is num
+            ? totalRaw.round()
+            : int.tryParse('${totalRaw ?? ''}') ?? 0;
 
     return CartItemModel(
       id: json['id']?.toString() ?? '',
-      productId: json['product_id']?.toString() ?? json['produk_item_id']?.toString() ?? '',
-      product: Product.fromApiJson(json['product'] ?? {}),
+      productId:
+          json['product_id']?.toString() ??
+          json['produk_item_id']?.toString() ??
+          '',
+      product: Product.fromApiJson(json['product'] ?? json),
       quantity: qty,
       price: price,
       totalPrice: totalPrice,

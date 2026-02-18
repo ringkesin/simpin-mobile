@@ -42,6 +42,7 @@ class TrackingCart {
   final String? confirmedAt;
   final String? expiredAt;
   final String createdAt;
+  final String? estimatedDeliveryAt;
   final List<TrackingItem> items;
 
   TrackingCart({
@@ -56,6 +57,7 @@ class TrackingCart {
     this.confirmedAt,
     this.expiredAt,
     required this.createdAt,
+    this.estimatedDeliveryAt,
     required this.items,
   });
 
@@ -73,6 +75,7 @@ class TrackingCart {
       confirmedAt: json['confirmed_at']?.toString(),
       expiredAt: json['expired_at']?.toString(),
       createdAt: (json['created_at'] ?? '').toString(),
+      estimatedDeliveryAt: json['estimated_delivery_at']?.toString(),
       items: itemsJson.map((e) => TrackingItem.fromJson((e as Map).cast<String, dynamic>())).toList(),
     );
   }

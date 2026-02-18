@@ -492,4 +492,96 @@ class CartApiService {
       return null;
     }
   }
+
+  Future<bool> cancelSubmitted({
+    required String cartMobileId,
+    required String cancelNote,
+  }) async {
+    try {
+      final options = await _getHeaders();
+      final response = await _dio.post(
+        '/api/cart/cancel-submitted',
+        data: {'cart_mobile_id': cartMobileId, 'cancel_note': cancelNote},
+        options: options?.copyWith(validateStatus: (s) => true),
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        final Map<String, dynamic> body =
+            (response.data as Map<String, dynamic>);
+        if (body['status'] == true) return true;
+        lastErrorMessage = _extractMessage(body) ?? 'Gagal membatalkan cart';
+        return false;
+      }
+      lastErrorMessage = 'Gagal membatalkan cart (${response.statusCode})';
+      return false;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      return false;
+    }
+  }
+
+  Future<bool> resetPayment({required String cartMobileId}) async {
+    try {
+      final options = await _getHeaders();
+      final response = await _dio.post(
+        '/api/cart/reset-payment',
+        data: {'cart_mobile_id': cartMobileId},
+        options: options?.copyWith(validateStatus: (s) => true),
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        final Map<String, dynamic> body =
+            (response.data as Map<String, dynamic>);
+        if (body['status'] == true) return true;
+        lastErrorMessage = _extractMessage(body) ?? 'Gagal reset pembayaran';
+        return false;
+      }
+      lastErrorMessage = 'Gagal reset pembayaran (${response.statusCode})';
+      return false;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      return false;
+    }
+  }
+
+  Future<CartModel?> getCartDetail(String cartId) async {
+    try {
+      final options = await _getHeaders();
+      final response = await _dio.get(
+        '/api/cart/$cartId',
+        options: options?.copyWith(validateStatus: (s) => true),
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        final Map<String, dynamic> body = response.data as Map<String, dynamic>;
+        final Map<String, dynamic> data =
+            (body['data'] as Map?)?.cast<String, dynamic>() ?? body;
+        return CartModel.fromJson(data);
+      }
+      lastErrorMessage = 'Gagal mengambil detail cart (${response.statusCode})';
+      return null;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getTongjiBalance() async {
+    try {
+      final options = await _getHeaders();
+      final response = await _dio.get(
+        '/api/tongji/balance',
+        options: options?.copyWith(validateStatus: (s) => true),
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        final Map<String, dynamic> body = response.data as Map<String, dynamic>;
+        final Map<String, dynamic>? data =
+            (body['data'] as Map?)?.cast<String, dynamic>();
+        return data;
+      }
+      lastErrorMessage =
+          'Gagal mengambil saldo Tongji (${response.statusCode})';
+      return null;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      return null;
+    }
+  }
 }

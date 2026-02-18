@@ -5,6 +5,7 @@ import 'package:kkba_mobile/theme.dart';
 import '../models/product.dart';
 import '../service/cart_api_service.dart';
 import '../models/tracking_cart_model.dart';
+import 'tracking_cart_detail_page.dart';
 import 'payment_webview_page.dart';
 import 'dart:async';
 
@@ -27,6 +28,7 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
   List<TrackingCart> _history = [];
   int _page = 1;
   int _lastPage = 1;
+  final Map<String, String> _snapRedirect = {};
 
   @override
   void initState() {
@@ -237,207 +239,256 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
             : c.status == 'canceled'
             ? const Color(0xFFEF4444)
             : AppColors.primaryLight;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TrackingCartDetailPage(cartId: c.id),
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        c.lokasiDeliveryNama,
-                        style: GoogleFonts.lexendDeca(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryTextLight,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        c.createdAt,
-                        style: GoogleFonts.lexendDeca(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.secondaryTextLight,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    c.status,
-                    style: GoogleFonts.lexendDeca(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: statusColor,
-                    ),
-                  ),
-                ),
-              ],
+        );
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
-            const SizedBox(height: 10),
-            if (c.deliveryRemarks != null)
-              Text(
-                c.deliveryRemarks!,
-                style: GoogleFonts.lexendDeca(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.primaryTextLight,
-                ),
-              ),
-            if (c.status == 'canceled' && c.remarks != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  c.remarks!,
-                  style: GoogleFonts.lexendDeca(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFFEF4444),
-                  ),
-                ),
-              ),
-            if (c.status == 'confirmed' && c.expiredAt != null) ...[
-              const SizedBox(height: 8),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
                 children: [
-                  const Icon(
-                    Icons.schedule,
-                    size: 16,
-                    color: Color(0xFFEF4444),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.lokasiDeliveryNama,
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTextLight,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _fmtDate(c.createdAt),
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.secondaryTextLight,
+                          ),
+                        ),
+                        if (c.estimatedDeliveryAt != null &&
+                            c.estimatedDeliveryAt!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Estimasi ${_fmtDate(c.estimatedDeliveryAt!)}',
+                            style: GoogleFonts.lexendDeca(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.secondaryTextLight,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 6),
-                  _CountdownTimer(endTime: DateTime.parse(c.expiredAt!)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      c.status,
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: statusColor,
+                      ),
+                    ),
+                  ),
                 ],
               ),
-            ],
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
+              const SizedBox(height: 10),
+              if (c.deliveryRemarks != null)
+                Text(
+                  c.deliveryRemarks!,
+                  style: GoogleFonts.lexendDeca(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.primaryTextLight,
+                  ),
+                ),
+              if (c.status == 'canceled' && c.remarks != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    '${c.items.length} item | ${formatRp(c.subtotalAfterVoucher)}',
+                    c.remarks!,
                     style: GoogleFonts.lexendDeca(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryTextLight,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFEF4444),
                     ),
                   ),
                 ),
-                if (c.status == 'confirmed') ...[
-                  InkWell(
-                    onTap: () => _onPayTap(c),
-                    borderRadius: BorderRadius.circular(100),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryLight,
-                        borderRadius: BorderRadius.circular(100),
-                      ),
-                      child: Text(
-                        'Bayar',
-                        style: GoogleFonts.lexendDeca(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
+              if (c.status == 'confirmed' && c.expiredAt != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.schedule,
+                      size: 16,
+                      color: Color(0xFFEF4444),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                InkWell(
-                  onTap: () {},
-                  borderRadius: BorderRadius.circular(100),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF22C55E),
-                      borderRadius: BorderRadius.circular(100),
-                    ),
+                    const SizedBox(width: 6),
+                    _CountdownTimer(endTime: DateTime.parse(c.expiredAt!)),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
                     child: Text(
-                      'Detail',
+                      '${c.items.length} item | ${formatRp(c.subtotalAfterVoucher)}',
                       style: GoogleFonts.lexendDeca(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: AppColors.primaryTextLight,
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  if (c.status == 'waiting_admin' ||
+                      c.status == 'confirmed') ...[
+                    InkWell(
+                      onTap: () => _onCancelTap(c),
+                      borderRadius: BorderRadius.circular(100),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(
+                          'Batalkan',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  if (c.status == 'confirmed') ...[
+                    InkWell(
+                      onTap: () => _onPayTap(c),
+                      borderRadius: BorderRadius.circular(100),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryLight,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(
+                          'Bayar',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Future<void> _onPayTap(TrackingCart c) async {
-    final method = await showModalBottomSheet<int>(
-      context: context,
-      builder: (_) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('Potong Gaji (Tongji)'),
-                subtitle: const Text('Metode internal'),
-                onTap: () => Navigator.pop(context, 3),
-              ),
-              ListTile(
-                title: const Text('Midtrans (Snap)'),
-                subtitle: const Text('Bayar online'),
-                onTap: () => Navigator.pop(context, 6),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    final method = await _showPaySheet();
     if (method == null) return;
-    final data = await _cartApiService.payCart(
-      cartMobileId: c.id,
-      metodePembayaranId: method,
-    );
+    Map<String, dynamic>? data;
+    if (method == 6 && _snapRedirect[c.id] != null) {
+      data = {'redirect_url': _snapRedirect[c.id]};
+    } else {
+      data = await _cartApiService.payCart(
+        cartMobileId: c.id,
+        metodePembayaranId: method,
+      );
+    }
     if (!mounted) return;
     if (data == null) {
-      final msg = _cartApiService.lastErrorMessage ?? 'Pembayaran gagal';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-      return;
+      if (method == 6) {
+        final msg = (_cartApiService.lastErrorMessage ?? '').toLowerCase();
+        final used = msg.contains('order_id') && msg.contains('digunakan');
+        if (used) {
+          final ok = await _cartApiService.resetPayment(cartMobileId: c.id);
+          if (!mounted) return;
+          if (ok) {
+            _snapRedirect.remove(c.id);
+            final retry = await _cartApiService.payCart(
+              cartMobileId: c.id,
+              metodePembayaranId: method,
+            );
+            if (!mounted) return;
+            if (retry == null) {
+              final m = _cartApiService.lastErrorMessage ?? 'Pembayaran gagal';
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(m)));
+              return;
+            }
+            data = retry;
+          } else {
+            final m =
+                _cartApiService.lastErrorMessage ?? 'Gagal reset pembayaran';
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(m)));
+            return;
+          }
+        } else {
+          final m = _cartApiService.lastErrorMessage ?? 'Pembayaran gagal';
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(m)));
+          return;
+        }
+      } else {
+        final msg = _cartApiService.lastErrorMessage ?? 'Pembayaran gagal';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
+        return;
+      }
     }
     if (method == 3) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -455,11 +506,367 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
         );
         return;
       }
+      _snapRedirect[c.id] = urlStr;
       final uri = Uri.parse(urlStr);
       await Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => PaymentWebViewPage(url: uri)));
       _fetch(page: 1);
+    }
+  }
+
+  Future<int?> _showPaySheet() async {
+    return showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Pilih Metode Pembayaran',
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryTextLight,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              FutureBuilder<Map<String, dynamic>?>(
+                future: _cartApiService.getTongjiBalance(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const LinearProgressIndicator(minHeight: 2);
+                  }
+                  final bal = snapshot.data;
+                  if (bal == null) return const SizedBox.shrink();
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tongji',
+                          style: GoogleFonts.lexendDeca(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTextLight,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Sisa saldo',
+                                style: GoogleFonts.lexendDeca(
+                                  color: AppColors.secondaryTextLight,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              formatRp((bal['remaining_amount'] ?? 0) as int),
+                              style: GoogleFonts.lexendDeca(
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primaryTextLight,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Limit',
+                                style: GoogleFonts.lexendDeca(
+                                  color: AppColors.secondaryTextLight,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              formatRp((bal['limit_amount'] ?? 0) as int),
+                              style: GoogleFonts.lexendDeca(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primaryTextLight,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Periode ${bal['periode_nama'] ?? '-'}',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 12,
+                            color: AppColors.secondaryTextLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => Navigator.pop(context, 3),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                          color: Colors.white,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Tongji',
+                          style: GoogleFonts.lexendDeca(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTextLight,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => Navigator.pop(context, 6),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: AppColors.primaryLight,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Midtrans',
+                          style: GoogleFonts.lexendDeca(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _fmtDate(String iso) {
+    DateTime? dt;
+    try {
+      dt = DateTime.tryParse(iso);
+    } catch (_) {}
+    if (dt == null) return iso;
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agt',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    final m = months[dt.month - 1];
+    final d = dt.day.toString().padLeft(2, '0');
+    final y = dt.year.toString();
+    final h = dt.hour.toString().padLeft(2, '0');
+    final mi = dt.minute.toString().padLeft(2, '0');
+    return '$d $m $y, $h:$mi';
+  }
+
+  Future<void> _onCancelTap(TrackingCart c) async {
+    final controller = TextEditingController();
+    String? errorText;
+    final note = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Alasan pembatalan',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryTextLight,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: TextField(
+                      controller: controller,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        hintText: 'Tulis alasan pembatalan di sini',
+                        border: InputBorder.none,
+                      ),
+                      onChanged: (v) {
+                        setSheetState(() {
+                          errorText =
+                              v.trim().isEmpty
+                                  ? 'Alasan tidak boleh kosong'
+                                  : null;
+                        });
+                      },
+                    ),
+                  ),
+                  if (errorText != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      errorText!,
+                      style: GoogleFonts.lexendDeca(
+                        color: const Color(0xFFEF4444),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: AppColors.primaryLight),
+                          ),
+                          child: Text(
+                            'Batal',
+                            style: GoogleFonts.lexendDeca(
+                              color: AppColors.primaryLight,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed:
+                              (controller.text.trim().isEmpty)
+                                  ? null
+                                  : () => Navigator.pop(
+                                    context,
+                                    controller.text.trim(),
+                                  ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryLight,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Kirim',
+                            style: GoogleFonts.lexendDeca(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (note == null || note.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Alasan pembatalan tidak boleh kosong')),
+      );
+      return;
+    }
+    final ok = await _cartApiService.cancelSubmitted(
+      cartMobileId: c.id,
+      cancelNote: note,
+    );
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Cart berhasil dibatalkan')));
+      _fetch(page: 1);
+    } else {
+      final msg = _cartApiService.lastErrorMessage ?? 'Gagal membatalkan cart';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 }
