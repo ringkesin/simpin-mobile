@@ -259,7 +259,10 @@ class CartApiService {
     return null;
   }
 
-  Future<bool> submitCart({required int lokasiDeliveryId, required String deliveryRemarks}) async {
+  Future<bool> submitCart({
+    required int lokasiDeliveryId,
+    required String deliveryRemarks,
+  }) async {
     try {
       final options = await _getHeaders();
       final response = await _dio.post(
@@ -282,7 +285,10 @@ class CartApiService {
     }
   }
 
-  Future<PagedTrackingCarts> getWaitingAdminCarts({int page = 1, int perPage = 10}) async {
+  Future<PagedTrackingCarts> getWaitingAdminCarts({
+    int page = 1,
+    int perPage = 10,
+  }) async {
     try {
       final options = await _getHeaders();
       final response = await _dio.post(
@@ -291,16 +297,33 @@ class CartApiService {
         options: options?.copyWith(validateStatus: (s) => true),
       );
       if (response.statusCode == 200 && response.data is Map) {
-        return PagedTrackingCarts.fromResponse(response.data as Map<String, dynamic>);
+        return PagedTrackingCarts.fromResponse(
+          response.data as Map<String, dynamic>,
+        );
       }
-      return PagedTrackingCarts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedTrackingCarts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     } on DioException catch (e) {
       lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
-      return PagedTrackingCarts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedTrackingCarts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     }
   }
 
-  Future<PagedTrackingCarts> getConfirmedCarts({int page = 1, int perPage = 10}) async {
+  Future<PagedTrackingCarts> getConfirmedCarts({
+    int page = 1,
+    int perPage = 10,
+  }) async {
     try {
       final options = await _getHeaders();
       final response = await _dio.post(
@@ -309,16 +332,33 @@ class CartApiService {
         options: options?.copyWith(validateStatus: (s) => true),
       );
       if (response.statusCode == 200 && response.data is Map) {
-        return PagedTrackingCarts.fromResponse(response.data as Map<String, dynamic>);
+        return PagedTrackingCarts.fromResponse(
+          response.data as Map<String, dynamic>,
+        );
       }
-      return PagedTrackingCarts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedTrackingCarts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     } on DioException catch (e) {
       lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
-      return PagedTrackingCarts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedTrackingCarts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     }
   }
 
-  Future<PagedTrackingCarts> getCancelledCarts({int page = 1, int perPage = 10}) async {
+  Future<PagedTrackingCarts> getCancelledCarts({
+    int page = 1,
+    int perPage = 10,
+  }) async {
     try {
       final options = await _getHeaders();
       final response = await _dio.post(
@@ -327,16 +367,33 @@ class CartApiService {
         options: options?.copyWith(validateStatus: (s) => true),
       );
       if (response.statusCode == 200 && response.data is Map) {
-        return PagedTrackingCarts.fromResponse(response.data as Map<String, dynamic>);
+        return PagedTrackingCarts.fromResponse(
+          response.data as Map<String, dynamic>,
+        );
       }
-      return PagedTrackingCarts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedTrackingCarts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     } on DioException catch (e) {
       lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
-      return PagedTrackingCarts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedTrackingCarts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     }
   }
 
-  Future<PagedTrackingCarts> getDeliveryStatusCarts({int page = 1, int perPage = 10}) async {
+  Future<PagedTrackingCarts> getDeliveryStatusCarts({
+    int page = 1,
+    int perPage = 10,
+  }) async {
     try {
       final options = await _getHeaders();
       final response = await _dio.post(
@@ -345,16 +402,33 @@ class CartApiService {
         options: options?.copyWith(validateStatus: (s) => true),
       );
       if (response.statusCode == 200 && response.data is Map) {
-        return PagedTrackingCarts.fromResponse(response.data as Map<String, dynamic>);
+        return PagedTrackingCarts.fromResponse(
+          response.data as Map<String, dynamic>,
+        );
       }
-      return PagedTrackingCarts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedTrackingCarts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     } on DioException catch (e) {
       lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
-      return PagedTrackingCarts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedTrackingCarts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     }
   }
 
-  Future<PagedTrackingCarts> getHistoryCarts({int page = 1, int perPage = 10}) async {
+  Future<PagedTrackingCarts> getHistoryCarts({
+    int page = 1,
+    int perPage = 10,
+  }) async {
     try {
       final options = await _getHeaders();
       final response = await _dio.post(
@@ -363,12 +437,59 @@ class CartApiService {
         options: options?.copyWith(validateStatus: (s) => true),
       );
       if (response.statusCode == 200 && response.data is Map) {
-        return PagedTrackingCarts.fromResponse(response.data as Map<String, dynamic>);
+        return PagedTrackingCarts.fromResponse(
+          response.data as Map<String, dynamic>,
+        );
       }
-      return PagedTrackingCarts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedTrackingCarts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     } on DioException catch (e) {
       lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
-      return PagedTrackingCarts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedTrackingCarts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>?> payCart({
+    required String cartMobileId,
+    required int metodePembayaranId,
+    String notePembayaran = '',
+  }) async {
+    try {
+      final options = await _getHeaders();
+      final response = await _dio.post(
+        '/api/cart/pay',
+        data: {
+          'cart_mobile_id': cartMobileId,
+          'metode_pembayaran_id': metodePembayaranId,
+          'note_pembayaran': notePembayaran,
+        },
+        options: options?.copyWith(validateStatus: (s) => true),
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        final Map<String, dynamic> body =
+            (response.data as Map<String, dynamic>);
+        if (body['status'] == true) {
+          return body['data'] as Map<String, dynamic>?;
+        }
+        lastErrorMessage = _extractMessage(body) ?? 'Pembayaran gagal';
+        return null;
+      }
+      lastErrorMessage = 'Pembayaran gagal (${response.statusCode})';
+      return null;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      return null;
     }
   }
 }

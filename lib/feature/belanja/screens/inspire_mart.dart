@@ -17,9 +17,16 @@ import '../components/product_card.dart';
 import 'mart_search_page.dart';
 import 'belanjaan_page.dart';
 import 'category_products_page.dart';
+import 'payment_webview_page.dart';
 
 class InspireMartScreen extends StatefulWidget {
-  const InspireMartScreen({super.key});
+  final int? initialTabIndex; // 0: Explor, 1: Search, 2: Kategori, 3: Belanjaan
+  final int? initialOrderTabIndex; // Tracking sub-tab
+  const InspireMartScreen({
+    super.key,
+    this.initialTabIndex,
+    this.initialOrderTabIndex,
+  });
 
   @override
   State<InspireMartScreen> createState() => _InspireMartScreenState();
@@ -41,7 +48,8 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   List<SectionModel> _sections = [];
   bool _isLoadingSections = true;
 
-  bool get _isGlobalLoading => _isLoadingBanners || _isLoadingCategories || _isLoadingSections;
+  bool get _isGlobalLoading =>
+      _isLoadingBanners || _isLoadingCategories || _isLoadingSections;
 
   // Dummy products (deprecated)
   final List<Product> _flashDeals = const [];
@@ -157,7 +165,8 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
       _fetchCart();
     } else {
       // Revert optimistic update
-      final prevQty = _cart?.items
+      final prevQty =
+          _cart?.items
               .where((it) => it.productId == productId)
               .map((it) => it.quantity)
               .fold<int>(0, (a, b) => a + b) ??
@@ -169,15 +178,16 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           _cartProductQuantities[productId] = prevQty;
         }
       });
-      final msg = _cartApiService.lastErrorMessage ?? 'Gagal memperbarui keranjang (422)';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
+      final msg =
+          _cartApiService.lastErrorMessage ??
+          'Gagal memperbarui keranjang (422)';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
   // --- Belanjaan (Tracking Orders) state ---
-  int _orderTabIndex = 0; // 0: Waiting, 1: Confirmed, 2: Cancelled, 3: Delivery, 4: History
+  int _orderTabIndex =
+      0; // 0: Waiting, 1: Confirmed, 2: Cancelled, 3: Delivery, 4: History
   bool _isLoadingTrack = false;
   List<TrackingCart> _waitingAdminCarts = [];
   List<TrackingCart> _confirmedCarts = [];
@@ -195,6 +205,12 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialTabIndex != null) {
+      _currentTabIndex = widget.initialTabIndex!;
+    }
+    if (widget.initialOrderTabIndex != null) {
+      _orderTabIndex = widget.initialOrderTabIndex!;
+    }
     _fetchData();
   }
 
@@ -345,7 +361,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           _confirmedCarts.isEmpty) {
         _fetchTrackingCarts(page: 1);
       }
-      return ListView(
+      return Column(
         children: [
           const SizedBox(height: 12),
           Padding(
@@ -365,52 +381,59 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             child: _buildOrdersTabs(),
           ),
           const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
+          Expanded(
+            child: ListView(
               children: [
-                if (_isLoadingTrack)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else ...((_orderTabIndex == 0
-                        ? _waitingAdminCarts
-                        : _orderTabIndex == 1
-                            ? _confirmedCarts
-                            : _orderTabIndex == 2
-                                ? _cancelledCarts
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      if (_isLoadingTrack)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else
+                        ...((_orderTabIndex == 0
+                                ? _historyCarts
+                                : _orderTabIndex == 1
+                                ? _waitingAdminCarts
+                                : _orderTabIndex == 2
+                                ? _confirmedCarts
                                 : _orderTabIndex == 3
-                                    ? _deliveryCarts
-                                    : _historyCarts)
-                    .map(
-                      (c) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildTrackingCard(c),
+                                ? _cancelledCarts
+                                : _deliveryCarts)
+                            .map(
+                              (c) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _buildTrackingCard(c),
+                              ),
+                            )
+                            .toList()),
+                      const SizedBox(height: 16),
+                      Text(
+                        _orderTabIndex == 0
+                            ? 'Riwayat pesanan'
+                            : _orderTabIndex == 1
+                            ? 'Menunggu konfirmasi admin ...'
+                            : _orderTabIndex == 2
+                            ? 'Menunggu pembayaran ...'
+                            : _orderTabIndex == 3
+                            ? 'Pesanan dibatalkan'
+                            : 'Status pengantaran',
+                        style: GoogleFonts.lexendDeca(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.secondaryTextLight,
+                        ),
                       ),
-                    )
-                    .toList()),
-                const SizedBox(height: 16),
-                Text(
-                  _orderTabIndex == 0
-                      ? 'Menunggu konfirmasi admin ...'
-                      : _orderTabIndex == 1
-                          ? 'Menunggu pembayaran ...'
-                          : _orderTabIndex == 2
-                              ? 'Pesanan dibatalkan'
-                              : _orderTabIndex == 3
-                                  ? 'Status pengantaran'
-                                  : 'Riwayat pesanan',
-                  style: GoogleFonts.lexendDeca(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.secondaryTextLight,
+                    ],
                   ),
                 ),
+                const SizedBox(height: 100),
               ],
             ),
           ),
-          const SizedBox(height: 100),
         ],
       );
     }
@@ -487,15 +510,18 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => ProductDetailPage(
-                      product: product,
-                      getQty: _getQty,
-                      onAdd: _increment,
-                      onIncrement: _increment,
-                      onDecrement: _decrement,
-                      related:
-                          _allProducts.where((e) => e.id != product.id).toList(),
-                    ),
+                    builder:
+                        (_) => ProductDetailPage(
+                          product: product,
+                          getQty: _getQty,
+                          onAdd: _increment,
+                          onIncrement: _increment,
+                          onDecrement: _decrement,
+                          related:
+                              _allProducts
+                                  .where((e) => e.id != product.id)
+                                  .toList(),
+                        ),
                   ),
                 );
               },
@@ -529,14 +555,15 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => CategoryProductsPage(
-                  kategoriId: cat.id,
-                  kategoriName: cat.kategori,
-                  getQty: _getQty,
-                  onAdd: _increment,
-                  onIncrement: _increment,
-                  onDecrement: _decrement,
-                ),
+                builder:
+                    (_) => CategoryProductsPage(
+                      kategoriId: cat.id,
+                      kategoriName: cat.kategori,
+                      getQty: _getQty,
+                      onAdd: _increment,
+                      onIncrement: _increment,
+                      onDecrement: _decrement,
+                    ),
               ),
             );
           },
@@ -608,10 +635,10 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           for (var item in _cart!.items) {
             if (!uniqueProductIds.add(item.productId)) continue;
             // Try find enriched product from sections
-            final enriched = _allProducts.where((p) => p.id == item.productId).cast<Product?>().firstWhere(
-                  (p) => p != null,
-                  orElse: () => null,
-                );
+            final enriched = _allProducts
+                .where((p) => p.id == item.productId)
+                .cast<Product?>()
+                .firstWhere((p) => p != null, orElse: () => null);
             if (enriched != null) {
               items.add(enriched);
               continue;
@@ -962,14 +989,15 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => CategoryProductsPage(
-                    kategoriId: cat.id,
-                    kategoriName: cat.kategori,
-                    getQty: _getQty,
-                    onAdd: _increment,
-                    onIncrement: _increment,
-                    onDecrement: _decrement,
-                  ),
+                  builder:
+                      (_) => CategoryProductsPage(
+                        kategoriId: cat.id,
+                        kategoriName: cat.kategori,
+                        getQty: _getQty,
+                        onAdd: _increment,
+                        onIncrement: _increment,
+                        onDecrement: _decrement,
+                      ),
                 ),
               );
             },
@@ -1005,17 +1033,21 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                 ? MainAxisAlignment.spaceBetween
                 : MainAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: GoogleFonts.lexendDeca(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryTextLight,
-              height: 1.0,
-            ),
-            textHeightBehavior: const TextHeightBehavior(
-              applyHeightToFirstAscent: false,
-              applyHeightToLastDescent: false,
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.lexendDeca(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryTextLight,
+                height: 1.0,
+              ),
+              textHeightBehavior: const TextHeightBehavior(
+                applyHeightToFirstAscent: false,
+                applyHeightToLastDescent: false,
+              ),
             ),
           ),
           if (showSeeAll)
@@ -1098,14 +1130,15 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => CategoryProductsPage(
-                    kategoriId: cat.id,
-                    kategoriName: cat.kategori,
-                    getQty: _getQty,
-                    onAdd: _increment,
-                    onIncrement: _increment,
-                    onDecrement: _decrement,
-                  ),
+                  builder:
+                      (_) => CategoryProductsPage(
+                        kategoriId: cat.id,
+                        kategoriName: cat.kategori,
+                        getQty: _getQty,
+                        onAdd: _increment,
+                        onIncrement: _increment,
+                        onDecrement: _decrement,
+                      ),
                 ),
               );
             },
@@ -1187,8 +1220,10 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                     if (prev == null) {
                       unique[p.id] = p;
                     } else {
-                      final prevHasImg = prev.imageUrl != null && prev.imageUrl!.isNotEmpty;
-                      final newHasImg = p.imageUrl != null && p.imageUrl!.isNotEmpty;
+                      final prevHasImg =
+                          prev.imageUrl != null && prev.imageUrl!.isNotEmpty;
+                      final newHasImg =
+                          p.imageUrl != null && p.imageUrl!.isNotEmpty;
                       if (!prevHasImg && newHasImg) unique[p.id] = p;
                     }
                   }
@@ -1423,20 +1458,19 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
 // --- Belanjaan helpers ---
 extension on _InspireMartScreenState {
   Widget _buildOrdersTabs() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFDDE5ED)),
-      ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _ordersTabButton('Waiting', 0),
-          _ordersTabButton('Confirmed', 1),
-          _ordersTabButton('Cancelled', 2),
-          _ordersTabButton('Delivery', 3),
-          _ordersTabButton('History', 4),
+          _ordersTabButton('History', 0),
+          const SizedBox(width: 16),
+          _ordersTabButton('Waiting', 1),
+          const SizedBox(width: 16),
+          _ordersTabButton('Confirmed', 2),
+          const SizedBox(width: 16),
+          _ordersTabButton('Canceled', 3),
+          const SizedBox(width: 16),
+          _ordersTabButton('Delivery', 4),
         ],
       ),
     );
@@ -1444,42 +1478,37 @@ extension on _InspireMartScreenState {
 
   Widget _ordersTabButton(String label, int index) {
     final bool selected = _orderTabIndex == index;
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          setState(() => _orderTabIndex = index);
-          _fetchTrackingCarts(page: 1);
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow:
-                selected
-                    ? [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                    : null,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: GoogleFonts.lexendDeca(
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-              color:
-                  selected
-                      ? AppColors.primaryTextLight
-                      : AppColors.secondaryTextLight,
+    return InkWell(
+      onTap: () {
+        setState(() => _orderTabIndex = index);
+        _fetchTrackingCarts(page: 1);
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.lexendDeca(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color:
+                    selected
+                        ? AppColors.primaryLight
+                        : AppColors.primaryTextLight,
+              ),
             ),
-          ),
+            const SizedBox(height: 4),
+            Container(
+              width: 28,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primaryLight : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1487,9 +1516,10 @@ extension on _InspireMartScreenState {
 
   Widget _buildTrackingCard(TrackingCart c) {
     final Color borderColor = const Color(0xFFDDE5ED);
-    final Color statusColor = c.status == 'waiting_admin'
-        ? const Color(0xFFF59E0B)
-        : c.status == 'canceled'
+    final Color statusColor =
+        c.status == 'waiting_admin'
+            ? const Color(0xFFF59E0B)
+            : c.status == 'canceled'
             ? const Color(0xFFEF4444)
             : AppColors.primaryLight;
     return Container(
@@ -1582,7 +1612,11 @@ extension on _InspireMartScreenState {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.schedule, size: 16, color: Color(0xFFEF4444)),
+                  const Icon(
+                    Icons.schedule,
+                    size: 16,
+                    color: Color(0xFFEF4444),
+                  ),
                   const SizedBox(width: 6),
                   _CountdownTimer(endTime: DateTime.parse(c.expiredAt!)),
                 ],
@@ -1601,6 +1635,31 @@ extension on _InspireMartScreenState {
                     ),
                   ),
                 ),
+                if (c.status == 'confirmed') ...[
+                  InkWell(
+                    onTap: () => _onPayTap(c),
+                    borderRadius: BorderRadius.circular(100),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text(
+                        'Bayar',
+                        style: GoogleFonts.lexendDeca(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 InkWell(
                   onTap: () {},
                   borderRadius: BorderRadius.circular(100),
@@ -1635,20 +1694,23 @@ extension on _InspireMartScreenState {
     setState(() => _isLoadingTrack = true);
     PagedTrackingCarts res;
     if (_orderTabIndex == 0) {
-      res = await _cartApiService.getWaitingAdminCarts(page: page, perPage: 10);
-      _waitingAdminCarts = res.items;
-    } else if (_orderTabIndex == 1) {
-      res = await _cartApiService.getConfirmedCarts(page: page, perPage: 10);
-      _confirmedCarts = res.items;
-    } else if (_orderTabIndex == 2) {
-      res = await _cartApiService.getCancelledCarts(page: page, perPage: 10);
-      _cancelledCarts = res.items;
-    } else if (_orderTabIndex == 3) {
-      res = await _cartApiService.getDeliveryStatusCarts(page: page, perPage: 10);
-      _deliveryCarts = res.items;
-    } else {
       res = await _cartApiService.getHistoryCarts(page: page, perPage: 10);
       _historyCarts = res.items;
+    } else if (_orderTabIndex == 1) {
+      res = await _cartApiService.getWaitingAdminCarts(page: page, perPage: 10);
+      _waitingAdminCarts = res.items;
+    } else if (_orderTabIndex == 2) {
+      res = await _cartApiService.getConfirmedCarts(page: page, perPage: 10);
+      _confirmedCarts = res.items;
+    } else if (_orderTabIndex == 3) {
+      res = await _cartApiService.getCancelledCarts(page: page, perPage: 10);
+      _cancelledCarts = res.items;
+    } else {
+      res = await _cartApiService.getDeliveryStatusCarts(
+        page: page,
+        perPage: 10,
+      );
+      _deliveryCarts = res.items;
     }
     if (mounted) {
       setState(() {
@@ -1656,6 +1718,65 @@ extension on _InspireMartScreenState {
         _trackPage = res.currentPage;
         _trackLastPage = res.lastPage;
       });
+    }
+  }
+
+  Future<void> _onPayTap(TrackingCart c) async {
+    final method = await showModalBottomSheet<int>(
+      context: context,
+      builder: (_) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Potong Gaji (Tongji)'),
+                subtitle: const Text('Metode internal perusahaan'),
+                onTap: () => Navigator.pop(context, 3),
+              ),
+              ListTile(
+                title: const Text('Midtrans (Snap)'),
+                subtitle: const Text('Bayar online melalui Snap'),
+                onTap: () => Navigator.pop(context, 6),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (method == null) return;
+    final data = await _cartApiService.payCart(
+      cartMobileId: c.id,
+      metodePembayaranId: method,
+      notePembayaran: '',
+    );
+    if (!mounted) return;
+    if (data == null) {
+      final msg = _cartApiService.lastErrorMessage ?? 'Pembayaran gagal';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      return;
+    }
+    if (method == 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pembayaran berhasil (Tongji)')),
+      );
+      _fetchTrackingCarts(page: 1);
+    } else if (method == 6) {
+      final urlStr = (data['redirect_url'] ?? '').toString().trim().replaceAll(
+        '`',
+        '',
+      );
+      if (urlStr.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Redirect URL tidak tersedia')),
+        );
+        return;
+      }
+      final uri = Uri.parse(urlStr);
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => PaymentWebViewPage(url: uri)));
+      _fetchTrackingCarts(page: 1);
     }
   }
 }
@@ -1709,7 +1830,10 @@ class _CountdownTimerState extends State<_CountdownTimer> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: expired ? const Color(0xFFEF4444).withOpacity(0.08) : const Color(0xFFF59E0B).withOpacity(0.08),
+        color:
+            expired
+                ? const Color(0xFFEF4444).withOpacity(0.08)
+                : const Color(0xFFF59E0B).withOpacity(0.08),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(

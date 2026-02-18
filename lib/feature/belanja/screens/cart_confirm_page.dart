@@ -8,6 +8,7 @@ import '../models/cart_model.dart';
 import '../models/voucher_model.dart';
 import '../models/delivery_location_model.dart';
 import '../service/cart_api_service.dart';
+import 'inspire_mart.dart';
 
 class CartConfirmPage extends StatefulWidget {
   final List<Product> items;
@@ -647,7 +648,10 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(24),
@@ -655,7 +659,11 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(LucideIcons.badgeInfo, color: Color(0xFF0F172A), size: 18),
+                            const Icon(
+                              LucideIcons.badgeInfo,
+                              color: Color(0xFF0F172A),
+                              size: 18,
+                            ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: TextField(
@@ -664,7 +672,11 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                                   hintText: 'Catatan untuk pengantar ...',
                                   border: InputBorder.none,
                                 ),
-                                style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.primaryTextLight),
+                                style: GoogleFonts.lexendDeca(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.primaryTextLight,
+                                ),
                               ),
                             ),
                           ],
@@ -706,135 +718,142 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                       child: Column(
                         children: () {
                           final Set<String> _seenIds = {};
-                          return widget.items
-                              .where((p) => _seenIds.add(p.id))
-                              .map((p) {
-                              final qty = widget.getQty(p);
-                              final ci = _currentCart?.items.firstWhere(
-                                (it) => it.productId == p.id || it.product.id == p.id,
-                                orElse: () => CartItemModel(
-                                  id: '',
-                                  productId: p.id,
-                                  product: p,
-                                  quantity: qty,
-                                  price: p.price,
-                                  totalPrice: p.price * qty,
-                                ),
-                              );
-                              final displayImageUrl = (p.imageUrl != null && p.imageUrl!.isNotEmpty)
-                                  ? p.imageUrl
-                                  : (ci?.product.imageUrl);
-                              final qtyDisplay = ci?.quantity ?? qty;
-                              final unitFromItem = (ci?.price ?? 0);
-                              final unitFromTotal = ((ci?.totalPrice ?? 0) > 0 && qtyDisplay > 0)
-                                  ? ((ci!.totalPrice ~/ qtyDisplay))
-                                  : 0;
-                              final displayPrice = unitFromItem > 0
-                                  ? unitFromItem
-                                  : (unitFromTotal > 0 ? unitFromTotal : p.price);
-                              if (qty <= 0) return const SizedBox.shrink();
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: (displayImageUrl != null && displayImageUrl.isNotEmpty)
-                                          ? ClipRRect(
-                                              borderRadius: BorderRadius.circular(8),
+                          return widget.items.where((p) => _seenIds.add(p.id)).map((
+                            p,
+                          ) {
+                            final qty = widget.getQty(p);
+                            final ci = _currentCart?.items.firstWhere(
+                              (it) =>
+                                  it.productId == p.id || it.product.id == p.id,
+                              orElse:
+                                  () => CartItemModel(
+                                    id: '',
+                                    productId: p.id,
+                                    product: p,
+                                    quantity: qty,
+                                    price: p.price,
+                                    totalPrice: p.price * qty,
+                                  ),
+                            );
+                            final displayImageUrl =
+                                (p.imageUrl != null && p.imageUrl!.isNotEmpty)
+                                    ? p.imageUrl
+                                    : (ci?.product.imageUrl);
+                            final qtyDisplay = ci?.quantity ?? qty;
+                            final unitFromItem = (ci?.price ?? 0);
+                            final unitFromTotal =
+                                ((ci?.totalPrice ?? 0) > 0 && qtyDisplay > 0)
+                                    ? ((ci!.totalPrice ~/ qtyDisplay))
+                                    : 0;
+                            final displayPrice =
+                                unitFromItem > 0
+                                    ? unitFromItem
+                                    : (unitFromTotal > 0
+                                        ? unitFromTotal
+                                        : p.price);
+                            if (qty <= 0) return const SizedBox.shrink();
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child:
+                                        (displayImageUrl != null &&
+                                                displayImageUrl.isNotEmpty)
+                                            ? ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                               child: Image.network(
                                                 displayImageUrl,
                                                 fit: BoxFit.contain,
                                               ),
                                             )
-                                          : const Icon(
+                                            : const Icon(
                                               LucideIcons.image,
                                               color: Color(0xFF9CA3AF),
-                                        ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            p.name,
-                                            style: GoogleFonts.lexendDeca(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.primaryTextLight,
                                             ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            formatRp(displayPrice),
-                                            style: GoogleFonts.lexendDeca(
-                                              fontSize: 11.5,
-                                              fontWeight: FontWeight.w500,
-                                              color:
-                                                  AppColors.secondaryTextLight,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Row(
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        _CircleActionButton(
-                                          icon: Icons.remove,
-                                          onTap: () async {
-                                            widget.onDecrement(p);
-                                            // Wait a bit for parent to update cart, then refresh UI
-                                            // Ideally parent's callback updates _cart model
-                                            // But parent's onDecrement updates parent state and calls API
-                                            // Parent needs to pass updated cart or we need to fetch it?
-                                            // Parent passes onRefresh to us.
-                                            // Let's call refresh here after a delay to allow API to process
-                                            // Optimistic UI is handled by parent's setState (passed via props)
-                                            // But for total price calculation, we need updated _cart from server
-                                            // or calculate locally.
-                                            // For now, rely on parent's setState for item list, and fetch cart for total.
-                                            await Future.delayed(
-                                              const Duration(milliseconds: 500),
-                                            );
-                                            _refreshCart();
-                                          },
-                                        ),
-                                        const SizedBox(width: 12),
                                         Text(
-                                          '$qty',
+                                          p.name,
                                           style: GoogleFonts.lexendDeca(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF0F172A),
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.primaryTextLight,
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        _CircleActionButton(
-                                          icon: Icons.add,
-                                          onTap: () async {
-                                            widget.onIncrement(p);
-                                            await Future.delayed(
-                                              const Duration(milliseconds: 500),
-                                            );
-                                            _refreshCart();
-                                          },
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          formatRp(displayPrice),
+                                          style: GoogleFonts.lexendDeca(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w500,
+                                            color: AppColors.secondaryTextLight,
+                                          ),
                                         ),
                                       ],
                                     ),
-                                  ],
-                                ),
-                              );
-                              }).toList();
+                                  ),
+                                  Row(
+                                    children: [
+                                      _CircleActionButton(
+                                        icon: Icons.remove,
+                                        onTap: () async {
+                                          widget.onDecrement(p);
+                                          // Wait a bit for parent to update cart, then refresh UI
+                                          // Ideally parent's callback updates _cart model
+                                          // But parent's onDecrement updates parent state and calls API
+                                          // Parent needs to pass updated cart or we need to fetch it?
+                                          // Parent passes onRefresh to us.
+                                          // Let's call refresh here after a delay to allow API to process
+                                          // Optimistic UI is handled by parent's setState (passed via props)
+                                          // But for total price calculation, we need updated _cart from server
+                                          // or calculate locally.
+                                          // For now, rely on parent's setState for item list, and fetch cart for total.
+                                          await Future.delayed(
+                                            const Duration(milliseconds: 500),
+                                          );
+                                          _refreshCart();
+                                        },
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        '$qty',
+                                        style: GoogleFonts.lexendDeca(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: const Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      _CircleActionButton(
+                                        icon: Icons.add,
+                                        onTap: () async {
+                                          widget.onIncrement(p);
+                                          await Future.delayed(
+                                            const Duration(milliseconds: 500),
+                                          );
+                                          _refreshCart();
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList();
                         }(),
                       ),
                     ),
@@ -1078,9 +1097,19 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Permintaan berhasil dikirim ke admin')),
       );
-      Navigator.of(context).pop();
+      widget.onRefresh?.call();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder:
+              (_) => const InspireMartScreen(
+                initialTabIndex: 3,
+                initialOrderTabIndex: 1,
+              ),
+        ),
+      );
     } else {
-      final msg = widget.cartApiService!.lastErrorMessage ?? 'Gagal submit ke admin';
+      final msg =
+          widget.cartApiService!.lastErrorMessage ?? 'Gagal submit ke admin';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
