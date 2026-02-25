@@ -354,80 +354,83 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           _confirmedCarts.isEmpty) {
         _fetchTrackingCarts(page: 1);
       }
-      return Column(
-        children: [
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Tracking Belanjaan',
-              style: GoogleFonts.lexendDeca(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.primaryTextLight,
+      return SafeArea(
+        top: true,
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Tracking Belanjaan',
+                style: GoogleFonts.lexendDeca(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primaryTextLight,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildOrdersTabs(),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    children: [
-                      if (_isLoadingTrack)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Center(child: CircularProgressIndicator()),
-                        )
-                      else
-                        ...((_orderTabIndex == 0
-                                ? _historyCarts
-                                : _orderTabIndex == 1
-                                ? _waitingAdminCarts
-                                : _orderTabIndex == 2
-                                ? _confirmedCarts
-                                : _orderTabIndex == 3
-                                ? _cancelledCarts
-                                : _deliveryCarts)
-                            .map(
-                              (c) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _buildTrackingCard(c),
-                              ),
-                            )
-                            .toList()),
-                      const SizedBox(height: 16),
-                      Text(
-                        _orderTabIndex == 0
-                            ? 'Riwayat pesanan'
-                            : _orderTabIndex == 1
-                            ? 'Menunggu konfirmasi admin ...'
-                            : _orderTabIndex == 2
-                            ? 'Menunggu pembayaran ...'
-                            : _orderTabIndex == 3
-                            ? 'Pesanan dibatalkan'
-                            : 'Status pengantaran',
-                        style: GoogleFonts.lexendDeca(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.secondaryTextLight,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 100),
-              ],
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildOrdersTabs(),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Expanded(
+              child: ListView(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: [
+                        if (_isLoadingTrack)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else
+                          ...((_orderTabIndex == 0
+                                  ? _historyCarts
+                                  : _orderTabIndex == 1
+                                  ? _waitingAdminCarts
+                                  : _orderTabIndex == 2
+                                  ? _confirmedCarts
+                                  : _orderTabIndex == 3
+                                  ? _cancelledCarts
+                                  : _deliveryCarts)
+                              .map(
+                                (c) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _buildTrackingCard(c),
+                                ),
+                              )
+                              .toList()),
+                        const SizedBox(height: 16),
+                        Text(
+                          _orderTabIndex == 0
+                              ? 'Riwayat pesanan'
+                              : _orderTabIndex == 1
+                              ? 'Menunggu konfirmasi admin ...'
+                              : _orderTabIndex == 2
+                              ? 'Menunggu pembayaran ...'
+                              : _orderTabIndex == 3
+                              ? 'Pesanan dibatalkan'
+                              : 'Status pengantaran',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.secondaryTextLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 100),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
     }
     // Explor tab (default)
@@ -1698,6 +1701,31 @@ extension on _InspireMartScreenState {
                         ),
                       ),
                     ),
+                  if (c.status == 'on_delivery') ...[
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () => _onMarkDelivered(c),
+                      borderRadius: BorderRadius.circular(100),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF22C55E),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(
+                          'Pesanan diterima',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -1962,6 +1990,21 @@ extension on _InspireMartScreenState {
         );
       },
     );
+  }
+
+  Future<void> _onMarkDelivered(TrackingCart c) async {
+    final ok = await _cartApiService.markDelivered(cartId: c.id);
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pesanan ditandai telah diterima')),
+      );
+      _fetchTrackingCarts(page: 1);
+    } else {
+      final msg =
+          _cartApiService.lastErrorMessage ?? 'Gagal menandai pesanan diterima';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
   }
 
   String _fmtDate(String iso) {

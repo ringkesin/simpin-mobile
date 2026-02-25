@@ -584,4 +584,28 @@ class CartApiService {
       return null;
     }
   }
+
+  Future<bool> markDelivered({required String cartId}) async {
+    try {
+      final options = await _getHeaders();
+      final response = await _dio.post(
+        '/api/cart/delivery/mark-delivered',
+        data: {'cart_id': cartId},
+        options: options?.copyWith(validateStatus: (s) => true),
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        final Map<String, dynamic> body = response.data as Map<String, dynamic>;
+        if (body['status'] == true) return true;
+        lastErrorMessage =
+            _extractMessage(body) ?? 'Gagal menandai pesanan diterima';
+        return false;
+      }
+      lastErrorMessage =
+          'Gagal menandai pesanan diterima (${response.statusCode})';
+      return false;
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      return false;
+    }
+  }
 }

@@ -110,68 +110,64 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
         elevation: 0,
         foregroundColor: AppColors.primaryTextLight,
         scrolledUnderElevation: 0.5,
-      ),
-      body: Column(
-        children: [
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: _buildTabs(),
           ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView(
+        ),
+      ),
+      body: ListView(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    children: [
-                      if (_loading)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Center(child: CircularProgressIndicator()),
-                        )
-                      else
-                        ...((_tabIndex == 0
-                                ? _history
-                                : _tabIndex == 1
-                                ? _waiting
-                                : _tabIndex == 2
-                                ? _confirmed
-                                : _tabIndex == 3
-                                ? _cancelled
-                                : _delivery)
-                            .map(
-                              (c) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _buildTrackingCard(c),
-                              ),
-                            )
-                            .toList()),
-                      const SizedBox(height: 16),
-                      Text(
-                        _tabIndex == 0
-                            ? 'Riwayat pesanan'
-                            : _tabIndex == 1
-                            ? 'Menunggu konfirmasi admin ...'
-                            : _tabIndex == 2
-                            ? 'Menunggu pembayaran ...'
-                            : _tabIndex == 3
-                            ? 'Pesanan dibatalkan'
-                            : 'Status pengantaran',
-                        style: GoogleFonts.lexendDeca(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.secondaryTextLight,
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else
+                  ...((_tabIndex == 0
+                          ? _history
+                          : _tabIndex == 1
+                          ? _waiting
+                          : _tabIndex == 2
+                          ? _confirmed
+                          : _tabIndex == 3
+                          ? _cancelled
+                          : _delivery)
+                      .map(
+                        (c) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _buildTrackingCard(c),
                         ),
-                      ),
-                    ],
+                      )
+                      .toList()),
+                const SizedBox(height: 16),
+                Text(
+                  _tabIndex == 0
+                      ? 'Riwayat pesanan'
+                      : _tabIndex == 1
+                      ? 'Menunggu konfirmasi admin ...'
+                      : _tabIndex == 2
+                      ? 'Menunggu pembayaran ...'
+                      : _tabIndex == 3
+                      ? 'Pesanan dibatalkan'
+                      : 'Status pengantaran',
+                  style: GoogleFonts.lexendDeca(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.secondaryTextLight,
                   ),
                 ),
-                const SizedBox(height: 100),
               ],
             ),
           ),
+          const SizedBox(height: 100),
         ],
       ),
     );
@@ -414,6 +410,30 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
                         ),
                         child: Text(
                           'Bayar',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (c.status == 'on_delivery') ...[
+                    InkWell(
+                      onTap: () => _onMarkDelivered(c),
+                      borderRadius: BorderRadius.circular(100),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF22C55E),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(
+                          'Pesanan diterima',
                           style: GoogleFonts.lexendDeca(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -687,6 +707,21 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
         );
       },
     );
+  }
+
+  Future<void> _onMarkDelivered(TrackingCart c) async {
+    final ok = await _cartApiService.markDelivered(cartId: c.id);
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pesanan ditandai telah diterima')),
+      );
+      _fetch(page: 1);
+    } else {
+      final msg =
+          _cartApiService.lastErrorMessage ?? 'Gagal menandai pesanan diterima';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
   }
 
   String _fmtDate(String iso) {
