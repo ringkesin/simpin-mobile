@@ -21,6 +21,22 @@ class _LoginPageState extends State<LoginPage> {
   String? _errorMessage;
   bool _isPasswordVisible = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadLastUsername();
+  }
+
+  Future<void> _loadLastUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastUsername = prefs.getString('last_username');
+    if (lastUsername != null && mounted) {
+      setState(() {
+        _usernameController.text = lastUsername;
+      });
+    }
+  }
+
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -64,6 +80,9 @@ class _LoginPageState extends State<LoginPage> {
         // ... Logika penyimpanan SharedPreferences Anda sudah benar ...
         // (Saya salin kembali tanpa perubahan)
         final prefs = await SharedPreferences.getInstance();
+        // Simpan username terakhir yang berhasil login
+        await prefs.setString("last_username", _usernameController.text);
+
         final data = loginResponse.data!;
         final userData = data.user;
         final anggotaData = data.anggota;
