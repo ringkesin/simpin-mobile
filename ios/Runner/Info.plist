@@ -35,6 +35,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Aplikasi ini memerlukan akses kamera untuk mengambil foto KTP.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Aplikasi ini menggunakan Face ID/Touch ID untuk login lebih cepat dan aman.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Aplikasi ini memerlukan akses mikrofon jika Anda merekam video (opsional untuk foto).</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

@@ -193,8 +193,8 @@ class ProductCard extends StatelessWidget {
                   Text(
                     formatRp(product.price),
                     style: GoogleFonts.lexendDeca(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w600,
                       color: AppColors.primaryTextLight,
                     ),
                   ),
@@ -217,8 +217,8 @@ class ProductCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.lexendDeca(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w400,
                       color: AppColors.primaryTextLight,
                     ),
                   ),

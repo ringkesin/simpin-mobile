@@ -14,6 +14,7 @@ import '../../../theme.dart';
 
 import '../../../model/document_attribute.dart';
 import './document_viewer.dart';
+import '../../auth/screens/setup_biometric.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -1138,6 +1139,59 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
       );
     }
+
+    // Add Security Section
+    sections.add(
+      _buildProfileSection(
+        context,
+        title: "Keamanan Akun",
+        icon: Icons.security,
+        children: [
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SetupBiometricScreen(),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 8.0,
+                horizontal: 4.0,
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.fingerprint, color: AppColors.primaryLight),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Setup PIN & Biometrik',
+                          style: AppTheme.textThemeLight.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Atur PIN dan login dengan sidik jari/wajah',
+                          style: AppTheme.textThemeLight.bodySmall?.copyWith(
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: Colors.grey),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
 
     if (sections.isEmpty) {
       sections.add(

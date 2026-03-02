@@ -4,6 +4,7 @@ import '../../../service/api_service.dart'; // Pastikan path import benar
 import 'package:shared_preferences/shared_preferences.dart';
 import 'registrasi.dart'; // Pastikan path import benar jika digunakan
 import '../../../model/login_response.dart'; // Pastikan path import benar
+import '../../../service/biometric_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,14 +18,115 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final ApiService _apiService = ApiService();
+  final BiometricService _biometricService = BiometricService();
   bool _isLoading = false;
   String? _errorMessage;
   bool _isPasswordVisible = false;
+  bool _isBiometricEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _loadLastUsername();
+    _checkBiometricStatus();
+  }
+
+  Future<void> _checkBiometricStatus() async {
+    final enabled = await _biometricService.isBiometricEnabled();
+    final hasPin = await _biometricService.hasPin();
+    final credentials = await _biometricService.getCredentials();
+    final hasCredentials =
+        (credentials['username'] ?? '').isNotEmpty &&
+        (credentials['password'] ?? '').isNotEmpty;
+    setState(() {
+      _isBiometricEnabled = enabled && hasPin && hasCredentials;
+    });
+  }
+
+  Future<void> _handleBiometricLogin() async {
+    final authenticated = await _biometricService.authenticateWithBiometrics();
+
+    if (authenticated) {
+      final credentials = await _biometricService.getCredentials();
+      final username = credentials['username'];
+      final password = credentials['password'];
+
+      if (username != null && password != null) {
+        if (mounted) {
+          await _performLogin(username, password);
+        }
+      } else {
+        if (mounted) {
+          _showErrorDialog(
+            "Kredensial tidak ditemukan. Silakan login manual terlebih dahulu untuk mengaktifkan kembali.",
+          );
+        }
+      }
+    } else {
+      // Fallback to PIN
+      if (mounted) {
+        _showPinDialog();
+      }
+    }
+  }
+
+  void _showPinDialog() {
+    final pinController = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Masukkan PIN'),
+            content: TextField(
+              controller: pinController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              obscureText: true,
+              decoration: const InputDecoration(hintText: 'PIN 6 digit'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Batal'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final isValid = await _biometricService.verifyPin(
+                    pinController.text,
+                  );
+                  if (isValid) {
+                    final credentials =
+                        await _biometricService.getCredentials();
+                    final username = credentials['username'];
+                    final password = credentials['password'];
+
+                    if (mounted) Navigator.pop(context); // Close dialog
+
+                    if (username != null && password != null) {
+                      if (mounted) {
+                        await _performLogin(username, password);
+                      }
+                    } else {
+                      if (mounted) {
+                        _showErrorDialog(
+                          "Kredensial tidak ditemukan. Silakan login manual.",
+                        );
+                      }
+                    }
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('PIN Salah')),
+                      );
+                    }
+                  }
+                },
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+    );
   }
 
   Future<void> _loadLastUsername() async {
@@ -67,13 +169,14 @@ class _LoginPageState extends State<LoginPage> {
 
   // --- AWAL FUNGSI HANDLE LOGIN YANG DIPERBAIKI ---
   Future<void> _handleLogin() async {
+    await _performLogin(_usernameController.text, _passwordController.text);
+  }
+
+  Future<void> _performLogin(String username, String password) async {
     setState(() => _isLoading = true);
 
     try {
-      final response = await _apiService.login(
-        _usernameController.text,
-        _passwordController.text,
-      );
+      final response = await _apiService.login(username, password);
       final loginResponse = LoginResponse.fromJson(response);
 
       if (loginResponse.success && loginResponse.data != null) {
@@ -81,7 +184,7 @@ class _LoginPageState extends State<LoginPage> {
         // (Saya salin kembali tanpa perubahan)
         final prefs = await SharedPreferences.getInstance();
         // Simpan username terakhir yang berhasil login
-        await prefs.setString("last_username", _usernameController.text);
+        await prefs.setString("last_username", username);
 
         final data = loginResponse.data!;
         final userData = data.user;
@@ -363,6 +466,28 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 16),
+
+                        if (_isBiometricEnabled)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _handleBiometricLogin,
+                                icon: const Icon(Icons.fingerprint),
+                                label: const Text('Login dengan Biometrik'),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  side: BorderSide(color: primaryColor),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
 
                         // Error Message
                         if (_errorMessage != null)

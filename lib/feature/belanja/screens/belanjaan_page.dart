@@ -68,6 +68,17 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
 
   @override
   Widget build(BuildContext context) {
+    final currentList =
+        _tabIndex == 0
+            ? _history
+            : _tabIndex == 1
+            ? _waiting
+            : _tabIndex == 2
+            ? _confirmed
+            : _tabIndex == 3
+            ? _cancelled
+            : _delivery;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -130,40 +141,57 @@ class _BelanjaanPageState extends State<BelanjaanPage> {
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Center(child: CircularProgressIndicator()),
                   )
-                else
-                  ...((_tabIndex == 0
-                          ? _history
-                          : _tabIndex == 1
-                          ? _waiting
-                          : _tabIndex == 2
-                          ? _confirmed
-                          : _tabIndex == 3
-                          ? _cancelled
-                          : _delivery)
-                      .map(
-                        (c) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _buildTrackingCard(c),
-                        ),
-                      )
-                      .toList()),
-                const SizedBox(height: 16),
-                Text(
-                  _tabIndex == 0
-                      ? 'Riwayat pesanan'
-                      : _tabIndex == 1
-                      ? 'Menunggu konfirmasi admin ...'
-                      : _tabIndex == 2
-                      ? 'Menunggu pembayaran ...'
-                      : _tabIndex == 3
-                      ? 'Pesanan dibatalkan'
-                      : 'Status pengantaran',
-                  style: GoogleFonts.lexendDeca(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.secondaryTextLight,
+                else if (currentList.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(
+                            LucideIcons.box,
+                            size: 48,
+                            color: AppColors.secondaryTextLight.withOpacity(
+                              0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Belum ada data',
+                            style: GoogleFonts.lexendDeca(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.secondaryTextLight,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                if (!_loading && currentList.isNotEmpty) ...[
+                  ...currentList.map(
+                    (c) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildTrackingCard(c),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _tabIndex == 0
+                        ? 'Riwayat pesanan'
+                        : _tabIndex == 1
+                        ? 'Menunggu konfirmasi admin ...'
+                        : _tabIndex == 2
+                        ? 'Menunggu pembayaran ...'
+                        : _tabIndex == 3
+                        ? 'Pesanan dibatalkan'
+                        : 'Status pengantaran',
+                    style: GoogleFonts.lexendDeca(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.secondaryTextLight,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

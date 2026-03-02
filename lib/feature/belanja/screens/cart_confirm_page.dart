@@ -55,6 +55,7 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
     }
     _fetchVouchers();
     _fetchLocations();
+    Future.microtask(_refreshCart);
   }
 
   Future<void> _fetchLocations() async {
@@ -717,143 +718,307 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Column(
                         children: () {
-                          final Set<String> _seenIds = {};
-                          return widget.items.where((p) => _seenIds.add(p.id)).map((
-                            p,
-                          ) {
-                            final qty = widget.getQty(p);
-                            final ci = _currentCart?.items.firstWhere(
-                              (it) =>
-                                  it.productId == p.id || it.product.id == p.id,
-                              orElse:
-                                  () => CartItemModel(
-                                    id: '',
-                                    productId: p.id,
-                                    product: p,
-                                    quantity: qty,
-                                    price: p.price,
-                                    totalPrice: p.price * qty,
-                                  ),
-                            );
-                            final displayImageUrl =
-                                (p.imageUrl != null && p.imageUrl!.isNotEmpty)
-                                    ? p.imageUrl
-                                    : (ci?.product.imageUrl);
-                            final qtyDisplay = ci?.quantity ?? qty;
-                            final unitFromItem = (ci?.price ?? 0);
-                            final unitFromTotal =
-                                ((ci?.totalPrice ?? 0) > 0 && qtyDisplay > 0)
-                                    ? ((ci!.totalPrice ~/ qtyDisplay))
-                                    : 0;
-                            final displayPrice =
-                                unitFromItem > 0
-                                    ? unitFromItem
-                                    : (unitFromTotal > 0
-                                        ? unitFromTotal
-                                        : p.price);
-                            if (qty <= 0) return const SizedBox.shrink();
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child:
-                                        (displayImageUrl != null &&
-                                                displayImageUrl.isNotEmpty)
-                                            ? ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              child: Image.network(
-                                                displayImageUrl,
-                                                fit: BoxFit.contain,
+                          final cartItems = _currentCart?.items;
+                          if (cartItems != null && cartItems.isNotEmpty) {
+                            final Map<String, int> qtyById = {};
+                            final Map<String, CartItemModel> firstById = {};
+                            for (final it in cartItems) {
+                              final productId =
+                                  it.productId.isNotEmpty
+                                      ? it.productId
+                                      : it.product.id;
+                              if (productId.isEmpty) continue;
+                              qtyById[productId] =
+                                  (qtyById[productId] ?? 0) + it.quantity;
+                              firstById.putIfAbsent(productId, () => it);
+                            }
+
+                            return firstById.entries.map((entry) {
+                              final productId = entry.key;
+                              final ci = entry.value;
+                              final qtyDisplay = qtyById[productId] ?? 0;
+
+                              final base = ci.product;
+                              final p =
+                                  base.id.isNotEmpty
+                                      ? base
+                                      : Product(
+                                        id: productId,
+                                        name: base.name,
+                                        price: base.price,
+                                        discountPercent: base.discountPercent,
+                                        imageUrl: base.imageUrl,
+                                        isStockAvailable: base.isStockAvailable,
+                                      );
+
+                              final displayImageUrl =
+                                  (p.imageUrl != null && p.imageUrl!.isNotEmpty)
+                                      ? p.imageUrl
+                                      : (base.imageUrl);
+
+                              final unitFromItem = ci.price;
+                              final unitFromTotal =
+                                  (ci.totalPrice > 0 && ci.quantity > 0)
+                                      ? (ci.totalPrice ~/ ci.quantity)
+                                      : 0;
+                              final displayPrice =
+                                  unitFromItem > 0
+                                      ? unitFromItem
+                                      : (unitFromTotal > 0
+                                          ? unitFromTotal
+                                          : p.price);
+                              if (qtyDisplay <= 0) {
+                                return const SizedBox.shrink();
+                              }
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child:
+                                          (displayImageUrl != null &&
+                                                  displayImageUrl.isNotEmpty)
+                                              ? ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                child: Image.network(
+                                                  displayImageUrl,
+                                                  fit: BoxFit.contain,
+                                                ),
+                                              )
+                                              : const Icon(
+                                                LucideIcons.image,
+                                                color: Color(0xFF9CA3AF),
                                               ),
-                                            )
-                                            : const Icon(
-                                              LucideIcons.image,
-                                              color: Color(0xFF9CA3AF),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            p.name,
+                                            style: GoogleFonts.lexendDeca(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.primaryTextLight,
                                             ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            formatRp(displayPrice),
+                                            style: GoogleFonts.lexendDeca(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w500,
+                                              color:
+                                                  AppColors.secondaryTextLight,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Row(
                                       children: [
+                                        _CircleActionButton(
+                                          icon: Icons.remove,
+                                          onTap: () async {
+                                            widget.onDecrement(p);
+                                            await Future.delayed(
+                                              const Duration(milliseconds: 500),
+                                            );
+                                            _refreshCart();
+                                          },
+                                        ),
+                                        const SizedBox(width: 12),
                                         Text(
-                                          p.name,
+                                          '$qtyDisplay',
                                           style: GoogleFonts.lexendDeca(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.primaryTextLight,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF0F172A),
                                           ),
                                         ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          formatRp(displayPrice),
-                                          style: GoogleFonts.lexendDeca(
-                                            fontSize: 11.5,
-                                            fontWeight: FontWeight.w500,
-                                            color: AppColors.secondaryTextLight,
-                                          ),
+                                        const SizedBox(width: 12),
+                                        _CircleActionButton(
+                                          icon: Icons.add,
+                                          onTap: () async {
+                                            widget.onIncrement(p);
+                                            await Future.delayed(
+                                              const Duration(milliseconds: 500),
+                                            );
+                                            _refreshCart();
+                                          },
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  Row(
-                                    children: [
-                                      _CircleActionButton(
-                                        icon: Icons.remove,
-                                        onTap: () async {
-                                          widget.onDecrement(p);
-                                          // Wait a bit for parent to update cart, then refresh UI
-                                          // Ideally parent's callback updates _cart model
-                                          // But parent's onDecrement updates parent state and calls API
-                                          // Parent needs to pass updated cart or we need to fetch it?
-                                          // Parent passes onRefresh to us.
-                                          // Let's call refresh here after a delay to allow API to process
-                                          // Optimistic UI is handled by parent's setState (passed via props)
-                                          // But for total price calculation, we need updated _cart from server
-                                          // or calculate locally.
-                                          // For now, rely on parent's setState for item list, and fetch cart for total.
-                                          await Future.delayed(
-                                            const Duration(milliseconds: 500),
-                                          );
-                                          _refreshCart();
-                                        },
+                                  ],
+                                ),
+                              );
+                            }).toList();
+                          }
+
+                          final Set<String> seen = {};
+                          return widget.items
+                              .where((p) {
+                                final key =
+                                    p.id.isNotEmpty
+                                        ? p.id
+                                        : '${p.name}_${p.price}';
+                                return seen.add(key);
+                              })
+                              .map((p) {
+                                final qty = widget.getQty(p);
+                                final ci = _currentCart?.items.firstWhere(
+                                  (it) =>
+                                      it.productId == p.id ||
+                                      it.product.id == p.id,
+                                  orElse:
+                                      () => CartItemModel(
+                                        id: '',
+                                        productId: p.id,
+                                        product: p,
+                                        quantity: qty,
+                                        price: p.price,
+                                        totalPrice: p.price * qty,
                                       ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        '$qty',
-                                        style: GoogleFonts.lexendDeca(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: const Color(0xFF0F172A),
+                                );
+                                final displayImageUrl =
+                                    (p.imageUrl != null &&
+                                            p.imageUrl!.isNotEmpty)
+                                        ? p.imageUrl
+                                        : (ci?.product.imageUrl);
+                                final qtyDisplay = ci?.quantity ?? qty;
+                                final unitFromItem = (ci?.price ?? 0);
+                                final unitFromTotal =
+                                    ((ci?.totalPrice ?? 0) > 0 &&
+                                            qtyDisplay > 0)
+                                        ? ((ci!.totalPrice ~/ qtyDisplay))
+                                        : 0;
+                                final displayPrice =
+                                    unitFromItem > 0
+                                        ? unitFromItem
+                                        : (unitFromTotal > 0
+                                            ? unitFromTotal
+                                            : p.price);
+                                if (qtyDisplay <= 0) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child:
+                                            (displayImageUrl != null &&
+                                                    displayImageUrl.isNotEmpty)
+                                                ? ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  child: Image.network(
+                                                    displayImageUrl,
+                                                    fit: BoxFit.contain,
+                                                  ),
+                                                )
+                                                : const Icon(
+                                                  LucideIcons.image,
+                                                  color: Color(0xFF9CA3AF),
+                                                ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              p.name,
+                                              style: GoogleFonts.lexendDeca(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color:
+                                                    AppColors.primaryTextLight,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              formatRp(displayPrice),
+                                              style: GoogleFonts.lexendDeca(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w500,
+                                                color:
+                                                    AppColors
+                                                        .secondaryTextLight,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
-                                      _CircleActionButton(
-                                        icon: Icons.add,
-                                        onTap: () async {
-                                          widget.onIncrement(p);
-                                          await Future.delayed(
-                                            const Duration(milliseconds: 500),
-                                          );
-                                          _refreshCart();
-                                        },
+                                      Row(
+                                        children: [
+                                          _CircleActionButton(
+                                            icon: Icons.remove,
+                                            onTap: () async {
+                                              widget.onDecrement(p);
+                                              await Future.delayed(
+                                                const Duration(
+                                                  milliseconds: 500,
+                                                ),
+                                              );
+                                              _refreshCart();
+                                            },
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            '$qtyDisplay',
+                                            style: GoogleFonts.lexendDeca(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          _CircleActionButton(
+                                            icon: Icons.add,
+                                            onTap: () async {
+                                              widget.onIncrement(p);
+                                              await Future.delayed(
+                                                const Duration(
+                                                  milliseconds: 500,
+                                                ),
+                                              );
+                                              _refreshCart();
+                                            },
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
-                                ],
-                              ),
-                            );
-                          }).toList();
+                                );
+                              })
+                              .toList();
                         }(),
                       ),
                     ),

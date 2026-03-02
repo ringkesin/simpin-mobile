@@ -349,6 +349,17 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     }
     if (_currentTabIndex == 3) {
       // Belanjaan tab: tracking orders
+      final currentList =
+          _orderTabIndex == 0
+              ? _historyCarts
+              : _orderTabIndex == 1
+              ? _waitingAdminCarts
+              : _orderTabIndex == 2
+              ? _confirmedCarts
+              : _orderTabIndex == 3
+              ? _cancelledCarts
+              : _deliveryCarts;
+
       if (!_isLoadingTrack &&
           _waitingAdminCarts.isEmpty &&
           _confirmedCarts.isEmpty) {
@@ -388,40 +399,56 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                             padding: EdgeInsets.symmetric(vertical: 24),
                             child: Center(child: CircularProgressIndicator()),
                           )
-                        else
-                          ...((_orderTabIndex == 0
-                                  ? _historyCarts
-                                  : _orderTabIndex == 1
-                                  ? _waitingAdminCarts
-                                  : _orderTabIndex == 2
-                                  ? _confirmedCarts
-                                  : _orderTabIndex == 3
-                                  ? _cancelledCarts
-                                  : _deliveryCarts)
-                              .map(
-                                (c) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _buildTrackingCard(c),
-                                ),
-                              )
-                              .toList()),
-                        const SizedBox(height: 16),
-                        Text(
-                          _orderTabIndex == 0
-                              ? 'Riwayat pesanan'
-                              : _orderTabIndex == 1
-                              ? 'Menunggu konfirmasi admin ...'
-                              : _orderTabIndex == 2
-                              ? 'Menunggu pembayaran ...'
-                              : _orderTabIndex == 3
-                              ? 'Pesanan dibatalkan'
-                              : 'Status pengantaran',
-                          style: GoogleFonts.lexendDeca(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.secondaryTextLight,
+                        else if (currentList.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 48),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    LucideIcons.box,
+                                    size: 48,
+                                    color: AppColors.secondaryTextLight
+                                        .withOpacity(0.5),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Belum ada data',
+                                    style: GoogleFonts.lexendDeca(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.secondaryTextLight,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else ...[
+                          ...currentList.map(
+                            (c) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildTrackingCard(c),
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          Text(
+                            _orderTabIndex == 0
+                                ? 'Riwayat pesanan'
+                                : _orderTabIndex == 1
+                                ? 'Menunggu konfirmasi admin ...'
+                                : _orderTabIndex == 2
+                                ? 'Menunggu pembayaran ...'
+                                : _orderTabIndex == 3
+                                ? 'Pesanan dibatalkan'
+                                : 'Status pengantaran',
+                            style: GoogleFonts.lexendDeca(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.secondaryTextLight,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1207,22 +1234,44 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             Expanded(
               child: InkWell(
                 onTap: () {
-                  // Deduplicate by product id and prefer entries with imageUrl
+                  final cart = _cart;
+                  if (cart == null || cart.items.isEmpty) return;
+
                   final Map<String, Product> unique = {};
-                  for (final p in _allProducts) {
-                    final qty = _getQty(p);
-                    if (qty <= 0) continue;
-                    final prev = unique[p.id];
-                    if (prev == null) {
-                      unique[p.id] = p;
+                  for (final item in cart.items) {
+                    final productId = item.productId;
+                    if (productId.isEmpty || unique.containsKey(productId)) {
+                      continue;
+                    }
+
+                    Product? matched;
+                    for (final p in _allProducts) {
+                      if (p.id == productId) {
+                        matched = p;
+                        break;
+                      }
+                    }
+
+                    if (matched != null) {
+                      unique[productId] = matched;
+                      continue;
+                    }
+
+                    final base = item.product;
+                    if (base.id.isEmpty) {
+                      unique[productId] = Product(
+                        id: productId,
+                        name: base.name,
+                        price: base.price,
+                        discountPercent: base.discountPercent,
+                        imageUrl: base.imageUrl,
+                        isStockAvailable: base.isStockAvailable,
+                      );
                     } else {
-                      final prevHasImg =
-                          prev.imageUrl != null && prev.imageUrl!.isNotEmpty;
-                      final newHasImg =
-                          p.imageUrl != null && p.imageUrl!.isNotEmpty;
-                      if (!prevHasImg && newHasImg) unique[p.id] = p;
+                      unique[productId] = base;
                     }
                   }
+
                   final items = unique.values.toList();
                   if (items.isEmpty) return;
                   Navigator.of(context)
