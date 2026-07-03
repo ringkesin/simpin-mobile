@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
+import 'package:kkba_mobile/core/widgets/kkba_loading_indicator.dart';
 import '../models/product.dart';
 import '../service/mart_api_service.dart';
 import '../components/product_card.dart';
@@ -108,6 +109,18 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<CartState>(cartProvider, (previous, next) {
+      final err = next.error;
+      if (err != null && err.isNotEmpty && err != previous?.error) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(err)));
+          ref.read(cartProvider.notifier).clearError();
+        });
+      }
+    });
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -290,7 +303,7 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
                   if (_loading)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Center(child: KkbaLoadingIndicator()),
                     )
                   else
                     SizedBox(

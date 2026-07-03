@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
 import 'package:kkba_mobile/core/utils/formatters.dart';
+import 'package:kkba_mobile/core/widgets/kkba_loading_indicator.dart';
 import '../models/product.dart';
 import '../models/cart_model.dart';
 import '../service/mart_api_service.dart';
@@ -230,11 +231,15 @@ class _CategoryProductsPageState extends ConsumerState<CategoryProductsPage> {
                   brandId.toString(),
                   page: page,
                   perPage: _perPage,
+                  sortField: _sortField,
+                  sortDirection: _sortDirection,
                 )
                 : await _martApi.getProductsByCategory(
                   kategoriId.toString(),
                   page: page,
                   perPage: _perPage,
+                  sortField: _sortField,
+                  sortDirection: _sortDirection,
                 ))
             : await _martApi.searchProducts(
               keywords: _query.trim(),
@@ -249,6 +254,10 @@ class _CategoryProductsPageState extends ConsumerState<CategoryProductsPage> {
     setState(() {
       if (page == 1) _items.clear();
       _items.addAll(res.items);
+      _items.sort((a, b) {
+        final cmp = a.price.compareTo(b.price);
+        return _sortDirection == 'asc' ? cmp : -cmp;
+      });
       _page = res.currentPage;
       _lastPage = res.lastPage;
       _totalFound = res.total;
@@ -283,18 +292,29 @@ class _CategoryProductsPageState extends ConsumerState<CategoryProductsPage> {
     final bool isSmallHeight = media.size.height < 700;
     final double cartHeight = isSmallHeight ? 50.0 : 56.0;
     final bool hasCartItems = _cartCount > 0;
+    ref.listen<CartState>(cartProvider, (previous, next) {
+      final err = next.error;
+      if (err != null && err.isNotEmpty && err != previous?.error) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(err)));
+          ref.read(cartProvider.notifier).clearError();
+        });
+      }
+    });
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child:
             _loading && _items.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : RefreshIndicator(
-                  onRefresh: () => _fetch(page: 1),
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      Row(
+                ? const Center(child: KkbaLoadingIndicator())
+                : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
                         children: [
                           InkWell(
                             onTap: () => Navigator.of(context).maybePop(),
@@ -319,7 +339,6 @@ class _CategoryProductsPageState extends ConsumerState<CategoryProductsPage> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Placeholder small product icons
                           Container(
                             width: 44,
                             height: 24,
@@ -354,11 +373,10 @@ class _CategoryProductsPageState extends ConsumerState<CategoryProductsPage> {
                           ),
                         ],
                       ),
-
-                      const SizedBox(height: 12),
-
-                      // Search bar
-                      Container(
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 12,
@@ -384,121 +402,123 @@ class _CategoryProductsPageState extends ConsumerState<CategoryProductsPage> {
                           ],
                         ),
                       ),
-
-                      const SizedBox(height: 12),
-
-                      // Sort chip only
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: _toggleSort,
-                              borderRadius: BorderRadius.circular(24),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(
-                                    color: const Color(0xFFDDE5ED),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: () => _fetch(page: 1),
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: _toggleSort,
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(24),
+                                        border: Border.all(
+                                          color: const Color(0xFFDDE5ED),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Urutkan : Harga ${_sortDirection == 'asc' ? 'terendah' : 'tertinggi'}',
+                                        style: GoogleFonts.lexendDeca(
+                                          color: AppColors.primaryTextLight,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              '${_totalFound} Produk ditemukan',
+                              style: GoogleFonts.lexendDeca(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primaryTextLight,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    mainAxisSpacing: 12,
+                                    crossAxisSpacing: 12,
+                                    childAspectRatio: 0.46,
+                                  ),
+                              itemCount: _items.length,
+                              itemBuilder: (context, index) {
+                                final p = _items[index];
+                                final qty = _getQty(p);
+                                return InkWell(
+                                  onTap: () {
+                                    Navigator.of(context)
+                                        .push(
+                                          MaterialPageRoute(
+                                            builder:
+                                                (_) => ProductDetailPage(
+                                                  product: p,
+                                                  related:
+                                                      _items
+                                                          .where((e) => e != p)
+                                                          .toList(),
+                                                ),
+                                          ),
+                                        )
+                                        .then((_) {
+                                          if (mounted) setState(() {});
+                                        });
+                                  },
+                                  child: _GridProductCard(
+                                    product: p,
+                                    quantity: qty,
+                                    onAdd: () {
+                                      _onAdd(p);
+                                      _scheduleCartRefresh();
+                                    },
+                                    onIncrement: () {
+                                      _onIncrement(p);
+                                      _scheduleCartRefresh();
+                                    },
+                                    onDecrement: () {
+                                      _onDecrement(p);
+                                      _scheduleCartRefresh();
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            if (_loadingMore)
+                              const Center(
+                                child: KkbaLoadingIndicator(size: 44),
+                              )
+                            else if (_page < _lastPage)
+                              Center(
                                 child: Text(
-                                  'Urutkan : Harga ${_sortDirection == 'asc' ? 'terendah' : 'tertinggi'}',
+                                  'Memuat produk ...',
                                   style: GoogleFonts.lexendDeca(
-                                    color: AppColors.primaryTextLight,
+                                    color: AppColors.secondaryTextLight,
                                   ),
                                 ),
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      Text(
-                        '${_totalFound} Produk ditemukan',
-                        style: GoogleFonts.lexendDeca(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryTextLight,
+                          ],
                         ),
                       ),
-
-                      const SizedBox(height: 8),
-
-                      // Grid products 3 columns
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              mainAxisSpacing: 12,
-                              crossAxisSpacing: 12,
-                              childAspectRatio: 0.46,
-                            ),
-                        itemCount: _items.length,
-                        itemBuilder: (context, index) {
-                          final p = _items[index];
-                          final qty = _getQty(p);
-                          return InkWell(
-                            onTap: () {
-                              Navigator.of(context)
-                                  .push(
-                                    MaterialPageRoute(
-                                      builder:
-                                          (_) => ProductDetailPage(
-                                            product: p,
-                                            related:
-                                                _items
-                                                    .where((e) => e != p)
-                                                    .toList(),
-                                          ),
-                                    ),
-                                  )
-                                  .then((_) {
-                                    if (mounted) setState(() {});
-                                  });
-                            },
-                            child: _GridProductCard(
-                              product: p,
-                              quantity: qty,
-                              onAdd: () {
-                                _onAdd(p);
-                                _scheduleCartRefresh();
-                              },
-                              onIncrement: () {
-                                _onIncrement(p);
-                                _scheduleCartRefresh();
-                              },
-                              onDecrement: () {
-                                _onDecrement(p);
-                                _scheduleCartRefresh();
-                              },
-                            ),
-                          );
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      if (_loadingMore)
-                        const Center(child: CircularProgressIndicator())
-                      else if (_page < _lastPage)
-                        Center(
-                          child: Text(
-                            'Memuat produk ...',
-                            style: GoogleFonts.lexendDeca(
-                              color: AppColors.secondaryTextLight,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
       ),
       bottomNavigationBar:

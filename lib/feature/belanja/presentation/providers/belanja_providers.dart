@@ -201,6 +201,11 @@ class CartNotifier extends StateNotifier<CartState> {
     this._removeItem,
   ) : super(const CartState());
 
+  void clearError() {
+    if (state.error == null) return;
+    state = state.copyWith(error: null);
+  }
+
   Future<void> fetchCart() async {
     state = state.copyWith(isLoading: true, error: null);
 
@@ -235,9 +240,11 @@ class CartNotifier extends StateNotifier<CartState> {
     if (result.isSuccess) {
       // Refresh cart untuk mendapatkan data terbaru
       await fetchCart();
+      state = state.copyWith(error: null);
     } else {
       // Jika gagal, refresh cart untuk mengembalikan state yang benar
       await fetchCart();
+      state = state.copyWith(error: result.error);
     }
   }
 
@@ -287,6 +294,7 @@ class CartNotifier extends StateNotifier<CartState> {
     if (!result.isSuccess) {
       // Jika gagal, refresh cart
       await fetchCart();
+      state = state.copyWith(error: result.error);
     }
   }
 
@@ -316,6 +324,7 @@ class CartNotifier extends StateNotifier<CartState> {
     if (!result.isSuccess) {
       // Jika gagal, refresh cart
       await fetchCart();
+      state = state.copyWith(error: result.error);
     }
   }
 }

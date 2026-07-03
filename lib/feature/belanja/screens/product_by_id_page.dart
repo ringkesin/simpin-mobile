@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
 import 'package:kkba_mobile/core/utils/formatters.dart';
+import 'package:kkba_mobile/core/widgets/kkba_loading_indicator.dart';
 import '../service/mart_api_service.dart';
 import '../service/cart_api_service.dart';
 import '../models/product.dart';
@@ -61,7 +62,7 @@ class _ProductByIdPageState extends State<ProductByIdPage> {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: KkbaLoadingIndicator())
             : _error != null
                 ? Center(
                     child: Padding(

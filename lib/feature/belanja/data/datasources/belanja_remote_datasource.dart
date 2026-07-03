@@ -62,11 +62,15 @@ class BelanjaRemoteDataSource {
     required int quantity,
     String remarks = '',
   }) async {
-    return await _cartApiService.addToCart(
+    final ok = await _cartApiService.addToCart(
       productId,
       quantity,
       remarks: remarks,
     );
+    if (!ok) {
+      _lastError = _cartApiService.lastErrorMessage;
+    }
+    return ok;
   }
 
   /// Update item quantity
@@ -74,12 +78,20 @@ class BelanjaRemoteDataSource {
     required String productId,
     required int quantity,
   }) async {
-    return await _cartApiService.updateQuantity(productId, quantity);
+    final ok = await _cartApiService.updateQuantity(productId, quantity);
+    if (!ok) {
+      _lastError = _cartApiService.lastErrorMessage;
+    }
+    return ok;
   }
 
   /// Remove item from cart
   Future<bool> removeItem({required String productId}) async {
-    return await _cartApiService.removeItem(productId);
+    final ok = await _cartApiService.removeItem(productId);
+    if (!ok) {
+      _lastError = _cartApiService.lastErrorMessage;
+    }
+    return ok;
   }
 
   /// Get carts by status

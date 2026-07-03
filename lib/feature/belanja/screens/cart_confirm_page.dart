@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
 import 'package:kkba_mobile/core/utils/formatters.dart';
+import 'package:kkba_mobile/core/widgets/kkba_loading_indicator.dart';
 import '../models/product.dart';
 
 import '../models/cart_model.dart';
@@ -191,7 +192,7 @@ class _CartConfirmPageState extends ConsumerState<CartConfirmPage> {
               Expanded(
                 child:
                     _isLoadingLocations
-                        ? const Center(child: CircularProgressIndicator())
+                        ? const Center(child: KkbaLoadingIndicator())
                         : _deliveryLocations.isEmpty
                         ? Center(
                           child: Text(
@@ -361,7 +362,7 @@ class _CartConfirmPageState extends ConsumerState<CartConfirmPage> {
               Expanded(
                 child:
                     _isLoadingVouchers
-                        ? const Center(child: CircularProgressIndicator())
+                        ? const Center(child: KkbaLoadingIndicator())
                         : _availableVouchers.isEmpty
                         ? Center(
                           child: Column(

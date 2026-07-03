@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
 import 'package:kkba_mobile/core/utils/formatters.dart';
+import 'package:kkba_mobile/core/widgets/kkba_loading_indicator.dart';
 import 'package:kkba_mobile/feature/belanja/presentation/providers/belanja_providers.dart';
 import 'package:kkba_mobile/feature/belanja/domain/entities/tracking_cart.dart';
 import 'package:kkba_mobile/feature/belanja/domain/repositories/belanja_repository.dart';
@@ -20,6 +21,7 @@ class BelanjaanPage extends ConsumerStatefulWidget {
 
 class _BelanjaanPageState extends ConsumerState<BelanjaanPage> {
   final Map<String, String> _snapRedirect = {};
+  bool _isPullRefreshing = false;
 
   @override
   void initState() {
@@ -30,29 +32,36 @@ class _BelanjaanPageState extends ConsumerState<BelanjaanPage> {
     });
   }
 
-  void _fetchCurrentTab({bool refresh = false}) {
+  Future<void> _fetchCurrentTab({bool refresh = false}) async {
     final tabIndex = ref.read(belanjaTabIndexProvider);
-    _fetchTab(tabIndex, refresh: refresh);
+    await _fetchTab(tabIndex, refresh: refresh);
   }
 
-  void _fetchTab(int tabIndex, {bool refresh = false}) {
+  Future<void> _fetchTab(int tabIndex, {bool refresh = false}) async {
     switch (tabIndex) {
       case 0:
-        ref.read(historyCartsProvider.notifier).fetch(refresh: refresh);
+        await ref.read(historyCartsProvider.notifier).fetch(refresh: refresh);
         break;
       case 1:
-        ref.read(waitingCartsProvider.notifier).fetch(refresh: refresh);
+        await ref.read(waitingCartsProvider.notifier).fetch(refresh: refresh);
         break;
       case 2:
-        ref.read(confirmedCartsProvider.notifier).fetch(refresh: refresh);
+        await ref.read(confirmedCartsProvider.notifier).fetch(refresh: refresh);
         break;
       case 3:
-        ref.read(cancelledCartsProvider.notifier).fetch(refresh: refresh);
+        await ref.read(cancelledCartsProvider.notifier).fetch(refresh: refresh);
         break;
       case 4:
-        ref.read(deliveryCartsProvider.notifier).fetch(refresh: refresh);
+        await ref.read(deliveryCartsProvider.notifier).fetch(refresh: refresh);
         break;
     }
+  }
+
+  Future<void> _onPullToRefresh() async {
+    setState(() => _isPullRefreshing = true);
+    await _fetchCurrentTab(refresh: true);
+    if (!mounted) return;
+    setState(() => _isPullRefreshing = false);
   }
 
   @override
@@ -129,81 +138,99 @@ class _BelanjaanPageState extends ConsumerState<BelanjaanPage> {
           ),
         ),
       ),
-      body: ListView(
+      body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
+          RefreshIndicator(
+            color: Colors.transparent,
+            backgroundColor: Colors.transparent,
+            onRefresh: _onPullToRefresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                if (currentState.isLoading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (currentList.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48),
-                    child: Center(
-                      child: Column(
-                        children: [
-                          Icon(
-                            LucideIcons.box,
-                            size: 48,
-                            color: AppColors.secondaryTextLight.withOpacity(0.5),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Belum ada data',
-                            style: GoogleFonts.lexendDeca(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.secondaryTextLight,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      if (currentState.isLoading)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(child: KkbaLoadingIndicator()),
+                        )
+                      else if (currentList.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 48),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Icon(
+                                  LucideIcons.box,
+                                  size: 48,
+                                  color: AppColors.secondaryTextLight
+                                      .withOpacity(0.5),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Belum ada data',
+                                  style: GoogleFonts.lexendDeca(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.secondaryTextLight,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                if (!currentState.isLoading && currentList.isNotEmpty) ...[
-                  if (currentState.error != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        currentState.error!,
-                        style: GoogleFonts.lexendDeca(
-                          color: Colors.red,
-                          fontSize: 12,
                         ),
-                      ),
-                    ),
-                  ...currentList.map(
-                    (c) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildTrackingCard(c),
-                    ),
+                      if (!currentState.isLoading && currentList.isNotEmpty) ...[
+                        if (currentState.error != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              currentState.error!,
+                              style: GoogleFonts.lexendDeca(
+                                color: Colors.red,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ...currentList.map(
+                          (c) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _buildTrackingCard(c),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          tabIndex == 0
+                              ? 'Riwayat pesanan'
+                              : tabIndex == 1
+                              ? 'Menunggu konfirmasi admin ...'
+                              : tabIndex == 2
+                              ? 'Menunggu pembayaran ...'
+                              : tabIndex == 3
+                              ? 'Pesanan dibatalkan'
+                              : 'Status pengantaran',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.secondaryTextLight,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    tabIndex == 0
-                        ? 'Riwayat pesanan'
-                        : tabIndex == 1
-                        ? 'Menunggu konfirmasi admin ...'
-                        : tabIndex == 2
-                        ? 'Menunggu pembayaran ...'
-                        : tabIndex == 3
-                        ? 'Pesanan dibatalkan'
-                        : 'Status pengantaran',
-                    style: GoogleFonts.lexendDeca(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.secondaryTextLight,
-                    ),
-                  ),
-                ],
+                ),
+                const SizedBox(height: 100),
               ],
             ),
           ),
-          const SizedBox(height: 100),
+          if (_isPullRefreshing)
+            const Positioned(
+              left: 0,
+              right: 0,
+              top: 12,
+              child: Center(child: KkbaLoadingIndicator(size: 44)),
+            ),
         ],
       ),
     );

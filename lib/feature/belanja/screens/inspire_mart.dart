@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
 import 'package:kkba_mobile/core/utils/formatters.dart';
+import 'package:kkba_mobile/core/widgets/kkba_loading_indicator.dart';
 import '../models/banner_model.dart';
 import '../models/category_model.dart';
 import '../service/mart_api_service.dart';
@@ -128,6 +129,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
   int _trackPage = 1;
   int _trackLastPage = 1;
   int? _trackingLoadedOrderTabIndex;
+  bool _isPullRefreshingTrack = false;
 
   // Banners state
   List<BannerModel> _banners = [];
@@ -221,6 +223,16 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
   Widget build(BuildContext context) {
     // Listen to riverpod cart changes to keep legacy _cart in sync
     ref.listen<CartState>(cartProvider, (previous, next) {
+      final err = next.error;
+      if (err != null && err.isNotEmpty && err != previous?.error) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(err)));
+          ref.read(cartProvider.notifier).clearError();
+        });
+      }
       if (mounted) {
         setState(() {
           if (next.cart != null) {
@@ -279,7 +291,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
 
   Widget _buildBodyByTab() {
     if (_currentTabIndex == 0 && _isGlobalLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: KkbaLoadingIndicator());
     }
     if (_currentTabIndex == 1) {
       // Pencarian tab: fokus ke pencarian dan hasil dummy
@@ -361,71 +373,97 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: ListView(
+              child: Stack(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
+                  RefreshIndicator(
+                    color: Colors.transparent,
+                    backgroundColor: Colors.transparent,
+                    onRefresh: () async {
+                      if (_isLoadingTrack) return;
+                      setState(() => _isPullRefreshingTrack = true);
+                      _trackingLoadedOrderTabIndex = _orderTabIndex;
+                      await _fetchTrackingCarts(page: 1);
+                      if (!mounted) return;
+                      setState(() => _isPullRefreshingTrack = false);
+                    },
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        if (_isLoadingTrack)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        else if (currentList.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 48),
-                            child: Center(
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    LucideIcons.box,
-                                    size: 48,
-                                    color: AppColors.secondaryTextLight
-                                        .withOpacity(0.5),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Column(
+                            children: [
+                              if (_isLoadingTrack)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 24),
+                                  child: Center(child: KkbaLoadingIndicator()),
+                                )
+                              else if (currentList.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 48,
                                   ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'Belum ada data',
-                                    style: GoogleFonts.lexendDeca(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: AppColors.secondaryTextLight,
+                                  child: Center(
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          LucideIcons.box,
+                                          size: 48,
+                                          color: AppColors.secondaryTextLight
+                                              .withOpacity(0.5),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'Belum ada data',
+                                          style: GoogleFonts.lexendDeca(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: AppColors.secondaryTextLight,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          )
-                        else ...[
-                          ...currentList.map(
-                            (c) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildTrackingCard(c),
-                            ),
+                                )
+                              else ...[
+                                ...currentList.map(
+                                  (c) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _buildTrackingCard(c),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _orderTabIndex == 0
+                                      ? 'Riwayat pesanan'
+                                      : _orderTabIndex == 1
+                                      ? 'Menunggu konfirmasi admin ...'
+                                      : _orderTabIndex == 2
+                                      ? 'Menunggu pembayaran ...'
+                                      : _orderTabIndex == 3
+                                      ? 'Pesanan dibatalkan'
+                                      : 'Status pengantaran',
+                                  style: GoogleFonts.lexendDeca(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.secondaryTextLight,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _orderTabIndex == 0
-                                ? 'Riwayat pesanan'
-                                : _orderTabIndex == 1
-                                ? 'Menunggu konfirmasi admin ...'
-                                : _orderTabIndex == 2
-                                ? 'Menunggu pembayaran ...'
-                                : _orderTabIndex == 3
-                                ? 'Pesanan dibatalkan'
-                                : 'Status pengantaran',
-                            style: GoogleFonts.lexendDeca(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.secondaryTextLight,
-                            ),
-                          ),
-                        ],
+                        ),
+                        const SizedBox(height: 100),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 100),
+                  if (_isPullRefreshingTrack)
+                    const Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 12,
+                      child: Center(child: KkbaLoadingIndicator(size: 44)),
+                    ),
                 ],
               ),
             ),
@@ -446,7 +484,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: KkbaLoadingIndicator()),
             ),
           )
         else if (_sections.isEmpty)
@@ -606,6 +644,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
     return SliverPersistentHeader(
       pinned: true,
       delegate: _MartHeaderDelegate(
+        topPadding: MediaQuery.of(context).padding.top,
         banners: _banners,
         pageController: _headerPageController,
         pageIndex: _headerPageIndex,
@@ -654,7 +693,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
                 Positioned.fill(
                   child:
                       _isLoadingBanners
-                          ? const Center(child: CircularProgressIndicator())
+                          ? const Center(child: KkbaLoadingIndicator())
                           : PageView.builder(
                             controller: _headerPageController,
                             itemCount: _banners.isEmpty ? 1 : _banners.length,
@@ -916,7 +955,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
     if (_isLoadingCategories) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: KkbaLoadingIndicator()),
       );
     }
 
@@ -1089,7 +1128,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
     if (_isLoadingCategories) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 32),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: KkbaLoadingIndicator()),
       );
     }
 
@@ -2214,6 +2253,7 @@ class _CountdownTimerState extends State<_CountdownTimer> {
 }
 
 class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double topPadding;
   final List<BannerModel> banners;
   final PageController pageController;
   final int pageIndex;
@@ -2224,6 +2264,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback onSearchTap;
 
   _MartHeaderDelegate({
+    required this.topPadding,
     required this.banners,
     required this.pageController,
     required this.pageIndex,
@@ -2235,7 +2276,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
   });
 
   @override
-  double get minExtent => 193;
+  double get minExtent => topPadding + 96 + 10 + 56;
 
   @override
   double get maxExtent => 340;
@@ -2246,6 +2287,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
+    final topPad = topPadding;
     final t = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
     final collapsed = t > 0.8;
     return Container(
@@ -2307,22 +2349,11 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                       Colors.white,
                       Colors.white.withOpacity(0.0),
                     ],
-                    stops: [
-                      0.0,
-                      (MediaQuery.of(context).padding.top /
-                              (MediaQuery.of(context).padding.top + 96))
-                          .clamp(0.0, 1.0),
-                      1.0,
-                    ],
+                    stops: [0.0, (topPad / (topPad + 96)).clamp(0.0, 1.0), 1.0],
                   ),
                 ),
-                height: MediaQuery.of(context).padding.top + 96,
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  MediaQuery.of(context).padding.top + 8,
-                  16,
-                  8,
-                ),
+                height: topPad + 96,
+                padding: EdgeInsets.fromLTRB(16, topPad + 8, 16, 8),
                 child: Row(
                   children: [
                     InkWell(

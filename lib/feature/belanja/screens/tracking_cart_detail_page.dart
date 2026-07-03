@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:kkba_mobile/theme.dart';
 import 'package:kkba_mobile/core/utils/formatters.dart';
+import 'package:kkba_mobile/core/widgets/kkba_loading_indicator.dart';
 import '../models/cart_model.dart';
 import '../service/cart_api_service.dart';
 import '../models/product.dart';
@@ -51,7 +52,7 @@ class _TrackingCartDetailPageState extends State<TrackingCartDetailPage> {
         foregroundColor: AppColors.primaryTextLight,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: KkbaLoadingIndicator())
           : _cart == null
               ? Center(
                   child: Text('Data tidak tersedia', style: GoogleFonts.lexendDeca(color: AppColors.secondaryTextLight)),
