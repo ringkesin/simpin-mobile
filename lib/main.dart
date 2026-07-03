@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kkba_mobile/navbar.dart';
 import './feature/home/screens/home_screen.dart';
 import './feature/auth/screens/login.dart';
@@ -22,7 +23,7 @@ void main() async {
   OneSignal.Notifications.requestPermission(true);
 
   await initializeDateFormatting('id_ID', null);
-  runApp(const MyApp());
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:kkba_mobile/theme.dart';
+import 'package:kkba_mobile/core/utils/formatters.dart';
 import '../models/cart_model.dart';
 import '../service/cart_api_service.dart';
 import '../models/product.dart';

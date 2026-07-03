@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
@@ -6,14 +7,11 @@ import '../models/product.dart';
 import '../service/mart_api_service.dart';
 import '../components/product_card.dart';
 import 'product_detail_page.dart';
+import '../presentation/providers/belanja_providers.dart';
 
-class MartSearchPage extends StatefulWidget {
+class MartSearchPage extends ConsumerStatefulWidget {
   final List<String> history;
   final List<Product> products;
-  final int Function(Product) getQty;
-  final void Function(Product) onAdd;
-  final void Function(Product) onInc;
-  final void Function(Product) onDec;
   final void Function(String) onSearched;
   final MartApiService? martApiService;
 
@@ -21,29 +19,59 @@ class MartSearchPage extends StatefulWidget {
     super.key,
     required this.history,
     required this.products,
-    required this.getQty,
-    required this.onAdd,
-    required this.onInc,
-    required this.onDec,
     required this.onSearched,
     this.martApiService,
   });
 
   @override
-  State<MartSearchPage> createState() => _MartSearchPageState();
+  ConsumerState<MartSearchPage> createState() => _MartSearchPageState();
 }
 
-class _MartSearchPageState extends State<MartSearchPage> {
+class _MartSearchPageState extends ConsumerState<MartSearchPage> {
   final TextEditingController _controller = TextEditingController();
   String _query = '';
   bool _loading = false;
   List<Product> _serverResults = [];
 
+  int _getQty(Product product) {
+    final cartState = ref.watch(cartProvider);
+    if (cartState.cart == null) return 0;
+    for (final item in cartState.cart!.items) {
+      if (item.productId == product.id) {
+        return item.quantity;
+      }
+    }
+    return 0;
+  }
+
+  void _addProduct(Product product) {
+    ref.read(cartProvider.notifier).addItem(productId: product.id, quantity: 1);
+  }
+
+  void _incrementProduct(Product product) {
+    ref.read(cartProvider.notifier).addItem(productId: product.id, quantity: 1);
+  }
+
+  void _decrementProduct(Product product) {
+    final currentQty = _getQty(product);
+    if (currentQty <= 0) return;
+
+    if (currentQty == 1) {
+      ref.read(cartProvider.notifier).removeItem(productId: product.id);
+    } else {
+      ref
+          .read(cartProvider.notifier)
+          .updateQuantity(productId: product.id, quantity: currentQty - 1);
+    }
+  }
+
   List<Product> get _filtered {
     if (_query.trim().isEmpty) return [];
     if (widget.martApiService != null) return _serverResults;
     final q = _query.toLowerCase();
-    return widget.products.where((p) => p.name.toLowerCase().contains(q)).toList();
+    return widget.products
+        .where((p) => p.name.toLowerCase().contains(q))
+        .toList();
   }
 
   void _doSearch(String q) {
@@ -60,7 +88,11 @@ class _MartSearchPageState extends State<MartSearchPage> {
       return;
     }
     setState(() => _loading = true);
-    final res = await widget.martApiService!.searchProducts(keywords: q.trim(), page: 1, perPage: 50);
+    final res = await widget.martApiService!.searchProducts(
+      keywords: q.trim(),
+      page: 1,
+      perPage: 50,
+    );
     if (!mounted) return;
     setState(() {
       _serverResults = res.items;
@@ -98,21 +130,36 @@ class _MartSearchPageState extends State<MartSearchPage> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 8,
+                              ),
+                            ],
                           ),
-                          child: const Icon(LucideIcons.arrowLeft, color: Color(0xFF0F172A)),
+                          child: const Icon(
+                            LucideIcons.arrowLeft,
+                            color: Color(0xFF0F172A),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Text(
                         'Pencarian',
-                        style: GoogleFonts.lexendDeca(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight),
+                        style: GoogleFonts.lexendDeca(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryTextLight,
+                        ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(24),
@@ -126,10 +173,18 @@ class _MartSearchPageState extends State<MartSearchPage> {
                           child: TextField(
                             controller: _controller,
                             autofocus: true,
-                            style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.primaryTextLight),
+                            style: GoogleFonts.lexendDeca(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: AppColors.primaryTextLight,
+                            ),
                             decoration: InputDecoration.collapsed(
                               hintText: 'Mau belanja apa hari ini ?',
-                              hintStyle: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.secondaryTextLight),
+                              hintStyle: GoogleFonts.lexendDeca(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: AppColors.secondaryTextLight,
+                              ),
                             ),
                             onSubmitted: _doSearch,
                             onChanged: (v) => setState(() => _query = v),
@@ -150,45 +205,65 @@ class _MartSearchPageState extends State<MartSearchPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Pernah kamu cari', style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight)),
+                    Text(
+                      'Pernah kamu cari',
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryTextLight,
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     Wrap(
                       alignment: WrapAlignment.start,
                       spacing: 8,
                       runSpacing: 8,
-                      children: widget.history.take(8).map((h) {
-                        return InkWell(
-                          onTap: () {
-                            _controller.text = h;
-                            _controller.selection = TextSelection.collapsed(offset: h.length);
-                            _doSearch(h);
-                          },
-                          borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(LucideIcons.clock, size: 14, color: AppColors.primaryTextLight.withOpacity(0.9)),
-                                const SizedBox(width: 6),
-                                Text(
-                                  h,
-                                  style: GoogleFonts.lexendDeca(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.primaryTextLight,
+                      children:
+                          widget.history.take(8).map((h) {
+                            return InkWell(
+                              onTap: () {
+                                _controller.text = h;
+                                _controller.selection = TextSelection.collapsed(
+                                  offset: h.length,
+                                );
+                                _doSearch(h);
+                              },
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      LucideIcons.clock,
+                                      size: 14,
+                                      color: AppColors.primaryTextLight
+                                          .withOpacity(0.9),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      h,
+                                      style: GoogleFonts.lexendDeca(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.primaryTextLight,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -201,8 +276,14 @@ class _MartSearchPageState extends State<MartSearchPage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
-                      _query.trim().isEmpty ? 'Hasil pencarian' : 'Hasil pencarian “${_query}”',
-                      style: GoogleFonts.lexendDeca(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight),
+                      _query.trim().isEmpty
+                          ? 'Hasil pencarian'
+                          : 'Hasil pencarian “${_query}”',
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryTextLight,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -217,28 +298,36 @@ class _MartSearchPageState extends State<MartSearchPage> {
                       child: ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         scrollDirection: Axis.horizontal,
-                        itemCount: (_query.trim().isEmpty ? widget.products.length : _filtered.length),
+                        itemCount:
+                            (_query.trim().isEmpty
+                                ? widget.products.length
+                                : _filtered.length),
                         separatorBuilder: (_, __) => const SizedBox(width: 12),
                         itemBuilder: (context, index) {
-                          final list = _query.trim().isEmpty ? widget.products : _filtered;
+                          final list =
+                              _query.trim().isEmpty
+                                  ? widget.products
+                                  : _filtered;
                           final p = list[index];
                           return ProductCard(
                             product: p,
-                            quantity: widget.getQty(p),
-                            onAdd: () => widget.onAdd(p),
-                            onIncrement: () => widget.onInc(p),
-                            onDecrement: () => widget.onDec(p),
+                            quantity: _getQty(p),
+                            onAdd: () => _addProduct(p),
+                            onIncrement: () => _incrementProduct(p),
+                            onDecrement: () => _decrementProduct(p),
                             onTap: () {
-                              Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) => ProductDetailPage(
-                                  product: p,
-                                  getQty: widget.getQty,
-                                  onAdd: widget.onAdd,
-                                  onIncrement: widget.onInc,
-                                  onDecrement: widget.onDec,
-                                  related: (list.where((e) => e != p).toList()),
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => ProductDetailPage(
+                                        product: p,
+                                        related:
+                                            (list
+                                                .where((e) => e != p)
+                                                .toList()),
+                                      ),
                                 ),
-                              ));
+                              );
                             },
                           );
                         },
@@ -277,8 +366,10 @@ class _BottomNav extends StatelessWidget {
 
     Widget item(IconData icon, String label, int index) {
       final bool isSelected = currentIndex == index;
-      final Color color = isSelected ? AppColors.primaryLight : AppColors.secondaryTextLight;
-      final double indicatorWidth = isSelected ? (isSmallHeight ? 20.0 : 24.0) : 0.0;
+      final Color color =
+          isSelected ? AppColors.primaryLight : AppColors.secondaryTextLight;
+      final double indicatorWidth =
+          isSelected ? (isSmallHeight ? 20.0 : 24.0) : 0.0;
       final double gap1 = isSmallHeight ? 4.0 : 6.0;
       final double gap2 = isSmallHeight ? 3.0 : 4.0;
 
@@ -302,7 +393,14 @@ class _BottomNav extends StatelessWidget {
               SizedBox(height: gap1),
               Icon(icon, size: iconSize, color: color),
               SizedBox(height: gap2),
-              Text(label, style: GoogleFonts.lexendDeca(fontSize: fontSize, fontWeight: FontWeight.w700, color: color)),
+              Text(
+                label,
+                style: GoogleFonts.lexendDeca(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
             ],
           ),
         ),
@@ -315,7 +413,13 @@ class _BottomNav extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border(top: BorderSide(color: Colors.grey.shade200)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, -2))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
         child: Row(

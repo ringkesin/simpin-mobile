@@ -1,41 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
+import 'package:kkba_mobile/core/utils/formatters.dart';
 import '../models/product.dart';
 
 import '../models/cart_model.dart';
 import '../models/voucher_model.dart';
 import '../models/delivery_location_model.dart';
 import '../service/cart_api_service.dart';
+import '../presentation/providers/belanja_providers.dart';
 import 'inspire_mart.dart';
 
-class CartConfirmPage extends StatefulWidget {
-  final List<Product> items;
-  final int Function(Product) getQty;
-  final void Function(Product) onIncrement;
-  final void Function(Product) onDecrement;
-  final CartModel? cart;
+class CartConfirmPage extends ConsumerStatefulWidget {
   final CartApiService? cartApiService;
-  final VoidCallback? onRefresh;
 
-  const CartConfirmPage({
-    super.key,
-    required this.items,
-    required this.getQty,
-    required this.onIncrement,
-    required this.onDecrement,
-    this.cart,
-    this.cartApiService,
-    this.onRefresh,
-  });
+  const CartConfirmPage({super.key, this.cartApiService});
 
   @override
-  State<CartConfirmPage> createState() => _CartConfirmPageState();
+  ConsumerState<CartConfirmPage> createState() => _CartConfirmPageState();
 }
 
-class _CartConfirmPageState extends State<CartConfirmPage> {
-  late CartModel? _currentCart;
+class _CartConfirmPageState extends ConsumerState<CartConfirmPage> {
   final TextEditingController _voucherController = TextEditingController();
   final TextEditingController _remarksController = TextEditingController();
   bool _isApplyingVoucher = false;
@@ -49,13 +36,9 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
   @override
   void initState() {
     super.initState();
-    _currentCart = widget.cart;
-    if (_currentCart?.summary.voucherCode != null) {
-      _voucherController.text = _currentCart!.summary.voucherCode!;
-    }
     _fetchVouchers();
     _fetchLocations();
-    Future.microtask(_refreshCart);
+    Future.microtask(() => ref.read(cartProvider.notifier).fetchCart());
   }
 
   Future<void> _fetchLocations() async {
@@ -93,30 +76,12 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
   }
 
   int get totalPrice {
-    if (_currentCart != null) {
-      return _currentCart!.summary.total;
-    }
-    // Fallback logic
-    int total = 0;
-    for (final p in widget.items) {
-      total += widget.getQty(p) * p.price;
-    }
-    return total;
+    final cart = ref.watch(cartProvider).cart;
+    return cart?.summary.total ?? 0;
   }
 
   Future<void> _refreshCart() async {
-    if (widget.cartApiService == null) return;
-    final cart = await widget.cartApiService!.getCart();
-    if (mounted && cart != null) {
-      setState(() {
-        _currentCart = cart;
-        // Update voucher text if server has one
-        if (cart.summary.voucherCode != null) {
-          _voucherController.text = cart.summary.voucherCode!;
-        }
-      });
-      widget.onRefresh?.call();
-    }
+    await ref.read(cartProvider.notifier).fetchCart();
   }
 
   Future<void> _applyVoucher() async {
@@ -417,109 +382,120 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                             ],
                           ),
                         )
-                        : ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _availableVouchers.length,
-                          separatorBuilder:
-                              (_, __) => const SizedBox(height: 16),
-                          itemBuilder: (context, index) {
-                            final voucher = _availableVouchers[index];
-                            final isSelected =
-                                _currentCart?.summary.voucherCode ==
-                                voucher.code;
-                            return Container(
+                        : Consumer(
+                          builder: (context, ref, child) {
+                            final cartState = ref.watch(cartProvider);
+                            final cart = cartState.cart;
+                            return ListView.separated(
                               padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color:
-                                      isSelected
-                                          ? AppColors.primaryLight
-                                          : Colors.grey.shade200,
-                                  width: isSelected ? 2 : 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
+                              itemCount: _availableVouchers.length,
+                              separatorBuilder:
+                                  (_, __) => const SizedBox(height: 16),
+                              itemBuilder: (context, index) {
+                                final voucher = _availableVouchers[index];
+                                final isSelected =
+                                    cart?.summary.voucherCode == voucher.code;
+                                return Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color:
+                                          isSelected
+                                              ? AppColors.primaryLight
+                                              : Colors.grey.shade200,
+                                      width: isSelected ? 2 : 1,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          voucher.code,
-                                          style: GoogleFonts.lexendDeca(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 16,
-                                            color: AppColors.primaryTextLight,
-                                          ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              voucher.code,
+                                              style: GoogleFonts.lexendDeca(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16,
+                                                color:
+                                                    AppColors.primaryTextLight,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              voucher.description,
+                                              style: GoogleFonts.lexendDeca(
+                                                fontSize: 13,
+                                                color:
+                                                    AppColors
+                                                        .secondaryTextLight,
+                                              ),
+                                            ),
+                                            if (voucher.minPurchase > 0) ...[
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'Min. blj ${formatRp(voucher.minPurchase)}',
+                                                style: GoogleFonts.lexendDeca(
+                                                  fontSize: 11,
+                                                  color: AppColors.primaryLight,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          voucher.description,
-                                          style: GoogleFonts.lexendDeca(
-                                            fontSize: 13,
-                                            color: AppColors.secondaryTextLight,
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                          _voucherController.text =
+                                              voucher.code;
+                                          if (isSelected) {
+                                            _removeVoucher();
+                                          } else {
+                                            _applyVoucher();
+                                          }
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              isSelected
+                                                  ? Colors.white
+                                                  : AppColors.primaryLight,
+                                          side: BorderSide(
+                                            color: AppColors.primaryLight,
                                           ),
-                                        ),
-                                        if (voucher.minPurchase > 0) ...[
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'Min. blj ${formatRp(voucher.minPurchase)}',
-                                            style: GoogleFonts.lexendDeca(
-                                              fontSize: 11,
-                                              color: AppColors.primaryLight,
-                                              fontWeight: FontWeight.w500,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
                                             ),
                                           ),
-                                        ],
-                                      ],
-                                    ),
+                                        ),
+                                        child: Text(
+                                          isSelected ? 'Lepas' : 'Pakai',
+                                          style: GoogleFonts.lexendDeca(
+                                            color:
+                                                isSelected
+                                                    ? AppColors.primaryLight
+                                                    : Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      _voucherController.text = voucher.code;
-                                      if (isSelected) {
-                                        _removeVoucher();
-                                      } else {
-                                        _applyVoucher();
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor:
-                                          isSelected
-                                              ? Colors.white
-                                              : AppColors.primaryLight,
-                                      side: BorderSide(
-                                        color: AppColors.primaryLight,
-                                      ),
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      isSelected ? 'Lepas' : 'Pakai',
-                                      style: GoogleFonts.lexendDeca(
-                                        color:
-                                            isSelected
-                                                ? AppColors.primaryLight
-                                                : Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                );
+                              },
                             );
                           },
                         ),
@@ -702,12 +678,26 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                               color: AppColors.primaryTextLight,
                             ),
                           ),
-                          Text(
-                            '+ Tambah lagi',
-                            style: GoogleFonts.lexendDeca(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryLight,
+                          InkWell(
+                            onTap: () {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => const InspireMartScreen(
+                                        initialTabIndex: 0,
+                                      ),
+                                ),
+                                (route) => false,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Text(
+                              '+ Tambah lagi',
+                              style: GoogleFonts.lexendDeca(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryLight,
+                              ),
                             ),
                           ),
                         ],
@@ -716,310 +706,177 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                     const SizedBox(height: 8),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        children: () {
-                          final cartItems = _currentCart?.items;
-                          if (cartItems != null && cartItems.isNotEmpty) {
+                      child: Consumer(
+                        builder: (context, ref, child) {
+                          final cartState = ref.watch(cartProvider);
+                          final cart = cartState.cart;
+
+                          if (cart != null && cart.items.isNotEmpty) {
                             final Map<String, int> qtyById = {};
-                            final Map<String, CartItemModel> firstById = {};
-                            for (final it in cartItems) {
-                              final productId =
-                                  it.productId.isNotEmpty
-                                      ? it.productId
-                                      : it.product.id;
+                            final Map<String, dynamic> firstById = {};
+
+                            // Build from Riverpod's cart entity
+                            for (final entity in cart.items) {
+                              final productId = entity.productId;
                               if (productId.isEmpty) continue;
                               qtyById[productId] =
-                                  (qtyById[productId] ?? 0) + it.quantity;
-                              firstById.putIfAbsent(productId, () => it);
+                                  (qtyById[productId] ?? 0) + entity.quantity;
+                              if (!firstById.containsKey(productId)) {
+                                firstById[productId] = entity;
+                              }
                             }
 
-                            return firstById.entries.map((entry) {
-                              final productId = entry.key;
-                              final ci = entry.value;
-                              final qtyDisplay = qtyById[productId] ?? 0;
+                            return Column(
+                              children:
+                                  firstById.entries.map((entry) {
+                                    final productId = entry.key;
+                                    final entity = entry.value;
+                                    final qtyDisplay = qtyById[productId] ?? 0;
 
-                              final base = ci.product;
-                              final p =
-                                  base.id.isNotEmpty
-                                      ? base
-                                      : Product(
-                                        id: productId,
-                                        name: base.name,
-                                        price: base.price,
-                                        discountPercent: base.discountPercent,
-                                        imageUrl: base.imageUrl,
-                                        isStockAvailable: base.isStockAvailable,
-                                      );
+                                    final p = Product(
+                                      id: productId,
+                                      name: entity.productName,
+                                      price: entity.price,
+                                      discountPercent: 0,
+                                      imageUrl: entity.productImageUrl,
+                                      isStockAvailable: true,
+                                    );
 
-                              final displayImageUrl =
-                                  (p.imageUrl != null && p.imageUrl!.isNotEmpty)
-                                      ? p.imageUrl
-                                      : (base.imageUrl);
+                                    final displayImageUrl =
+                                        entity.productImageUrl;
+                                    final displayPrice = entity.price;
 
-                              final unitFromItem = ci.price;
-                              final unitFromTotal =
-                                  (ci.totalPrice > 0 && ci.quantity > 0)
-                                      ? (ci.totalPrice ~/ ci.quantity)
-                                      : 0;
-                              final displayPrice =
-                                  unitFromItem > 0
-                                      ? unitFromItem
-                                      : (unitFromTotal > 0
-                                          ? unitFromTotal
-                                          : p.price);
-                              if (qtyDisplay <= 0) {
-                                return const SizedBox.shrink();
-                              }
+                                    if (qtyDisplay <= 0) {
+                                      return const SizedBox.shrink();
+                                    }
 
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 10,
                                       ),
-                                      child:
-                                          (displayImageUrl != null &&
-                                                  displayImageUrl.isNotEmpty)
-                                              ? ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                child: Image.network(
-                                                  displayImageUrl,
-                                                  fit: BoxFit.contain,
-                                                ),
-                                              )
-                                              : const Icon(
-                                                LucideIcons.image,
-                                                color: Color(0xFF9CA3AF),
-                                              ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
+                                      child: Row(
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                            CrossAxisAlignment.center,
                                         children: [
-                                          Text(
-                                            p.name,
-                                            style: GoogleFonts.lexendDeca(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.primaryTextLight,
+                                          Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child:
+                                                (displayImageUrl != null &&
+                                                        displayImageUrl
+                                                            .isNotEmpty)
+                                                    ? ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      child: Image.network(
+                                                        displayImageUrl,
+                                                        fit: BoxFit.contain,
+                                                      ),
+                                                    )
+                                                    : const Icon(
+                                                      LucideIcons.image,
+                                                      color: Color(0xFF9CA3AF),
+                                                    ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  p.name,
+                                                  style: GoogleFonts.lexendDeca(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w600,
+                                                    color:
+                                                        AppColors
+                                                            .primaryTextLight,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  formatRp(displayPrice),
+                                                  style: GoogleFonts.lexendDeca(
+                                                    fontSize: 11.5,
+                                                    fontWeight: FontWeight.w500,
+                                                    color:
+                                                        AppColors
+                                                            .secondaryTextLight,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            formatRp(displayPrice),
-                                            style: GoogleFonts.lexendDeca(
-                                              fontSize: 11.5,
-                                              fontWeight: FontWeight.w500,
-                                              color:
-                                                  AppColors.secondaryTextLight,
-                                            ),
+                                          Row(
+                                            children: [
+                                              _CircleActionButton(
+                                                icon: Icons.remove,
+                                                onTap: () async {
+                                                  if (qtyDisplay > 1) {
+                                                    await ref
+                                                        .read(
+                                                          cartProvider.notifier,
+                                                        )
+                                                        .updateQuantity(
+                                                          productId: productId,
+                                                          quantity:
+                                                              qtyDisplay - 1,
+                                                        );
+                                                  } else {
+                                                    await ref
+                                                        .read(
+                                                          cartProvider.notifier,
+                                                        )
+                                                        .removeItem(
+                                                          productId: productId,
+                                                        );
+                                                  }
+                                                },
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text(
+                                                '$qtyDisplay',
+                                                style: GoogleFonts.lexendDeca(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: const Color(
+                                                    0xFF0F172A,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              _CircleActionButton(
+                                                icon: Icons.add,
+                                                onTap: () async {
+                                                  await ref
+                                                      .read(
+                                                        cartProvider.notifier,
+                                                      )
+                                                      .addItem(
+                                                        productId: productId,
+                                                        quantity: 1,
+                                                      );
+                                                },
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
-                                    ),
-                                    Row(
-                                      children: [
-                                        _CircleActionButton(
-                                          icon: Icons.remove,
-                                          onTap: () async {
-                                            widget.onDecrement(p);
-                                            await Future.delayed(
-                                              const Duration(milliseconds: 500),
-                                            );
-                                            _refreshCart();
-                                          },
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          '$qtyDisplay',
-                                          style: GoogleFonts.lexendDeca(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF0F172A),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        _CircleActionButton(
-                                          icon: Icons.add,
-                                          onTap: () async {
-                                            widget.onIncrement(p);
-                                            await Future.delayed(
-                                              const Duration(milliseconds: 500),
-                                            );
-                                            _refreshCart();
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList();
+                                    );
+                                  }).toList(),
+                            );
                           }
 
-                          final Set<String> seen = {};
-                          return widget.items
-                              .where((p) {
-                                final key =
-                                    p.id.isNotEmpty
-                                        ? p.id
-                                        : '${p.name}_${p.price}';
-                                return seen.add(key);
-                              })
-                              .map((p) {
-                                final qty = widget.getQty(p);
-                                final ci = _currentCart?.items.firstWhere(
-                                  (it) =>
-                                      it.productId == p.id ||
-                                      it.product.id == p.id,
-                                  orElse:
-                                      () => CartItemModel(
-                                        id: '',
-                                        productId: p.id,
-                                        product: p,
-                                        quantity: qty,
-                                        price: p.price,
-                                        totalPrice: p.price * qty,
-                                      ),
-                                );
-                                final displayImageUrl =
-                                    (p.imageUrl != null &&
-                                            p.imageUrl!.isNotEmpty)
-                                        ? p.imageUrl
-                                        : (ci?.product.imageUrl);
-                                final qtyDisplay = ci?.quantity ?? qty;
-                                final unitFromItem = (ci?.price ?? 0);
-                                final unitFromTotal =
-                                    ((ci?.totalPrice ?? 0) > 0 &&
-                                            qtyDisplay > 0)
-                                        ? ((ci!.totalPrice ~/ qtyDisplay))
-                                        : 0;
-                                final displayPrice =
-                                    unitFromItem > 0
-                                        ? unitFromItem
-                                        : (unitFromTotal > 0
-                                            ? unitFromTotal
-                                            : p.price);
-                                if (qtyDisplay <= 0) {
-                                  return const SizedBox.shrink();
-                                }
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        width: 40,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child:
-                                            (displayImageUrl != null &&
-                                                    displayImageUrl.isNotEmpty)
-                                                ? ClipRRect(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                  child: Image.network(
-                                                    displayImageUrl,
-                                                    fit: BoxFit.contain,
-                                                  ),
-                                                )
-                                                : const Icon(
-                                                  LucideIcons.image,
-                                                  color: Color(0xFF9CA3AF),
-                                                ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              p.name,
-                                              style: GoogleFonts.lexendDeca(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color:
-                                                    AppColors.primaryTextLight,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              formatRp(displayPrice),
-                                              style: GoogleFonts.lexendDeca(
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.w500,
-                                                color:
-                                                    AppColors
-                                                        .secondaryTextLight,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Row(
-                                        children: [
-                                          _CircleActionButton(
-                                            icon: Icons.remove,
-                                            onTap: () async {
-                                              widget.onDecrement(p);
-                                              await Future.delayed(
-                                                const Duration(
-                                                  milliseconds: 500,
-                                                ),
-                                              );
-                                              _refreshCart();
-                                            },
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Text(
-                                            '$qtyDisplay',
-                                            style: GoogleFonts.lexendDeca(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w700,
-                                              color: const Color(0xFF0F172A),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          _CircleActionButton(
-                                            icon: Icons.add,
-                                            onTap: () async {
-                                              widget.onIncrement(p);
-                                              await Future.delayed(
-                                                const Duration(
-                                                  milliseconds: 500,
-                                                ),
-                                              );
-                                              _refreshCart();
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              })
-                              .toList();
-                        }(),
+                          return const SizedBox.shrink();
+                        },
                       ),
                     ),
                     _sectionBreak(),
@@ -1027,72 +884,86 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                     // Voucher info (Interaktif)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(color: const Color(0xFFDDE5ED)),
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap:
-                                _isLoadingVouchers ? null : _showVoucherSheet,
-                            borderRadius: BorderRadius.circular(28),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 12,
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    LucideIcons.ticket,
-                                    color: Color(0xFFEF4444),
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      _currentCart?.summary.voucherCode != null
-                                          ? 'Voucher telah dipakai'
-                                          : _availableVouchers.isNotEmpty
-                                          ? 'Kamu ada ${_availableVouchers.length} voucher nganggur'
-                                          : 'Gunakan / masukkan kode voucher',
-                                      style: GoogleFonts.lexendDeca(
-                                        fontWeight: FontWeight.w600,
-                                        color:
-                                            _currentCart?.summary.voucherCode !=
-                                                    null
-                                                ? AppColors.primaryLight
-                                                : AppColors.primaryTextLight,
-                                      ),
-                                    ),
-                                  ),
-                                  if (_currentCart?.summary.voucherCode != null)
-                                    InkWell(
-                                      onTap: _removeVoucher,
-                                      borderRadius: BorderRadius.circular(20),
-                                      child: const Padding(
-                                        padding: EdgeInsets.all(4.0),
-                                        child: Icon(
-                                          Icons.close,
-                                          size: 20,
-                                          color: Colors.red,
-                                        ),
-                                      ),
-                                    )
-                                  else
-                                    const Icon(
-                                      Icons.arrow_forward_ios,
-                                      size: 16,
-                                      color: AppColors.secondaryTextLight,
-                                    ),
-                                ],
+                      child: Consumer(
+                        builder: (context, ref, child) {
+                          final cartState = ref.watch(cartProvider);
+                          final cart = cartState.cart;
+
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: const Color(0xFFDDE5ED),
                               ),
                             ),
-                          ),
-                        ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap:
+                                    _isLoadingVouchers
+                                        ? null
+                                        : _showVoucherSheet,
+                                borderRadius: BorderRadius.circular(28),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 12,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        LucideIcons.ticket,
+                                        color: Color(0xFFEF4444),
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          cart?.summary.voucherCode != null
+                                              ? 'Voucher telah dipakai'
+                                              : _availableVouchers.isNotEmpty
+                                              ? 'Kamu ada ${_availableVouchers.length} voucher nganggur'
+                                              : 'Gunakan / masukkan kode voucher',
+                                          style: GoogleFonts.lexendDeca(
+                                            fontWeight: FontWeight.w600,
+                                            color:
+                                                cart?.summary.voucherCode !=
+                                                        null
+                                                    ? AppColors.primaryLight
+                                                    : AppColors
+                                                        .primaryTextLight,
+                                          ),
+                                        ),
+                                      ),
+                                      if (cart?.summary.voucherCode != null)
+                                        InkWell(
+                                          onTap: _removeVoucher,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(4.0),
+                                            child: Icon(
+                                              Icons.close,
+                                              size: 20,
+                                              color: Colors.red,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        const Icon(
+                                          Icons.arrow_forward_ios,
+                                          size: 16,
+                                          color: AppColors.secondaryTextLight,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1120,53 +991,65 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        children: [
-                          _priceRow(
-                            'Harga',
-                            totalPrice,
-                            labelWeight: FontWeight.w400,
-                            valueWeight: FontWeight.w400,
-                            valueColor: AppColors.primaryTextLight,
-                            labelSize: 14,
-                            valueSize: 12,
-                          ),
-                          if ((_currentCart?.summary.discount ?? 0) > 0)
-                            _priceRow(
-                              'Potongan Voucher',
-                              -(_currentCart?.summary.discount ?? 0),
-                              labelWeight: FontWeight.w400,
-                              valueWeight: FontWeight.w400,
-                              valueColor: AppColors.secondaryTextLight,
-                              labelSize: 14,
-                              valueSize: 12,
-                            ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Divider(
-                              thickness: 1,
-                              height: 1,
-                              color: Color(0xFFDDE5ED),
-                            ),
-                          ),
-                          _priceRow(
-                            'Total pembayaran',
-                            _currentCart?.summary.total ?? totalPrice,
-                            labelWeight: FontWeight.w600,
-                            valueWeight: FontWeight.w600,
-                            valueColor: AppColors.primaryTextLight,
-                            labelSize: 14,
-                            valueSize: 12,
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Divider(
-                              thickness: 1,
-                              height: 1,
-                              color: Color(0xFFDDE5ED),
-                            ),
-                          ),
-                        ],
+                      child: Consumer(
+                        builder: (context, ref, child) {
+                          final cartState = ref.watch(cartProvider);
+                          final cart = cartState.cart;
+                          final discount = cart?.summary.discount ?? 0;
+                          final total = cart?.summary.total ?? totalPrice;
+                          return Column(
+                            children: [
+                              _priceRow(
+                                'Harga',
+                                totalPrice,
+                                labelWeight: FontWeight.w400,
+                                valueWeight: FontWeight.w400,
+                                valueColor: AppColors.primaryTextLight,
+                                labelSize: 14,
+                                valueSize: 12,
+                              ),
+                              if (discount > 0)
+                                _priceRow(
+                                  'Potongan Voucher',
+                                  -discount,
+                                  labelWeight: FontWeight.w400,
+                                  valueWeight: FontWeight.w400,
+                                  valueColor: AppColors.secondaryTextLight,
+                                  labelSize: 14,
+                                  valueSize: 12,
+                                ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Divider(
+                                  thickness: 1,
+                                  height: 1,
+                                  color: Color(0xFFDDE5ED),
+                                ),
+                              ),
+                              _priceRow(
+                                'Total pembayaran',
+                                total,
+                                labelWeight: FontWeight.w600,
+                                valueWeight: FontWeight.w600,
+                                valueColor: AppColors.primaryTextLight,
+                                labelSize: 14,
+                                valueSize: 12,
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Divider(
+                                  thickness: 1,
+                                  height: 1,
+                                  color: Color(0xFFDDE5ED),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                     _sectionBreak(),
@@ -1193,53 +1076,58 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
               ),
               child: SafeArea(
                 top: false,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: _submitToAdmin,
-                        borderRadius: BorderRadius.circular(100),
-                        child: Container(
-                          height: isSmallHeight ? 46 : 52,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF22C55E),
+                child: Consumer(
+                  builder: (context, ref, child) {
+                    final cartState = ref.watch(cartProvider);
+                    final cart = cartState.cart;
+                    final total = cart?.summary.total ?? totalPrice;
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: _submitToAdmin,
                             borderRadius: BorderRadius.circular(100),
-                          ),
-                          alignment: Alignment.center,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Submit ke admin',
-                                style: GoogleFonts.lexendDeca(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
+                            child: Container(
+                              height: isSmallHeight ? 46 : 52,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF22C55E),
+                                borderRadius: BorderRadius.circular(100),
                               ),
-                              const SizedBox(width: 10),
-                              Text(
-                                formatRp(
-                                  _currentCart?.summary.total ?? totalPrice,
-                                ),
-                                style: GoogleFonts.lexendDeca(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
+                              alignment: Alignment.center,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Submit ke admin',
+                                    style: GoogleFonts.lexendDeca(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    formatRp(total),
+                                    style: GoogleFonts.lexendDeca(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Icon(
+                                    Icons.arrow_forward,
+                                    size: 18,
+                                    color: Colors.white,
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 6),
-                              const Icon(
-                                Icons.arrow_forward,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -1262,7 +1150,8 @@ class _CartConfirmPageState extends State<CartConfirmPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Permintaan berhasil dikirim ke admin')),
       );
-      widget.onRefresh?.call();
+      // Refresh cart
+      await ref.read(cartProvider.notifier).fetchCart();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder:

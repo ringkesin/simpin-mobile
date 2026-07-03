@@ -1,37 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
+import 'package:kkba_mobile/core/utils/formatters.dart';
 import '../models/product.dart';
 import '../models/cart_model.dart';
 import '../service/mart_api_service.dart';
 import '../service/cart_api_service.dart';
+import '../presentation/providers/belanja_providers.dart';
 import 'cart_confirm_page.dart';
 import 'product_detail_page.dart';
 
-class CategoryProductsPage extends StatefulWidget {
-  final int kategoriId;
-  final String kategoriName;
-  final int Function(Product) getQty;
-  final void Function(Product) onAdd;
-  final void Function(Product) onIncrement;
-  final void Function(Product) onDecrement;
+class CategoryProductsPage extends ConsumerStatefulWidget {
+  final int? kategoriId;
+  final String? kategoriName;
+  final int? brandId;
+  final String? brandName;
 
   const CategoryProductsPage({
     super.key,
-    required this.kategoriId,
-    required this.kategoriName,
-    required this.getQty,
-    required this.onAdd,
-    required this.onIncrement,
-    required this.onDecrement,
-  });
+    required int kategoriId,
+    required String kategoriName,
+  }) : kategoriId = kategoriId,
+       kategoriName = kategoriName,
+       brandId = null,
+       brandName = null;
+
+  const CategoryProductsPage.brand({
+    super.key,
+    required int brandId,
+    required String brandName,
+  }) : brandId = brandId,
+       brandName = brandName,
+       kategoriId = null,
+       kategoriName = null;
 
   @override
-  State<CategoryProductsPage> createState() => _CategoryProductsPageState();
+  ConsumerState<CategoryProductsPage> createState() =>
+      _CategoryProductsPageState();
 }
 
-class _CategoryProductsPageState extends State<CategoryProductsPage> {
+class _CategoryProductsPageState extends ConsumerState<CategoryProductsPage> {
   final MartApiService _martApi = MartApiService();
   final CartApiService _cartApiService = CartApiService();
   final List<Product> _items = [];
@@ -45,29 +55,27 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
   String _sortField = 'harga_setelah_diskon_mobile';
   String _sortDirection = 'desc';
   int _totalFound = 0;
-  CartModel? _cart;
-  bool _isLoadingCart = false;
 
-  int get _cartCount => _cart?.totalItems ?? 0;
-  String get _cartTotal =>
-      formatRp(_cart?.summary.total ?? 0).replaceAll('Rp', '');
+  int get _cartCount =>
+      ref
+          .watch(cartProvider)
+          .cart
+          ?.items
+          .fold<int>(0, (sum, item) => sum + item.quantity) ??
+      0;
+  String get _cartTotal => formatRp(
+    ref.watch(cartProvider).cart?.summary.total ?? 0,
+  ).replaceAll('Rp', '');
 
   @override
   void initState() {
     super.initState();
     _fetch(page: 1);
-    Future.microtask(_refreshCart);
+    Future.microtask(() => ref.read(cartProvider.notifier).fetchCart());
   }
 
   Future<void> _refreshCart() async {
-    if (_isLoadingCart) return;
-    setState(() => _isLoadingCart = true);
-    final cart = await _cartApiService.getCart();
-    if (!mounted) return;
-    setState(() {
-      _cart = cart;
-      _isLoadingCart = false;
-    });
+    await ref.read(cartProvider.notifier).fetchCart();
   }
 
   void _scheduleCartRefresh() {
@@ -77,54 +85,43 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
     });
   }
 
-  void _openCart() {
-    final cart = _cart;
-    if (cart == null || cart.items.isEmpty) return;
-    final Map<String, Product> unique = {};
-    for (final item in cart.items) {
-      final productId =
-          item.productId.isNotEmpty ? item.productId : item.product.id;
-      if (productId.isEmpty || unique.containsKey(productId)) continue;
-      final base = item.product;
-      if (base.id.isEmpty) {
-        unique[productId] = Product(
-          id: productId,
-          name: base.name,
-          price: base.price,
-          discountPercent: base.discountPercent,
-          imageUrl: base.imageUrl,
-          isStockAvailable: base.isStockAvailable,
-        );
-      } else {
-        unique[productId] = base;
-      }
+  int _getQty(Product p) {
+    final cart = ref.read(cartProvider).cart;
+    if (cart == null) return 0;
+    final item = cart.items.where((i) => i.productId == p.id).firstOrNull;
+    return item?.quantity ?? 0;
+  }
+
+  void _onAdd(Product p) async {
+    await ref.read(cartProvider.notifier).addItem(productId: p.id, quantity: 1);
+  }
+
+  void _onIncrement(Product p) async {
+    await ref
+        .read(cartProvider.notifier)
+        .updateQuantity(productId: p.id, quantity: _getQty(p) + 1);
+  }
+
+  void _onDecrement(Product p) async {
+    final currentQty = _getQty(p);
+    if (currentQty > 1) {
+      await ref
+          .read(cartProvider.notifier)
+          .updateQuantity(productId: p.id, quantity: currentQty - 1);
+    } else if (currentQty == 1) {
+      await ref.read(cartProvider.notifier).removeItem(productId: p.id);
     }
-    final items = unique.values.toList();
-    if (items.isEmpty) return;
+  }
+
+  void _openCart() async {
+    final cartState = ref.read(cartProvider);
+    final cartEntity = cartState.cart;
+    if (cartEntity == null || cartEntity.items.isEmpty) return;
+
     Navigator.of(context)
         .push(
           MaterialPageRoute(
-            builder:
-                (_) => CartConfirmPage(
-                  items: items,
-                  getQty: widget.getQty,
-                  onIncrement: (p) {
-                    widget.onIncrement(p);
-                    setState(() {});
-                    _scheduleCartRefresh();
-                  },
-                  onDecrement: (p) {
-                    widget.onDecrement(p);
-                    setState(() {});
-                    _scheduleCartRefresh();
-                  },
-                  cart: _cart,
-                  cartApiService: _cartApiService,
-                  onRefresh: () {
-                    _refreshCart();
-                    setState(() {});
-                  },
-                ),
+            builder: (_) => CartConfirmPage(cartApiService: _cartApiService),
           ),
         )
         .then((_) => _refreshCart());
@@ -224,16 +221,25 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
 
   Future<void> _fetch({required int page}) async {
     if (page == 1) setState(() => _loading = true);
+    final brandId = widget.brandId;
+    final kategoriId = widget.kategoriId;
     final res =
         _query.trim().isEmpty
-            ? await _martApi.getProductsByCategory(
-              widget.kategoriId.toString(),
-              page: page,
-              perPage: _perPage,
-            )
+            ? (brandId != null
+                ? await _martApi.getProductsByBrand(
+                  brandId.toString(),
+                  page: page,
+                  perPage: _perPage,
+                )
+                : await _martApi.getProductsByCategory(
+                  kategoriId.toString(),
+                  page: page,
+                  perPage: _perPage,
+                ))
             : await _martApi.searchProducts(
               keywords: _query.trim(),
-              kategoriId: widget.kategoriId,
+              brandId: brandId,
+              kategoriId: kategoriId,
               page: page,
               perPage: _perPage,
               sortField: _sortField,
@@ -336,7 +342,7 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                                   ),
                                 ),
                                 Text(
-                                  'di ${widget.kategoriName}',
+                                  'di ${widget.brandName ?? widget.kategoriName ?? ''}',
                                   style: GoogleFonts.lexendDeca(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
@@ -438,7 +444,7 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                         itemCount: _items.length,
                         itemBuilder: (context, index) {
                           final p = _items[index];
-                          final qty = widget.getQty(p);
+                          final qty = _getQty(p);
                           return InkWell(
                             onTap: () {
                               Navigator.of(context)
@@ -447,10 +453,6 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                                       builder:
                                           (_) => ProductDetailPage(
                                             product: p,
-                                            getQty: widget.getQty,
-                                            onAdd: widget.onAdd,
-                                            onIncrement: widget.onIncrement,
-                                            onDecrement: widget.onDecrement,
                                             related:
                                                 _items
                                                     .where((e) => e != p)
@@ -466,18 +468,15 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                               product: p,
                               quantity: qty,
                               onAdd: () {
-                                widget.onAdd(p);
-                                setState(() {});
+                                _onAdd(p);
                                 _scheduleCartRefresh();
                               },
                               onIncrement: () {
-                                widget.onIncrement(p);
-                                setState(() {});
+                                _onIncrement(p);
                                 _scheduleCartRefresh();
                               },
                               onDecrement: () {
-                                widget.onDecrement(p);
-                                setState(() {});
+                                _onDecrement(p);
                                 _scheduleCartRefresh();
                               },
                             ),

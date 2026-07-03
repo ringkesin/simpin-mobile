@@ -1,39 +1,66 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
+import 'package:kkba_mobile/core/utils/formatters.dart';
 import '../models/product.dart';
 import '../components/product_card.dart';
+import '../presentation/providers/belanja_providers.dart';
 
-class ProductDetailPage extends StatefulWidget {
+class ProductDetailPage extends ConsumerStatefulWidget {
   final Product product;
-  final int Function(Product) getQty;
-  final void Function(Product) onAdd;
-  final void Function(Product) onIncrement;
-  final void Function(Product) onDecrement;
   final List<Product> related;
 
   const ProductDetailPage({
     super.key,
     required this.product,
-    required this.getQty,
-    required this.onAdd,
-    required this.onIncrement,
-    required this.onDecrement,
     required this.related,
   });
 
   @override
-  State<ProductDetailPage> createState() => _ProductDetailPageState();
+  ConsumerState<ProductDetailPage> createState() => _ProductDetailPageState();
 }
 
-class _ProductDetailPageState extends State<ProductDetailPage> {
+class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   bool _descExpanded = false;
+
+  int _getQty(Product product) {
+    final cartState = ref.watch(cartProvider);
+    if (cartState.cart == null) return 0;
+    for (final item in cartState.cart!.items) {
+      if (item.productId == product.id) {
+        return item.quantity;
+      }
+    }
+    return 0;
+  }
+
+  void _addProduct(Product product) {
+    ref.read(cartProvider.notifier).addItem(productId: product.id, quantity: 1);
+  }
+
+  void _incrementProduct(Product product) {
+    ref.read(cartProvider.notifier).addItem(productId: product.id, quantity: 1);
+  }
+
+  void _decrementProduct(Product product) {
+    final currentQty = _getQty(product);
+    if (currentQty <= 0) return;
+
+    if (currentQty == 1) {
+      ref.read(cartProvider.notifier).removeItem(productId: product.id);
+    } else {
+      ref
+          .read(cartProvider.notifier)
+          .updateQuantity(productId: product.id, quantity: currentQty - 1);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = widget.product;
-    final qty = widget.getQty(p);
+    final qty = _getQty(p);
     final bool hasDiscount = p.discountPercent > 0;
     final int oldPrice = originalPrice(p.price, p.discountPercent);
 
@@ -56,9 +83,17 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 8,
+                          ),
+                        ],
                       ),
-                      child: const Icon(LucideIcons.arrowLeft, color: Color(0xFF0F172A)),
+                      child: const Icon(
+                        LucideIcons.arrowLeft,
+                        color: Color(0xFF0F172A),
+                      ),
                     ),
                   ),
                 ],
@@ -74,21 +109,27 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   height: 200,
                   child: Container(
                     color: Colors.white,
-                    child: (p.imageUrl != null && p.imageUrl!.isNotEmpty)
-                        ? Image.network(
-                            p.imageUrl!,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) => const Center(
-                              child: Icon(LucideIcons.image, color: Color(0xFF9CA3AF), size: 64),
+                    child:
+                        (p.imageUrl != null && p.imageUrl!.isNotEmpty)
+                            ? Image.network(
+                              p.imageUrl!,
+                              fit: BoxFit.contain,
+                              errorBuilder:
+                                  (context, error, stackTrace) => const Center(
+                                    child: Icon(
+                                      LucideIcons.image,
+                                      color: Color(0xFF9CA3AF),
+                                      size: 64,
+                                    ),
+                                  ),
+                            )
+                            : const Center(
+                              child: Icon(
+                                LucideIcons.image,
+                                color: Color(0xFF9CA3AF),
+                                size: 64,
+                              ),
                             ),
-                          )
-                        : const Center(
-                            child: Icon(
-                              LucideIcons.image,
-                              color: Color(0xFF9CA3AF),
-                              size: 64,
-                            ),
-                          ),
                   ),
                 ),
               ),
@@ -101,7 +142,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 p.name,
-                style: GoogleFonts.lexendDeca(fontSize: 15.5, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight),
+                style: GoogleFonts.lexendDeca(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryTextLight,
+                ),
               ),
             ),
 
@@ -115,14 +160,23 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 children: [
                   Text(
                     formatRp(p.price),
-                    style: GoogleFonts.lexendDeca(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.primaryTextLight),
+                    style: GoogleFonts.lexendDeca(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryTextLight,
+                    ),
                   ),
                   if (hasDiscount)
                     Padding(
                       padding: const EdgeInsets.only(top: 2.0),
                       child: Text(
                         formatRp(oldPrice),
-                        style: GoogleFonts.lexendDeca(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF9CA3AF), decoration: TextDecoration.lineThrough),
+                        style: GoogleFonts.lexendDeca(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF9CA3AF),
+                          decoration: TextDecoration.lineThrough,
+                        ),
                       ),
                     ),
                 ],
@@ -138,20 +192,38 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Deskripsi', style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight)),
+                  Text(
+                    'Deskripsi',
+                    style: GoogleFonts.lexendDeca(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryTextLight,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     '${p.name} merupakan produk dengan kualitas baik dan harga terjangkau. Deskripsi contoh untuk tampilan detail produk. Susu diperah secara segar dan higienis.\n\nSumber gambar bersifat placeholder.',
                     maxLines: _descExpanded ? null : 3,
-                    overflow: _descExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
-                    style: GoogleFonts.lexendDeca(fontSize: 12.5, fontWeight: FontWeight.w400, color: AppColors.secondaryTextLight),
+                    overflow:
+                        _descExpanded
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis,
+                    style: GoogleFonts.lexendDeca(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.secondaryTextLight,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   InkWell(
                     onTap: () => setState(() => _descExpanded = !_descExpanded),
                     child: Text(
                       _descExpanded ? 'Tutup' : 'Selengkapnya',
-                      style: GoogleFonts.lexendDeca(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.primaryLight),
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryLight,
+                      ),
                     ),
                   ),
                 ],
@@ -161,7 +233,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             // Similar products
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text('Serupa dan mungkin kamu suka', style: GoogleFonts.lexendDeca(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primaryTextLight)),
+              child: Text(
+                'Serupa dan mungkin kamu suka',
+                style: GoogleFonts.lexendDeca(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryTextLight,
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             SizedBox(
@@ -175,21 +254,20 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   final pr = widget.related[index];
                   return ProductCard(
                     product: pr,
-                    quantity: widget.getQty(pr),
-                    onAdd: () => widget.onAdd(pr),
-                    onIncrement: () => widget.onIncrement(pr),
-                    onDecrement: () => widget.onDecrement(pr),
+                    quantity: _getQty(pr),
+                    onAdd: () => _addProduct(pr),
+                    onIncrement: () => _incrementProduct(pr),
+                    onDecrement: () => _decrementProduct(pr),
                     onTap: () {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => ProductDetailPage(
-                          product: pr,
-                          getQty: widget.getQty,
-                          onAdd: widget.onAdd,
-                          onIncrement: widget.onIncrement,
-                          onDecrement: widget.onDecrement,
-                          related: widget.related,
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder:
+                              (_) => ProductDetailPage(
+                                product: pr,
+                                related: widget.related,
+                              ),
                         ),
-                      ));
+                      );
                     },
                   );
                 },
@@ -207,7 +285,13 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border(top: BorderSide(color: Colors.grey.shade200)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
           child: Row(
             children: [
@@ -222,7 +306,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   alignment: Alignment.center,
                   child: Text(
                     'Keranjangmu (${qty})',
-                    style: GoogleFonts.lexendDeca(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primaryLight),
+                    style: GoogleFonts.lexendDeca(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryLight,
+                    ),
                   ),
                 ),
               ),
@@ -231,11 +319,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 child: InkWell(
                   onTap: () {
                     if (qty <= 0) {
-                      widget.onAdd(p);
+                      _addProduct(p);
                     } else {
-                      widget.onIncrement(p);
+                      _incrementProduct(p);
                     }
-                    setState(() {});
                   },
                   borderRadius: BorderRadius.circular(100),
                   child: Container(
@@ -245,7 +332,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       borderRadius: BorderRadius.circular(100),
                     ),
                     alignment: Alignment.center,
-                    child: Text('Tambah', style: GoogleFonts.lexendDeca(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                    child: Text(
+                      'Tambah',
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
               ),

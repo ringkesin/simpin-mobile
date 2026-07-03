@@ -114,9 +114,13 @@ class MartApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
-      final options = token != null
-          ? Options(headers: {'Authorization': 'Bearer $token'}, validateStatus: (s) => true)
-          : Options(validateStatus: (s) => true);
+      final options =
+          token != null
+              ? Options(
+                headers: {'Authorization': 'Bearer $token'},
+                validateStatus: (s) => true,
+              )
+              : Options(validateStatus: (s) => true);
 
       final response = await _dio.get('/api/product/$id', options: options);
 
@@ -132,17 +136,32 @@ class MartApiService {
     }
   }
 
-  Future<PagedProducts> getProductsByCategory(String kategoriId, {int page = 1, int perPage = 20}) async {
+  Future<PagedProducts> getProductsByCategory(
+    String kategoriId, {
+    int page = 1,
+    int perPage = 20,
+    String sortField = 'harga_setelah_diskon_mobile',
+    String sortDirection = 'asc',
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
-      final options = token != null
-          ? Options(headers: {'Authorization': 'Bearer $token'}, validateStatus: (s) => true)
-          : Options(validateStatus: (s) => true);
+      final options =
+          token != null
+              ? Options(
+                headers: {'Authorization': 'Bearer $token'},
+                validateStatus: (s) => true,
+              )
+              : Options(validateStatus: (s) => true);
 
       final response = await _dio.post(
         '/api/product/kategori/$kategoriId',
-        data: {'page': page, 'per_page': perPage},
+        data: {
+          'page': page,
+          'per_page': perPage,
+          'sort_field': sortField,
+          'sort_direction': sortDirection,
+        },
         options: options,
       );
 
@@ -152,9 +171,74 @@ class MartApiService {
           return PagedProducts.fromResponse(data);
         }
       }
-      return PagedProducts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedProducts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     } catch (_) {
-      return PagedProducts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedProducts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
+    }
+  }
+
+  Future<PagedProducts> getProductsByBrand(
+    String brandId, {
+    int page = 1,
+    int perPage = 20,
+    String sortField = 'harga_setelah_diskon_mobile',
+    String sortDirection = 'asc',
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      final options =
+          token != null
+              ? Options(
+                headers: {'Authorization': 'Bearer $token'},
+                validateStatus: (s) => true,
+              )
+              : Options(validateStatus: (s) => true);
+
+      final response = await _dio.post(
+        '/api/product/brand/$brandId',
+        data: {
+          'page': page,
+          'per_page': perPage,
+          'sort_field': sortField,
+          'sort_direction': sortDirection,
+        },
+        options: options,
+      );
+
+      if (response.statusCode == 200 && response.data is Map) {
+        final data = response.data as Map<String, dynamic>;
+        if (data['status'] == true) {
+          return PagedProducts.fromResponse(data);
+        }
+      }
+      return PagedProducts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
+    } catch (_) {
+      return PagedProducts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     }
   }
 
@@ -170,9 +254,13 @@ class MartApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
-      final options = token != null
-          ? Options(headers: {'Authorization': 'Bearer $token'}, validateStatus: (s) => true)
-          : Options(validateStatus: (s) => true);
+      final options =
+          token != null
+              ? Options(
+                headers: {'Authorization': 'Bearer $token'},
+                validateStatus: (s) => true,
+              )
+              : Options(validateStatus: (s) => true);
 
       final response = await _dio.post(
         '/api/product/search',
@@ -194,9 +282,21 @@ class MartApiService {
           return PagedProducts.fromResponse(data);
         }
       }
-      return PagedProducts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedProducts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     } catch (_) {
-      return PagedProducts(items: const [], currentPage: page, perPage: perPage, total: 0, lastPage: 0);
+      return PagedProducts(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 0,
+      );
     }
   }
 }

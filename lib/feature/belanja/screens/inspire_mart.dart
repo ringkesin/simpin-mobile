@@ -1,26 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
+import 'package:kkba_mobile/core/utils/formatters.dart';
 import '../models/banner_model.dart';
 import '../models/category_model.dart';
 import '../service/mart_api_service.dart';
+import '../service/cart_api_service.dart';
 import '../models/section_model.dart';
 import '../models/product.dart';
 import '../models/cart_model.dart';
-import '../service/cart_api_service.dart';
 import '../models/tracking_cart_model.dart';
 import 'dart:async';
 import 'product_detail_page.dart';
 import 'cart_confirm_page.dart';
 import '../components/product_card.dart';
 import 'mart_search_page.dart';
-import 'belanjaan_page.dart';
 import 'category_products_page.dart';
 import 'payment_webview_page.dart';
 import 'tracking_cart_detail_page.dart';
+import '../presentation/providers/belanja_providers.dart';
 
-class InspireMartScreen extends StatefulWidget {
+class InspireMartScreen extends ConsumerStatefulWidget {
   final int? initialTabIndex; // 0: Explor, 1: Search, 2: Kategori, 3: Belanjaan
   final int? initialOrderTabIndex; // Tracking sub-tab
   const InspireMartScreen({
@@ -30,10 +32,10 @@ class InspireMartScreen extends StatefulWidget {
   });
 
   @override
-  State<InspireMartScreen> createState() => _InspireMartScreenState();
+  ConsumerState<InspireMartScreen> createState() => _InspireMartScreenState();
 }
 
-class _InspireMartScreenState extends State<InspireMartScreen> {
+class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
   final TextEditingController _searchController = TextEditingController();
   int _currentTabIndex = 0; // 0: Explor, 1: Pencarian, 2: Kategori, 3: Belanja
   final PageController _headerPageController = PageController();
@@ -59,130 +61,57 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   // Gabungan produk untuk pencarian sederhana
   List<Product> _allProducts = [];
 
-  // Real cart state
+  // Real cart model for CartConfirmPage
   final CartApiService _cartApiService = CartApiService();
   CartModel? _cart;
   bool _isLoadingCart = false;
 
-  // Mapping product ID to quantity for fast UI updates
-  final Map<String, int> _cartProductQuantities = {};
-
-  int _getQty(Product p) => _cartProductQuantities[p.id] ?? 0;
-
-  // Helpers for Cart
-  int get _cartCount => _cart?.totalItems ?? 0;
-  String get _cartTotal =>
-      formatRp(_cart?.summary.total ?? 0).replaceAll('Rp', '');
-
-  Future<void> _fetchCart() async {
-    // Silent update if not initial load
-    final cart = await _cartApiService.getCart();
-    if (mounted && cart != null) {
-      setState(() {
-        _cart = cart;
-        _cartProductQuantities.clear();
-        for (var item in cart.items) {
-          // Use productId from item wrapper, not the nested product which might have empty ID
-          _cartProductQuantities[item.productId] =
-              (_cartProductQuantities[item.productId] ?? 0) + item.quantity;
-        }
-      });
-    }
-  }
-
   // Debounce helper
   Map<String, DateTime> _lastUpdate = {};
 
+  Future<void> _fetchCart() async {
+    print('--- inspire_mart: _fetchCart() CALLED ---');
+    // Just trigger the riverpod cart fetch, the listener will update _cart
+    await ref.read(cartProvider.notifier).fetchCart();
+  }
+
+  int _getQty(Product p) {
+    final cartState = ref.watch(cartProvider);
+    if (cartState.cart == null) return 0;
+    // Find item in cart
+    for (final item in cartState.cart!.items) {
+      if (item.productId == p.id) {
+        return item.quantity;
+      }
+    }
+    return 0;
+  }
+
+  // Helpers for Cart
+  int get _cartCount {
+    final cartState = ref.watch(cartProvider);
+    return cartState.cart?.totalItems ?? 0;
+  }
+
+  String get _cartTotal {
+    final cartState = ref.watch(cartProvider);
+    return formatRp(cartState.cart?.summary.total ?? 0).replaceAll('Rp', '');
+  }
+
   void _increment(Product p) {
-    // Optimistic update
-    final currentQty = _cartProductQuantities[p.id] ?? 0;
-    final newQty = currentQty + 1;
-
-    setState(() {
-      _cartProductQuantities[p.id] = newQty;
-    });
-
-    // Call API
-    _updateCartApi(p.id, newQty);
+    ref.read(cartProvider.notifier).addItem(productId: p.id, quantity: 1);
   }
 
   void _decrement(Product p) {
-    final currentQty = _cartProductQuantities[p.id] ?? 0;
+    final currentQty = _getQty(p);
     if (currentQty <= 0) return;
 
-    final newQty = currentQty - 1;
-    setState(() {
-      if (newQty == 0) {
-        _cartProductQuantities.remove(p.id);
-      } else {
-        _cartProductQuantities[p.id] = newQty;
-      }
-    });
-
-    // Call API (If 0, it should ideally call remove, but backend update(0) might handle it)
-    // If newQty is 0, let's call remove if we have cart item id, or just update(0) and let backend handle
-    // Since we only have product ID here easily, let's assume addToCart handles update logic or we use addToCart for positive changes
-    // Wait, addToCart is usually for adding. updateQuantity needs cart_item_id.
-    // We need to know if we are updating or adding.
-    // Simplified logic: Always use addToCart for increment if not in cart? No, that creates duplicates usually.
-    // Better: _updateCartApi handles the logic.
-    _updateCartApi(p.id, newQty);
-  }
-
-  Future<void> _updateCartApi(String productId, int quantity) async {
-    // Debounce: Wait 500ms before sending request
-    /* 
-       Note: A proper debounce would cancel previous timer. 
-       For simplicity in this file without external rx libs:
-       We will just fire the request. For production, use a Debouncer class.
-    */
-
-    // Check if item exists in _cart
-    bool inCart = false;
-    if (_cart != null) {
-      for (var item in _cart!.items) {
-        if (item.productId == productId) {
-          inCart = true;
-          break;
-        }
-      }
-    }
-
-    bool success = false;
-    if (inCart) {
-      if (quantity == 0) {
-        success = await _cartApiService.removeItem(productId);
-      } else {
-        success = await _cartApiService.updateQuantity(productId, quantity);
-      }
+    if (currentQty == 1) {
+      ref.read(cartProvider.notifier).removeItem(productId: p.id);
     } else {
-      if (quantity > 0) {
-        success = await _cartApiService.addToCart(productId, quantity);
-      }
-    }
-
-    if (success) {
-      // Sync cart from server to get correct totals and ids
-      _fetchCart();
-    } else {
-      // Revert optimistic update
-      final prevQty =
-          _cart?.items
-              .where((it) => it.productId == productId)
-              .map((it) => it.quantity)
-              .fold<int>(0, (a, b) => a + b) ??
-          0;
-      setState(() {
-        if (prevQty == 0) {
-          _cartProductQuantities.remove(productId);
-        } else {
-          _cartProductQuantities[productId] = prevQty;
-        }
-      });
-      final msg =
-          _cartApiService.lastErrorMessage ??
-          'Gagal memperbarui keranjang (422)';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      ref
+          .read(cartProvider.notifier)
+          .updateQuantity(productId: p.id, quantity: currentQty - 1);
     }
   }
 
@@ -198,6 +127,7 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   List<TrackingCart> _historyCarts = [];
   int _trackPage = 1;
   int _trackLastPage = 1;
+  int? _trackingLoadedOrderTabIndex;
 
   // Banners state
   List<BannerModel> _banners = [];
@@ -213,6 +143,8 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
     if (widget.initialOrderTabIndex != null) {
       _orderTabIndex = widget.initialOrderTabIndex!;
     }
+    // Fetch initial cart
+    Future.microtask(() => ref.read(cartProvider.notifier).fetchCart());
     _fetchData();
   }
 
@@ -223,12 +155,11 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
       _isLoadingSections = true;
     });
 
-    // Run in parallel
+    // Run in parallel (no more cartApiService.getCart() here now
     final results = await Future.wait([
       _martApiService.getBanners(),
       _martApiService.getCategories(),
       _martApiService.getSections(),
-      _cartApiService.getCart(),
     ]);
 
     if (mounted) {
@@ -240,16 +171,6 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
               a.kategori.toLowerCase().compareTo(b.kategori.toLowerCase()),
         );
         _sections = results[2] as List<SectionModel>;
-
-        final cart = results[3] as CartModel?;
-        if (cart != null) {
-          _cart = cart;
-          _cartProductQuantities.clear();
-          for (var item in cart.items) {
-            _cartProductQuantities[item.productId] =
-                (_cartProductQuantities[item.productId] ?? 0) + item.quantity;
-          }
-        }
         // Collect products for search/cart logic
         _allProducts =
             _sections
@@ -279,10 +200,6 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             (_) => MartSearchPage(
               history: _searchHistory,
               products: _allProducts,
-              getQty: _getQty,
-              onAdd: _increment,
-              onInc: _increment,
-              onDec: _decrement,
               onSearched: (q) {
                 if (q.trim().isEmpty) return;
                 _searchHistory.removeWhere(
@@ -302,6 +219,56 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Listen to riverpod cart changes to keep legacy _cart in sync
+    ref.listen<CartState>(cartProvider, (previous, next) {
+      if (mounted) {
+        setState(() {
+          if (next.cart != null) {
+            // Convert CartEntity back to CartModel for legacy usage
+            final items =
+                next.cart!.items.map((entity) {
+                  return CartItemModel(
+                    id: entity.id,
+                    productId: entity.productId,
+                    product: Product(
+                      id: entity.productId,
+                      name: entity.productName,
+                      price: entity.price,
+                      discountPercent: 0,
+                      imageUrl: entity.productImageUrl,
+                      isStockAvailable: true,
+                    ),
+                    quantity: entity.quantity,
+                    price: entity.price,
+                    totalPrice: entity.totalPrice,
+                    remarks: entity.remarks,
+                  );
+                }).toList();
+
+            final summary = CartSummaryModel(
+              subtotal: next.cart!.summary.subtotal,
+              discount: next.cart!.summary.discount,
+              total: next.cart!.summary.total,
+              voucherCode: next.cart!.summary.voucherCode,
+            );
+
+            _cart = CartModel(
+              items: items,
+              summary: summary,
+              lokasiDeliveryNama: next.cart!.lokasiDeliveryNama,
+              deliveryPicName: next.cart!.deliveryPicName,
+              deliveryPicPhone: next.cart!.deliveryPicPhone,
+              deliveryRemarks: next.cart!.deliveryRemarks,
+              estimatedDeliveryAt: next.cart!.estimatedDeliveryAt,
+            );
+          } else {
+            // If no cart, set _cart to null or empty
+            _cart = null;
+          }
+        });
+      }
+    });
+
     return Scaffold(
       backgroundColor: Colors.white,
       // AppBar dihilangkan, kontrol ada di header
@@ -360,10 +327,16 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
               ? _cancelledCarts
               : _deliveryCarts;
 
-      if (!_isLoadingTrack &&
-          _waitingAdminCarts.isEmpty &&
-          _confirmedCarts.isEmpty) {
-        _fetchTrackingCarts(page: 1);
+      final shouldFetchTracking =
+          !_isLoadingTrack && _trackingLoadedOrderTabIndex != _orderTabIndex;
+      if (shouldFetchTracking) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_isLoadingTrack) return;
+          if (_trackingLoadedOrderTabIndex == _orderTabIndex) return;
+          _trackingLoadedOrderTabIndex = _orderTabIndex;
+          _fetchTrackingCarts(page: 1);
+        });
       }
       return SafeArea(
         top: true,
@@ -536,10 +509,6 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                     builder:
                         (_) => ProductDetailPage(
                           product: product,
-                          getQty: _getQty,
-                          onAdd: _increment,
-                          onIncrement: _increment,
-                          onDecrement: _decrement,
                           related:
                               _allProducts
                                   .where((e) => e.id != product.id)
@@ -582,10 +551,6 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                     (_) => CategoryProductsPage(
                       kategoriId: cat.id,
                       kategoriName: cat.kategori,
-                      getQty: _getQty,
-                      onAdd: _increment,
-                      onIncrement: _increment,
-                      onDecrement: _decrement,
                     ),
               ),
             );
@@ -644,61 +609,27 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
         banners: _banners,
         pageController: _headerPageController,
         pageIndex: _headerPageIndex,
+        onBannerTap: (brand) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder:
+                  (_) => CategoryProductsPage.brand(
+                    brandId: brand.id,
+                    brandName: brand.brand,
+                  ),
+            ),
+          );
+        },
         onBack: () => Navigator.of(context).maybePop(),
         onCart: () {
-          // Use real cart data for validation, but for UI we might need to pass products details if they are not fully in _cart
-          // _cart only has minimal product data usually? CartItemModel has full Product model in our definition.
-
-          // If _cart is null or empty, don't open
-          if (_cart == null || _cart!.items.isEmpty) return;
-
-          // Map CartItemModel back to Product list using enriched data from _allProducts (ensures imageUrl loaded)
-          final uniqueProductIds = <String>{};
-          final items = <Product>[];
-          for (var item in _cart!.items) {
-            if (!uniqueProductIds.add(item.productId)) continue;
-            // Try find enriched product from sections
-            final enriched = _allProducts
-                .where((p) => p.id == item.productId)
-                .cast<Product?>()
-                .firstWhere((p) => p != null, orElse: () => null);
-            if (enriched != null) {
-              items.add(enriched);
-              continue;
-            }
-            // Fallback to product from cart (may have limited fields)
-            final base = item.product;
-            if (base.id.isEmpty) {
-              items.add(
-                Product(
-                  id: item.productId,
-                  name: base.name,
-                  price: base.price,
-                  discountPercent: base.discountPercent,
-                  imageUrl: base.imageUrl,
-                  isStockAvailable: base.isStockAvailable,
-                ),
-              );
-            } else {
-              items.add(base);
-            }
-          }
+          final cartState = ref.read(cartProvider);
+          if (cartState.cart == null || cartState.cart!.items.isEmpty) return;
 
           Navigator.of(context)
               .push(
                 MaterialPageRoute(
                   builder:
-                      (_) => CartConfirmPage(
-                        items: items,
-                        getQty: _getQty,
-                        onIncrement: _increment,
-                        onDecrement: _decrement,
-                        cart: _cart, // Pass full cart model
-                        cartApiService:
-                            _cartApiService, // Pass service for checkout/voucher
-                        onRefresh:
-                            _fetchCart, // Callback to refresh when returning
-                      ),
+                      (_) => CartConfirmPage(cartApiService: _cartApiService),
                 ),
               )
               .then((_) => _fetchCart()); // Refresh on return
@@ -710,8 +641,9 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
   }
 
   Widget _buildHeader() {
+    final headerHeight = MediaQuery.of(context).size.width * 3 / 4;
     return SizedBox(
-      height: 340,
+      height: headerHeight,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -736,90 +668,125 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                                 );
                               }
                               final banner = _banners[index];
-                              return Image.network(
-                                banner.image,
-                                fit: BoxFit.cover,
-                                errorBuilder:
-                                    (context, error, stackTrace) => Image.asset(
-                                      'assets/images/background_simpin_mobile.png',
-                                      fit: BoxFit.cover,
-                                    ),
+                              return GestureDetector(
+                                onTap:
+                                    banner.brand == null
+                                        ? null
+                                        : () {
+                                          final brand = banner.brand!;
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder:
+                                                  (_) =>
+                                                      CategoryProductsPage.brand(
+                                                        brandId: brand.id,
+                                                        brandName: brand.brand,
+                                                      ),
+                                            ),
+                                          );
+                                        },
+                                child: Image.network(
+                                  banner.image,
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (
+                                        context,
+                                        error,
+                                        stackTrace,
+                                      ) => Image.asset(
+                                        'assets/images/background_simpin_mobile.png',
+                                        fit: BoxFit.cover,
+                                      ),
+                                ),
                               );
                             },
                           ),
                 ),
                 // Overlay atas: tombol kembali, judul, keranjang
-                SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: [
-                        InkWell(
-                          onTap: () => Navigator.of(context).maybePop(),
-                          borderRadius: BorderRadius.circular(22),
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.08),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              LucideIcons.arrowLeft,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Inspire Mart',
-                            style: GoogleFonts.lexendDeca(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF0F172A),
-                            ),
-                          ),
-                        ),
-                        InkWell(
-                          onTap:
-                              () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const BelanjaanPage(),
-                                ),
-                              ),
-                          borderRadius: BorderRadius.circular(22),
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.08),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              LucideIcons.shoppingCart,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                        ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white,
+                        Colors.white,
+                        Colors.white.withOpacity(0.0),
+                      ],
+                      stops: [
+                        0.0,
+                        (MediaQuery.of(context).padding.top /
+                                (MediaQuery.of(context).padding.top + 96))
+                            .clamp(0.0, 1.0),
+                        1.0,
                       ],
                     ),
+                  ),
+                  height: MediaQuery.of(context).padding.top + 96,
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    MediaQuery.of(context).padding.top + 8,
+                    16,
+                    8,
+                  ),
+                  child: Row(
+                    children: [
+                      InkWell(
+                        onTap: () => Navigator.of(context).maybePop(),
+                        borderRadius: BorderRadius.circular(22),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            LucideIcons.arrowLeft,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Inspire Mart',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => setState(() => _currentTabIndex = 3),
+                        borderRadius: BorderRadius.circular(22),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            LucideIcons.shoppingCart,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 // Indikator slider tepat di atas search bar
@@ -1016,10 +983,6 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                       (_) => CategoryProductsPage(
                         kategoriId: cat.id,
                         kategoriName: cat.kategori,
-                        getQty: _getQty,
-                        onAdd: _increment,
-                        onIncrement: _increment,
-                        onDecrement: _decrement,
                       ),
                 ),
               );
@@ -1111,10 +1074,6 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                   builder:
                       (_) => ProductDetailPage(
                         product: p,
-                        getQty: _getQty,
-                        onAdd: _increment,
-                        onIncrement: _increment,
-                        onDecrement: _decrement,
                         related: _allProducts.where((e) => e != p).toList(),
                       ),
                 ),
@@ -1157,10 +1116,6 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
                       (_) => CategoryProductsPage(
                         kategoriId: cat.id,
                         kategoriName: cat.kategori,
-                        getQty: _getQty,
-                        onAdd: _increment,
-                        onIncrement: _increment,
-                        onDecrement: _decrement,
                       ),
                 ),
               );
@@ -1234,58 +1189,16 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
             Expanded(
               child: InkWell(
                 onTap: () {
-                  final cart = _cart;
-                  if (cart == null || cart.items.isEmpty) return;
+                  final cartState = ref.read(cartProvider);
+                  if (cartState.cart == null || cartState.cart!.items.isEmpty)
+                    return;
 
-                  final Map<String, Product> unique = {};
-                  for (final item in cart.items) {
-                    final productId = item.productId;
-                    if (productId.isEmpty || unique.containsKey(productId)) {
-                      continue;
-                    }
-
-                    Product? matched;
-                    for (final p in _allProducts) {
-                      if (p.id == productId) {
-                        matched = p;
-                        break;
-                      }
-                    }
-
-                    if (matched != null) {
-                      unique[productId] = matched;
-                      continue;
-                    }
-
-                    final base = item.product;
-                    if (base.id.isEmpty) {
-                      unique[productId] = Product(
-                        id: productId,
-                        name: base.name,
-                        price: base.price,
-                        discountPercent: base.discountPercent,
-                        imageUrl: base.imageUrl,
-                        isStockAvailable: base.isStockAvailable,
-                      );
-                    } else {
-                      unique[productId] = base;
-                    }
-                  }
-
-                  final items = unique.values.toList();
-                  if (items.isEmpty) return;
                   Navigator.of(context)
                       .push(
                         MaterialPageRoute(
                           builder:
                               (_) => CartConfirmPage(
-                                items: items,
-                                getQty: _getQty,
-                                onIncrement: _increment,
-                                onDecrement: _decrement,
-                                cart: _cart,
                                 cartApiService: _cartApiService,
-                                onRefresh: _fetchCart,
                               ),
                         ),
                       )
@@ -1458,12 +1371,6 @@ class _InspireMartScreenState extends State<InspireMartScreen> {
           _openSearchPage();
           return;
         }
-        if (index == 3) {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const BelanjaanPage()));
-          return;
-        }
         setState(() => _currentTabIndex = index);
       },
       borderRadius: BorderRadius.circular(12),
@@ -1526,6 +1433,7 @@ extension on _InspireMartScreenState {
     return InkWell(
       onTap: () {
         setState(() => _orderTabIndex = index);
+        _trackingLoadedOrderTabIndex = index;
         _fetchTrackingCarts(page: 1);
       },
       borderRadius: BorderRadius.circular(8),
@@ -2309,6 +2217,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
   final List<BannerModel> banners;
   final PageController pageController;
   final int pageIndex;
+  final void Function(BannerBrand brand) onBannerTap;
   final VoidCallback onBack;
   final VoidCallback onCart;
   final TextEditingController searchController;
@@ -2318,6 +2227,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.banners,
     required this.pageController,
     required this.pageIndex,
+    required this.onBannerTap,
     required this.onBack,
     required this.onCart,
     required this.searchController,
@@ -2346,141 +2256,174 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
           Positioned.fill(
             child: Opacity(
               opacity: (1.0 - t).clamp(0.0, 1.0),
-              child: PageView.builder(
-                controller: pageController,
-                itemCount: banners.isEmpty ? 1 : banners.length,
-                itemBuilder: (context, index) {
-                  if (banners.isEmpty) {
-                    return Image.asset(
-                      'assets/images/background_simpin_mobile.png',
-                      fit: BoxFit.cover,
-                    );
-                  }
-                  final banner = banners[index];
-                  return Image.network(
-                    banner.image,
-                    fit: BoxFit.cover,
-                    errorBuilder:
-                        (context, error, stackTrace) => Image.asset(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: PageView.builder(
+                    controller: pageController,
+                    itemCount: banners.isEmpty ? 1 : banners.length,
+                    itemBuilder: (context, index) {
+                      if (banners.isEmpty) {
+                        return Image.asset(
                           'assets/images/background_simpin_mobile.png',
                           fit: BoxFit.cover,
+                        );
+                      }
+                      final banner = banners[index];
+                      return GestureDetector(
+                        onTap:
+                            banner.brand == null
+                                ? null
+                                : () => onBannerTap(banner.brand!),
+                        child: Image.network(
+                          banner.image,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (context, error, stackTrace) => Image.asset(
+                                'assets/images/background_simpin_mobile.png',
+                                fit: BoxFit.cover,
+                              ),
                         ),
-                  );
-                },
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
           ),
 
           // Overlay controls (berbeda saat collapsed)
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white,
+                      Colors.white,
+                      Colors.white.withOpacity(0.0),
+                    ],
+                    stops: [
+                      0.0,
+                      (MediaQuery.of(context).padding.top /
+                              (MediaQuery.of(context).padding.top + 96))
+                          .clamp(0.0, 1.0),
+                      1.0,
+                    ],
+                  ),
+                ),
+                height: MediaQuery.of(context).padding.top + 96,
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  MediaQuery.of(context).padding.top + 8,
+                  16,
+                  8,
+                ),
+                child: Row(
+                  children: [
+                    InkWell(
+                      onTap: onBack,
+                      borderRadius: BorderRadius.circular(22),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          LucideIcons.x,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Inspire Mart',
+                        style: GoogleFonts.lexendDeca(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: onCart,
+                      borderRadius: BorderRadius.circular(22),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          LucideIcons.shoppingCart,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (collapsed)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
                     children: [
-                      InkWell(
-                        onTap: onBack,
-                        borderRadius: BorderRadius.circular(22),
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            LucideIcons.x,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          'Inspire Mart',
-                          style: GoogleFonts.lexendDeca(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ),
-                      InkWell(
-                        onTap: onCart,
-                        borderRadius: BorderRadius.circular(22),
                         child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
                           ),
-                          child: const Icon(
-                            LucideIcons.shoppingCart,
-                            color: Color(0xFF0F172A),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.search,
+                                color: Color(0xFF0F172A),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextField(
+                                  controller: searchController,
+                                  readOnly: true,
+                                  onTap: onSearchTap,
+                                  decoration: InputDecoration.collapsed(
+                                    hintText: 'Restock sugar',
+                                    hintStyle: GoogleFonts.lexendDeca(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w400,
+                                      color: AppColors.secondaryTextLight,
+                                    ),
+                                  ),
+                                  style: GoogleFonts.lexendDeca(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w400,
+                                    color: AppColors.primaryTextLight,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ],
                   ),
-
-                  const SizedBox(height: 10),
-
-                  // Search bar: expanded => melayang di bawah; collapsed => di bawah row
-                  if (collapsed)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.search,
-                                  color: Color(0xFF0F172A),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextField(
-                                    controller: searchController,
-                                    readOnly: true,
-                                    onTap: onSearchTap,
-                                    decoration: InputDecoration.collapsed(
-                                      hintText: 'Restock sugar',
-                                      hintStyle: GoogleFonts.lexendDeca(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w400,
-                                        color: AppColors.secondaryTextLight,
-                                      ),
-                                    ),
-                                    style: GoogleFonts.lexendDeca(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w400,
-                                      color: AppColors.primaryTextLight,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    const SizedBox.shrink(),
-                ],
-              ),
-            ),
+                )
+              else
+                const SizedBox.shrink(),
+            ],
           ),
 
           // Expanded indicators & floating search (hanya saat belum collapsed)

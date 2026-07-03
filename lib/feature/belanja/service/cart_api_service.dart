@@ -20,6 +20,9 @@ class CartApiService {
   Future<Options?> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
+    print(
+      '--- GET HEADERS --- Token: ${token != null ? 'available' : 'NOT AVAILABLE'}',
+    );
     return token != null
         ? Options(headers: {'Authorization': 'Bearer $token'})
         : null;
@@ -79,25 +82,52 @@ class CartApiService {
 
   // Get Cart Data
   Future<CartModel?> getCart() async {
+    print('=== START getCart() ===');
     try {
+      print('--- HITTING GET CART ---');
+      print('--- GETTING HEADERS ---');
       final options = await _getHeaders();
+      print('--- HEADERS READY ---');
+
+      final url = '${_dio.options.baseUrl}/api/cart';
+      print('--- REQUEST URL: $url ---');
+
       final response = await _dio.get(
         '/api/cart',
         options: options?.copyWith(validateStatus: (status) => true),
       );
 
+      print('--- RESPONSE RECEIVED ---');
+      print('GET CART RESPONSE STATUS: ${response.statusCode}');
+      print('GET CART RESPONSE HEADERS: ${response.headers}');
+      print('GET CART RESPONSE DATA TYPE: ${response.data.runtimeType}');
+      print('GET CART RESPONSE DATA: ${response.data}');
+
       if (response.statusCode == 200) {
         final data = response.data;
         if (data['status'] == true && data['data'] != null) {
+          print('GET CART SUCCESS: Cart data found');
           return CartModel.fromJson(data['data']);
         }
         lastErrorMessage = _extractMessage(data);
+        print('GET CART FAILURE: ${lastErrorMessage}');
       }
       return null;
     } on DioException catch (e) {
+      print('--- DIO EXCEPTION ---');
+      print('Dio error type: ${e.type}');
+      print('Dio error message: ${e.message}');
+      print('Dio error response: ${e.response}');
       lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
       print('Error fetching cart: ${lastErrorMessage ?? e}');
       return null;
+    } catch (e, stackTrace) {
+      print('--- UNEXPECTED EXCEPTION ---');
+      print('Error: $e');
+      print('Stack trace: $stackTrace');
+      return null;
+    } finally {
+      print('=== END getCart() ===');
     }
   }
 
