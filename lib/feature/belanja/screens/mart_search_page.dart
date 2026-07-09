@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:kkba_mobile/theme.dart';
+import 'package:kkba_mobile/core/utils/formatters.dart';
 import 'package:kkba_mobile/core/widgets/kkba_loading_indicator.dart';
 import '../models/product.dart';
 import '../service/mart_api_service.dart';
-import '../components/product_card.dart';
 import 'product_detail_page.dart';
 import '../presentation/providers/belanja_providers.dart';
 
@@ -30,9 +30,17 @@ class MartSearchPage extends ConsumerStatefulWidget {
 
 class _MartSearchPageState extends ConsumerState<MartSearchPage> {
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   String _query = '';
   bool _loading = false;
+  bool _loadingMore = false;
   List<Product> _serverResults = [];
+  String _activeSearchQuery = '';
+  int _page = 1;
+  int _lastPage = 1;
+  int _totalFound = 0;
+
+  bool get _isServerMode => widget.martApiService != null;
 
   int _getQty(Product product) {
     final cartState = ref.watch(cartProvider);
@@ -68,27 +76,45 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
 
   List<Product> get _filtered {
     if (_query.trim().isEmpty) return [];
-    if (widget.martApiService != null) return _serverResults;
+    if (_isServerMode) return _serverResults;
     final q = _query.toLowerCase();
     return widget.products
         .where((p) => p.name.toLowerCase().contains(q))
         .toList();
   }
 
+  List<Product> get _displayedProducts =>
+      _query.trim().isEmpty ? widget.products : _filtered;
+
   void _doSearch(String q) {
     setState(() => _query = q);
     widget.onSearched(q);
-    if (widget.martApiService != null) {
+    if (_isServerMode) {
       _searchServer(q);
     }
   }
 
   Future<void> _searchServer(String q) async {
     if (q.trim().isEmpty) {
-      setState(() => _serverResults = []);
+      setState(() {
+        _serverResults = [];
+        _activeSearchQuery = '';
+        _page = 1;
+        _lastPage = 1;
+        _totalFound = 0;
+        _loading = false;
+        _loadingMore = false;
+      });
       return;
     }
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadingMore = false;
+      _activeSearchQuery = q.trim();
+      _page = 1;
+      _lastPage = 1;
+      _totalFound = 0;
+    });
     final res = await widget.martApiService!.searchProducts(
       keywords: q.trim(),
       page: 1,
@@ -97,13 +123,56 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
     if (!mounted) return;
     setState(() {
       _serverResults = res.items;
+      _page = res.currentPage;
+      _lastPage = res.lastPage;
+      _totalFound = res.total;
       _loading = false;
     });
+  }
+
+  Future<void> _loadMoreSearchResults() async {
+    if (!_isServerMode) return;
+    if (_loading || _loadingMore) return;
+    if (_activeSearchQuery.isEmpty) return;
+    if (_page >= _lastPage) return;
+
+    setState(() => _loadingMore = true);
+    final nextPage = _page + 1;
+    final res = await widget.martApiService!.searchProducts(
+      keywords: _activeSearchQuery,
+      page: nextPage,
+      perPage: 50,
+    );
+    if (!mounted) return;
+    setState(() {
+      _serverResults = [..._serverResults, ...res.items];
+      _page = res.currentPage;
+      _lastPage = res.lastPage;
+      _totalFound = res.total;
+      _loadingMore = false;
+    });
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 240) {
+      _loadMoreSearchResults();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _scrollController
+      ..removeListener(_handleScroll)
+      ..dispose();
     super.dispose();
   }
 
@@ -145,7 +214,7 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.08),
+                                color: Colors.black.withValues(alpha: 0.08),
                                 blurRadius: 8,
                               ),
                             ],
@@ -261,7 +330,7 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
                                       LucideIcons.clock,
                                       size: 14,
                                       color: AppColors.primaryTextLight
-                                          .withOpacity(0.9),
+                                          .withValues(alpha: 0.9),
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
@@ -285,13 +354,14 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
 
             Expanded(
               child: ListView(
+                controller: _scrollController,
                 children: [
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
                       _query.trim().isEmpty
                           ? 'Hasil pencarian'
-                          : 'Hasil pencarian “${_query}”',
+                          : 'Hasil pencarian “$_query”',
                       style: GoogleFonts.lexendDeca(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -306,44 +376,97 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
                       child: Center(child: KkbaLoadingIndicator()),
                     )
                   else
-                    SizedBox(
-                      height: 240,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        scrollDirection: Axis.horizontal,
-                        itemCount:
-                            (_query.trim().isEmpty
-                                ? widget.products.length
-                                : _filtered.length),
-                        separatorBuilder: (_, __) => const SizedBox(width: 12),
-                        itemBuilder: (context, index) {
-                          final list =
-                              _query.trim().isEmpty
-                                  ? widget.products
-                                  : _filtered;
-                          final p = list[index];
-                          return ProductCard(
-                            product: p,
-                            quantity: _getQty(p),
-                            onAdd: () => _addProduct(p),
-                            onIncrement: () => _incrementProduct(p),
-                            onDecrement: () => _decrementProduct(p),
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => ProductDetailPage(
-                                        product: p,
-                                        related:
-                                            (list
-                                                .where((e) => e != p)
-                                                .toList()),
-                                      ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_query.trim().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Text(
+                                '${_isServerMode ? _totalFound : _displayedProducts.length} Produk ditemukan',
+                                style: GoogleFonts.lexendDeca(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primaryTextLight,
                                 ),
-                              );
-                            },
-                          );
-                        },
+                              ),
+                            ),
+                          if (_displayedProducts.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 32),
+                              child: Center(
+                                child: Text(
+                                  _query.trim().isEmpty
+                                      ? 'Silakan cari produk terlebih dahulu'
+                                      : 'Produk tidak ditemukan',
+                                  style: GoogleFonts.lexendDeca(
+                                    color: AppColors.secondaryTextLight,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    mainAxisSpacing: 12,
+                                    crossAxisSpacing: 12,
+                                    childAspectRatio: 0.46,
+                                  ),
+                              itemCount: _displayedProducts.length,
+                              itemBuilder: (context, index) {
+                                final p = _displayedProducts[index];
+                                return InkWell(
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder:
+                                            (_) => ProductDetailPage(
+                                              product: p,
+                                              related:
+                                                  _displayedProducts
+                                                      .where((e) => e != p)
+                                                      .toList(),
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                  child: _GridProductCard(
+                                    product: p,
+                                    quantity: _getQty(p),
+                                    onAdd: () => _addProduct(p),
+                                    onIncrement: () => _incrementProduct(p),
+                                    onDecrement: () => _decrementProduct(p),
+                                  ),
+                                );
+                              },
+                            ),
+                          if (_loadingMore)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 16),
+                              child: Center(
+                                child: KkbaLoadingIndicator(size: 44),
+                              ),
+                            )
+                          else if (_isServerMode &&
+                              _activeSearchQuery.isNotEmpty &&
+                              _page < _lastPage)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: Center(
+                                child: Text(
+                                  'Scroll untuk memuat produk berikutnya',
+                                  style: GoogleFonts.lexendDeca(
+                                    color: AppColors.secondaryTextLight,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
 
@@ -360,6 +483,201 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
           if (i == 1) return; // stay on search
           Navigator.of(context).pop(i);
         },
+      ),
+    );
+  }
+}
+
+class _GridProductCard extends StatelessWidget {
+  final Product product;
+  final int quantity;
+  final VoidCallback onAdd;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+
+  const _GridProductCard({
+    required this.product,
+    required this.quantity,
+    required this.onAdd,
+    required this.onIncrement,
+    required this.onDecrement,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasDiscount = product.discountPercent > 0;
+    final int oldPrice = originalPrice(product.price, product.discountPercent);
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 100,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.white,
+                      child: Center(
+                        child:
+                            product.imageUrl != null &&
+                                    product.imageUrl!.isNotEmpty
+                                ? Image.network(
+                                  product.imageUrl!,
+                                  fit: BoxFit.contain,
+                                )
+                                : const Center(
+                                  child: Icon(
+                                    LucideIcons.image,
+                                    color: Color(0xFF9CA3AF),
+                                  ),
+                                ),
+                      ),
+                    ),
+                  ),
+                  if (hasDiscount)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          '${product.discountPercent}%',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              formatRp(product.price),
+              maxLines: 1,
+              style: GoogleFonts.lexendDeca(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primaryTextLight,
+              ),
+            ),
+            if (hasDiscount)
+              Padding(
+                padding: const EdgeInsets.only(top: 2.0),
+                child: Text(
+                  formatRp(oldPrice),
+                  style: GoogleFonts.lexendDeca(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF9CA3AF),
+                    decoration: TextDecoration.lineThrough,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 6),
+            Text(
+              product.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.lexendDeca(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w500,
+                color: AppColors.primaryTextLight,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (quantity <= 0)
+              OutlinedButton(
+                onPressed: onAdd,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF22C55E)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  minimumSize: const Size.fromHeight(40),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Tambah',
+                    maxLines: 1,
+                    style: GoogleFonts.lexendDeca(
+                      color: const Color(0xFF22C55E),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    InkWell(
+                      onTap: onDecrement,
+                      borderRadius: BorderRadius.circular(20),
+                      child: const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: Icon(Icons.remove, color: Color(0xFF22C55E)),
+                      ),
+                    ),
+                    Text(
+                      '$quantity',
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: onIncrement,
+                      borderRadius: BorderRadius.circular(20),
+                      child: const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: Icon(Icons.add, color: Color(0xFF22C55E)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -428,7 +746,7 @@ class _BottomNav extends StatelessWidget {
           border: Border(top: BorderSide(color: Colors.grey.shade200)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 8,
               offset: const Offset(0, -2),
             ),
