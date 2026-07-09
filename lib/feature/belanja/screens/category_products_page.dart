@@ -16,6 +16,7 @@ import 'product_detail_page.dart';
 class CategoryProductsPage extends ConsumerStatefulWidget {
   final int? kategoriId;
   final String? kategoriName;
+  final String? kategoriImageUrl;
   final int? brandId;
   final String? brandName;
 
@@ -23,8 +24,10 @@ class CategoryProductsPage extends ConsumerStatefulWidget {
     super.key,
     required int kategoriId,
     required String kategoriName,
+    String? kategoriImageUrl,
   }) : kategoriId = kategoriId,
        kategoriName = kategoriName,
+       kategoriImageUrl = kategoriImageUrl,
        brandId = null,
        brandName = null;
 
@@ -35,7 +38,8 @@ class CategoryProductsPage extends ConsumerStatefulWidget {
   }) : brandId = brandId,
        brandName = brandName,
        kategoriId = null,
-       kategoriName = null;
+       kategoriName = null,
+       kategoriImageUrl = null;
 
   @override
   ConsumerState<CategoryProductsPage> createState() =>
@@ -67,6 +71,8 @@ class _CategoryProductsPageState extends ConsumerState<CategoryProductsPage> {
   String get _cartTotal => formatRp(
     ref.watch(cartProvider).cart?.summary.total ?? 0,
   ).replaceAll('Rp', '');
+  bool get _hasCategoryImage =>
+      (widget.kategoriImageUrl ?? '').trim().isNotEmpty;
 
   @override
   void initState() {
@@ -339,14 +345,38 @@ class _CategoryProductsPageState extends ConsumerState<CategoryProductsPage> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Container(
-                            width: 44,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.circular(6),
+                          if (_hasCategoryImage)
+                            Container(
+                              width: 44,
+                              height: 44,
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  widget.kategoriImageUrl!,
+                                  fit: BoxFit.contain,
+                                  errorBuilder:
+                                      (context, error, stackTrace) =>
+                                          const Icon(
+                                            Icons.image_not_supported,
+                                            color: Color(0xFF9CA3AF),
+                                          ),
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              width: 44,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
                             ),
-                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Column(

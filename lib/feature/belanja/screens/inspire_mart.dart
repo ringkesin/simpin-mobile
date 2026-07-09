@@ -589,6 +589,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
                     (_) => CategoryProductsPage(
                       kategoriId: cat.id,
                       kategoriName: cat.kategori,
+                      kategoriImageUrl: cat.gambarKategoriUrl,
                     ),
               ),
             );
@@ -1018,6 +1019,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
                       (_) => CategoryProductsPage(
                         kategoriId: cat.id,
                         kategoriName: cat.kategori,
+                        kategoriImageUrl: cat.gambarKategoriUrl,
                       ),
                 ),
               );
@@ -1151,6 +1153,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
                       (_) => CategoryProductsPage(
                         kategoriId: cat.id,
                         kategoriName: cat.kategori,
+                        kategoriImageUrl: cat.gambarKategoriUrl,
                       ),
                 ),
               );
