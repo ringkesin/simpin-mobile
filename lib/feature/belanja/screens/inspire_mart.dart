@@ -645,6 +645,10 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
       pinned: true,
       delegate: _MartHeaderDelegate(
         topPadding: MediaQuery.of(context).padding.top,
+        expandedExtent:
+            MediaQuery.of(context).padding.top +
+            60 +
+            (MediaQuery.of(context).size.width * 3 / 4),
         banners: _banners,
         pageController: _headerPageController,
         pageIndex: _headerPageIndex,
@@ -680,14 +684,21 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
   }
 
   Widget _buildHeader() {
-    final headerHeight = MediaQuery.of(context).size.width * 3 / 4;
+    final topPad = MediaQuery.of(context).padding.top;
+    const headerTextBlockHeight = 60.0;
+    final bannerHeight = MediaQuery.of(context).size.width * 3 / 4;
+    final headerHeight = topPad + headerTextBlockHeight + bannerHeight;
     return SizedBox(
       height: headerHeight,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           // Slider gambar penuh
-          Positioned.fill(
+          Positioned(
+            left: 0,
+            right: 0,
+            top: topPad + headerTextBlockHeight,
+            bottom: 0,
             child: Stack(
               children: [
                 Positioned.fill(
@@ -743,28 +754,11 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
                 ),
                 // Overlay atas: tombol kembali, judul, keranjang
                 Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white,
-                        Colors.white,
-                        Colors.white.withOpacity(0.0),
-                      ],
-                      stops: [
-                        0.0,
-                        (MediaQuery.of(context).padding.top /
-                                (MediaQuery.of(context).padding.top + 96))
-                            .clamp(0.0, 1.0),
-                        1.0,
-                      ],
-                    ),
-                  ),
-                  height: MediaQuery.of(context).padding.top + 96,
+                  color: Colors.white,
+                  height: topPad + headerTextBlockHeight,
                   padding: EdgeInsets.fromLTRB(
                     16,
-                    MediaQuery.of(context).padding.top + 8,
+                    topPad + 8,
                     16,
                     8,
                   ),
@@ -781,8 +775,9 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.08),
-                                blurRadius: 8,
+                                color: Colors.black.withValues(alpha: 0.14),
+                                blurRadius: 14,
+                                offset: const Offset(0, 6),
                               ),
                             ],
                           ),
@@ -814,8 +809,9 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.08),
-                                blurRadius: 8,
+                                color: Colors.black.withValues(alpha: 0.14),
+                                blurRadius: 14,
+                                offset: const Offset(0, 6),
                               ),
                             ],
                           ),
@@ -841,11 +837,11 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.12),
+                              color: Colors.black.withValues(alpha: 0.12),
                               blurRadius: 8,
                             ),
                           ],
@@ -2254,6 +2250,7 @@ class _CountdownTimerState extends State<_CountdownTimer> {
 
 class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
   final double topPadding;
+  final double expandedExtent;
   final List<BannerModel> banners;
   final PageController pageController;
   final int pageIndex;
@@ -2265,6 +2262,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   _MartHeaderDelegate({
     required this.topPadding,
+    required this.expandedExtent,
     required this.banners,
     required this.pageController,
     required this.pageIndex,
@@ -2279,7 +2277,7 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get minExtent => topPadding + 96 + 10 + 56;
 
   @override
-  double get maxExtent => 340;
+  double get maxExtent => expandedExtent;
 
   @override
   Widget build(
@@ -2300,35 +2298,38 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
               opacity: (1.0 - t).clamp(0.0, 1.0),
               child: Align(
                 alignment: Alignment.topCenter,
-                child: AspectRatio(
-                  aspectRatio: 4 / 3,
-                  child: PageView.builder(
-                    controller: pageController,
-                    itemCount: banners.isEmpty ? 1 : banners.length,
-                    itemBuilder: (context, index) {
-                      if (banners.isEmpty) {
-                        return Image.asset(
-                          'assets/images/background_simpin_mobile.png',
-                          fit: BoxFit.cover,
+                child: Padding(
+                  padding: EdgeInsets.only(top: topPad + 60),
+                  child: AspectRatio(
+                    aspectRatio: 4 / 3,
+                    child: PageView.builder(
+                      controller: pageController,
+                      itemCount: banners.isEmpty ? 1 : banners.length,
+                      itemBuilder: (context, index) {
+                        if (banners.isEmpty) {
+                          return Image.asset(
+                            'assets/images/background_simpin_mobile.png',
+                            fit: BoxFit.cover,
+                          );
+                        }
+                        final banner = banners[index];
+                        return GestureDetector(
+                          onTap:
+                              banner.brand == null
+                                  ? null
+                                  : () => onBannerTap(banner.brand!),
+                          child: Image.network(
+                            banner.image,
+                            fit: BoxFit.cover,
+                            errorBuilder:
+                                (context, error, stackTrace) => Image.asset(
+                                  'assets/images/background_simpin_mobile.png',
+                                  fit: BoxFit.cover,
+                                ),
+                          ),
                         );
-                      }
-                      final banner = banners[index];
-                      return GestureDetector(
-                        onTap:
-                            banner.brand == null
-                                ? null
-                                : () => onBannerTap(banner.brand!),
-                        child: Image.network(
-                          banner.image,
-                          fit: BoxFit.cover,
-                          errorBuilder:
-                              (context, error, stackTrace) => Image.asset(
-                                'assets/images/background_simpin_mobile.png',
-                                fit: BoxFit.cover,
-                              ),
-                        ),
-                      );
-                    },
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -2340,19 +2341,8 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white,
-                      Colors.white,
-                      Colors.white.withOpacity(0.0),
-                    ],
-                    stops: [0.0, (topPad / (topPad + 96)).clamp(0.0, 1.0), 1.0],
-                  ),
-                ),
-                height: topPad + 96,
+                color: Colors.white,
+                height: topPad + 60,
                 padding: EdgeInsets.fromLTRB(16, topPad + 8, 16, 8),
                 child: Row(
                   children: [
@@ -2362,9 +2352,16 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                       child: Container(
                         width: 44,
                         height: 44,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.14),
+                              blurRadius: 14,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
                         child: const Icon(
                           LucideIcons.x,
@@ -2389,9 +2386,16 @@ class _MartHeaderDelegate extends SliverPersistentHeaderDelegate {
                       child: Container(
                         width: 44,
                         height: 44,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.14),
+                              blurRadius: 14,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
                         child: const Icon(
                           LucideIcons.shoppingCart,
