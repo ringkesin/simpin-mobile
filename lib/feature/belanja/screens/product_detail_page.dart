@@ -7,6 +7,8 @@ import 'package:kkba_mobile/core/utils/formatters.dart';
 import '../models/product.dart';
 import '../components/product_card.dart';
 import '../presentation/providers/belanja_providers.dart';
+import '../service/cart_api_service.dart';
+import 'cart_confirm_page.dart';
 
 class ProductDetailPage extends ConsumerStatefulWidget {
   final Product product;
@@ -24,6 +26,21 @@ class ProductDetailPage extends ConsumerStatefulWidget {
 
 class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   bool _descExpanded = false;
+  final CartApiService _cartApiService = CartApiService();
+
+  int get _cartCount =>
+      ref
+          .watch(cartProvider)
+          .cart
+          ?.items
+          .fold<int>(0, (sum, item) => sum + item.quantity) ??
+      0;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(cartProvider.notifier).fetchCart());
+  }
 
   int _getQty(Product product) {
     final cartState = ref.watch(cartProvider);
@@ -36,25 +53,52 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
     return 0;
   }
 
-  void _addProduct(Product product) {
-    ref.read(cartProvider.notifier).addItem(productId: product.id, quantity: 1);
+  Future<void> _addProduct(Product product) async {
+    await ref
+        .read(cartProvider.notifier)
+        .addItem(productId: product.id, quantity: 1);
   }
 
-  void _incrementProduct(Product product) {
-    ref.read(cartProvider.notifier).addItem(productId: product.id, quantity: 1);
+  Future<void> _incrementProduct(Product product) async {
+    final currentQty = _getQty(product);
+    if (currentQty <= 0) {
+      await _addProduct(product);
+      return;
+    }
+
+    await ref
+        .read(cartProvider.notifier)
+        .updateQuantity(productId: product.id, quantity: currentQty + 1);
   }
 
-  void _decrementProduct(Product product) {
+  Future<void> _decrementProduct(Product product) async {
     final currentQty = _getQty(product);
     if (currentQty <= 0) return;
 
     if (currentQty == 1) {
-      ref.read(cartProvider.notifier).removeItem(productId: product.id);
+      await ref.read(cartProvider.notifier).removeItem(productId: product.id);
     } else {
-      ref
+      await ref
           .read(cartProvider.notifier)
           .updateQuantity(productId: product.id, quantity: currentQty - 1);
     }
+  }
+
+  void _openCart() {
+    final cartState = ref.read(cartProvider);
+    final cartEntity = cartState.cart;
+    if (cartEntity == null || cartEntity.items.isEmpty) return;
+
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => CartConfirmPage(cartApiService: _cartApiService),
+          ),
+        )
+        .then((_) {
+          if (!mounted) return;
+          ref.read(cartProvider.notifier).fetchCart();
+        });
   }
 
   @override
@@ -63,6 +107,20 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
     final qty = _getQty(p);
     final bool hasDiscount = p.discountPercent > 0;
     final int oldPrice = originalPrice(p.price, p.discountPercent);
+    final bool hasCartItems = _cartCount > 0;
+
+    ref.listen<CartState>(cartProvider, (previous, next) {
+      final err = next.error;
+      if (err != null && err.isNotEmpty && err != previous?.error) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(err)));
+          ref.read(cartProvider.notifier).clearError();
+        });
+      }
+    });
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -85,7 +143,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
+                            color: Colors.black.withValues(alpha: 0.08),
                             blurRadius: 8,
                           ),
                         ],
@@ -287,7 +345,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
             border: Border(top: BorderSide(color: Colors.grey.shade200)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, -2),
               ),
@@ -296,50 +354,138 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
           child: Row(
             children: [
               Expanded(
-                child: Container(
-                  height: 44,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: AppColors.primaryLight),
-                    color: Colors.white,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'Keranjangmu (${qty})',
-                    style: GoogleFonts.lexendDeca(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryLight,
+                child: InkWell(
+                  onTap: hasCartItems ? _openCart : null,
+                  borderRadius: BorderRadius.circular(100),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(100),
+                      color:
+                          hasCartItems
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFFF0FDF4),
+                      border: Border.all(
+                        color:
+                            hasCartItems
+                                ? const Color(0xFF22C55E)
+                                : const Color(0xFFBBF7D0),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color:
+                                hasCartItems
+                                    ? Colors.white
+                                    : const Color(0xFFDCFCE7),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            LucideIcons.shoppingCart,
+                            size: 16,
+                            color:
+                                hasCartItems
+                                    ? const Color(0xFF22C55E)
+                                    : const Color(0xFF16A34A),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            hasCartItems
+                                ? 'Keranjangmu ($_cartCount)'
+                                : 'Keranjangmu',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.lexendDeca(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color:
+                                  hasCartItems
+                                      ? Colors.white
+                                      : const Color(0xFF16A34A),
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward,
+                          size: 18,
+                          color:
+                              hasCartItems
+                                  ? Colors.white
+                                  : const Color(0xFF16A34A),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: InkWell(
-                  onTap: () {
-                    if (qty <= 0) {
-                      _addProduct(p);
-                    } else {
-                      _incrementProduct(p);
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(100),
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'Tambah',
-                      style: GoogleFonts.lexendDeca(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: const Color(0xFFDCFCE7)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: qty > 0 ? () => _decrementProduct(p) : null,
+                          borderRadius: BorderRadius.circular(100),
+                          child: Icon(
+                            Icons.remove,
+                            color:
+                                qty > 0
+                                    ? const Color(0xFF22C55E)
+                                    : const Color(0xFFBBF7D0),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 28),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '$qty',
+                          style: GoogleFonts.lexendDeca(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primaryTextLight,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            if (qty <= 0) {
+                              _addProduct(p);
+                            } else {
+                              _incrementProduct(p);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(100),
+                          child: const Icon(
+                            Icons.add,
+                            color: Color(0xFF22C55E),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
