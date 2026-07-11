@@ -12,6 +12,7 @@ import '../service/cart_api_service.dart';
 import '../models/section_model.dart';
 import '../models/product.dart';
 import '../models/cart_model.dart';
+import '../models/tongji_model.dart';
 import '../models/tracking_cart_model.dart';
 import 'dart:async';
 import 'product_detail_page.dart';
@@ -21,10 +22,12 @@ import 'mart_search_page.dart';
 import 'category_products_page.dart';
 import 'payment_webview_page.dart';
 import 'tracking_cart_detail_page.dart';
+import 'tongji_page.dart';
 import '../presentation/providers/belanja_providers.dart';
 
 class InspireMartScreen extends ConsumerStatefulWidget {
-  final int? initialTabIndex; // 0: Explor, 1: Search, 2: Kategori, 3: Belanjaan
+  final int?
+  initialTabIndex; // 0: Explor, 1: Search, 2: Kategori, 3: Belanjaan, 4: Tongji
   final int? initialOrderTabIndex; // Tracking sub-tab
   const InspireMartScreen({
     super.key,
@@ -38,7 +41,8 @@ class InspireMartScreen extends ConsumerStatefulWidget {
 
 class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
   final TextEditingController _searchController = TextEditingController();
-  int _currentTabIndex = 0; // 0: Explor, 1: Pencarian, 2: Kategori, 3: Belanja
+  int _currentTabIndex =
+      0; // 0: Explor, 1: Pencarian, 2: Kategori, 3: Belanja, 4: Tongji
   final PageController _headerPageController = PageController();
   int _headerPageIndex = 0;
   // Riwayat pencarian sederhana (in-memory)
@@ -471,6 +475,9 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
         ),
       );
     }
+    if (_currentTabIndex == 4) {
+      return TongjiPage(cartApiService: _cartApiService);
+    }
     // Explor tab (default)
     return CustomScrollView(
       slivers: [
@@ -757,12 +764,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
                 Container(
                   color: Colors.white,
                   height: topPad + headerTextBlockHeight,
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    topPad + 8,
-                    16,
-                    8,
-                  ),
+                  padding: EdgeInsets.fromLTRB(16, topPad + 8, 16, 8),
                   child: Row(
                     children: [
                       InkWell(
@@ -1322,7 +1324,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
     final bool isSmallHeight = media.size.height < 700;
     final double navHeight = isSmallHeight ? 54.0 : 62.0;
     final double cartHeight = isSmallHeight ? 50.0 : 56.0;
-    final bool hasCartItems = _cartCount > 0;
+    final bool hasCartItems = _cartCount > 0 && _currentTabIndex != 4;
 
     return AnimatedPadding(
       duration: const Duration(milliseconds: 150),
@@ -1374,6 +1376,11 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
                       icon: LucideIcons.shoppingBag,
                       label: 'Belanjaan',
                       index: 3,
+                    ),
+                    _buildMartNavItem(
+                      icon: LucideIcons.wallet,
+                      label: 'Tongji',
+                      index: 4,
                     ),
                   ],
                 ),
@@ -1886,7 +1893,7 @@ extension on _InspireMartScreenState {
                 ],
               ),
               const SizedBox(height: 12),
-              FutureBuilder<Map<String, dynamic>?>(
+              FutureBuilder<TongjiBalanceModel?>(
                 future: _cartApiService.getTongjiBalance(),
                 builder: (context, snapshot) {
                   final bal = snapshot.data;
@@ -1915,7 +1922,7 @@ extension on _InspireMartScreenState {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Limit',
+                                  'Sisa saldo',
                                   style: GoogleFonts.lexendDeca(
                                     color: AppColors.secondaryTextLight,
                                   ),
@@ -1924,7 +1931,7 @@ extension on _InspireMartScreenState {
                             ),
                           ),
                           Text(
-                            formatRp(((bal?['limit_amount']) ?? 0) as int),
+                            formatRp(bal?.remainingAmount ?? 0),
                             style: GoogleFonts.lexendDeca(
                               fontWeight: FontWeight.w800,
                               color: AppColors.primaryTextLight,

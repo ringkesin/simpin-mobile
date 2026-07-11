@@ -287,8 +287,10 @@ class BelanjaRemoteDataSource {
       if (response.statusCode == 200 && response.data is Map) {
         final body = response.data as Map<String, dynamic>;
         final data = (body['data'] as Map?)?.cast<String, dynamic>();
-        if (data != null && data['limit'] != null) {
-          return int.tryParse(data['limit'].toString()) ?? 0;
+        if (data != null) {
+          final rawValue =
+              data['remaining_amount'] ?? data['limit_amount'] ?? data['limit'];
+          return int.tryParse(rawValue?.toString() ?? '') ?? 0;
         }
       }
       return 0;

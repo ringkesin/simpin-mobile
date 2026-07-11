@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cart_model.dart';
 import '../models/tracking_cart_model.dart';
+import '../models/tongji_model.dart';
 import '../models/voucher_model.dart';
 import '../models/delivery_location_model.dart';
 
@@ -593,8 +594,9 @@ class CartApiService {
     }
   }
 
-  Future<Map<String, dynamic>?> getTongjiBalance() async {
+  Future<TongjiBalanceModel?> getTongjiBalance() async {
     try {
+      lastErrorMessage = null;
       final options = await _getHeaders();
       final response = await _dio.get(
         '/api/tongji/balance',
@@ -604,7 +606,9 @@ class CartApiService {
         final Map<String, dynamic> body = response.data as Map<String, dynamic>;
         final Map<String, dynamic>? data =
             (body['data'] as Map?)?.cast<String, dynamic>();
-        return data;
+        if (data != null) {
+          return TongjiBalanceModel.fromJson(data);
+        }
       }
       lastErrorMessage =
           'Gagal mengambil saldo Tongji (${response.statusCode})';
@@ -612,6 +616,44 @@ class CartApiService {
     } on DioException catch (e) {
       lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
       return null;
+    }
+  }
+
+  Future<PagedTongjiTransactions> getTongjiTransactions({
+    int page = 1,
+    int perPage = 10,
+  }) async {
+    try {
+      lastErrorMessage = null;
+      final options = await _getHeaders();
+      final response = await _dio.get(
+        '/api/tongji/transactions',
+        queryParameters: {'page': page, 'per_page': perPage},
+        options: options?.copyWith(validateStatus: (s) => true),
+      );
+      if (response.statusCode == 200 && response.data is Map) {
+        return PagedTongjiTransactions.fromResponse(
+          response.data as Map<String, dynamic>,
+        );
+      }
+      lastErrorMessage =
+          'Gagal mengambil transaksi Tongji (${response.statusCode})';
+      return PagedTongjiTransactions(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 1,
+      );
+    } on DioException catch (e) {
+      lastErrorMessage = _extractMessage(e.response?.data) ?? e.message;
+      return PagedTongjiTransactions(
+        items: const [],
+        currentPage: page,
+        perPage: perPage,
+        total: 0,
+        lastPage: 1,
+      );
     }
   }
 
