@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:kkba_mobile/core/utils/formatters.dart';
@@ -7,6 +8,7 @@ import 'package:kkba_mobile/theme.dart';
 
 import '../models/tongji_model.dart';
 import '../service/cart_api_service.dart';
+import 'tongji_transaction_detail_page.dart';
 
 class TongjiPage extends StatefulWidget {
   final CartApiService cartApiService;
@@ -115,6 +117,42 @@ class _TongjiPageState extends State<TongjiPage> {
     return transaction.isDebit ? '-$baseAmount' : '+$baseAmount';
   }
 
+  void _handleTransactionTap(TongjiTransactionModel transaction) {
+    final detailId = (transaction.transaksiPenjualanId ?? '').trim();
+    final title =
+        transaction.noTransaksiPenjualan?.isNotEmpty == true
+            ? transaction.noTransaksiPenjualan!
+            : transaction.id;
+
+    HapticFeedback.lightImpact();
+
+    if (detailId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Detail transaksi untuk $title belum tersedia')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          duration: const Duration(milliseconds: 900),
+          content: Text('Membuka detail transaksi $title'),
+        ),
+      );
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) => TongjiTransactionDetailPage(
+              transaksiPenjualanId: detailId,
+              title: title,
+            ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -220,7 +258,7 @@ class _TongjiPageState extends State<TongjiPage> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
@@ -349,96 +387,121 @@ class _TongjiPageState extends State<TongjiPage> {
         transaction.isDebit ? const Color(0xFFFEE2E2) : const Color(0xFFDCFCE7);
     final badgeTextColor =
         transaction.isDebit ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
+    final detailId = (transaction.transaksiPenjualanId ?? '').trim();
+    final bool canOpenDetail = detailId.isNotEmpty;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _handleTransactionTap(transaction),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFD6DEE8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        splashColor: AppColors.primaryLight.withValues(alpha: 0.12),
+        highlightColor: AppColors.primaryLight.withValues(alpha: 0.06),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFD6DEE8)),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  transaction.noTransaksiPenjualan?.isNotEmpty == true
-                      ? transaction.noTransaksiPenjualan!
-                      : transaction.id,
-                  style: GoogleFonts.lexendDeca(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primaryTextLight,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      transaction.noTransaksiPenjualan?.isNotEmpty == true
+                          ? transaction.noTransaksiPenjualan!
+                          : transaction.id,
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primaryTextLight,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  transaction.isDebit ? 'DEBIT' : 'KREDIT',
-                  style: GoogleFonts.lexendDeca(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: badgeTextColor,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeColor,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      transaction.isDebit ? 'DEBIT' : 'KREDIT',
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: badgeTextColor,
+                      ),
+                    ),
                   ),
-                ),
+                  if (canOpenDetail) ...[
+                    const SizedBox(width: 10),
+                    Icon(
+                      Icons.chevron_right,
+                      color: AppColors.secondaryTextLight,
+                    ),
+                  ] else ...[
+                    const SizedBox(width: 10),
+                    Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: AppColors.secondaryTextLight,
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _formatTransactionDate(transaction.createdAt),
-            style: GoogleFonts.lexendDeca(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: AppColors.secondaryTextLight,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            transaction.description,
-            style: GoogleFonts.lexendDeca(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primaryTextLight,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  transaction.periodeNama,
-                  style: GoogleFonts.lexendDeca(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.secondaryTextLight,
-                  ),
-                ),
-              ),
+              const SizedBox(height: 4),
               Text(
-                _formatSignedAmount(transaction),
+                _formatTransactionDate(transaction.createdAt),
                 style: GoogleFonts.lexendDeca(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: badgeTextColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.secondaryTextLight,
                 ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                transaction.description,
+                style: GoogleFonts.lexendDeca(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryTextLight,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      transaction.periodeNama,
+                      style: GoogleFonts.lexendDeca(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.secondaryTextLight,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    _formatSignedAmount(transaction),
+                    style: GoogleFonts.lexendDeca(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: badgeTextColor,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

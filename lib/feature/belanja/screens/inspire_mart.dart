@@ -20,6 +20,7 @@ import 'cart_confirm_page.dart';
 import '../components/product_card.dart';
 import 'mart_search_page.dart';
 import 'category_products_page.dart';
+import 'section_products_page.dart';
 import 'payment_webview_page.dart';
 import 'tracking_cart_detail_page.dart';
 import 'tongji_page.dart';
@@ -500,13 +501,42 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
           SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
               final section = _sections[index];
+              final bool isProductSection = section.displayType == 'produk';
+              final products =
+                  isProductSection
+                      ? section.items
+                          .where((i) => i.product != null)
+                          .map((i) => i.product!)
+                          .toList()
+                      : const <Product>[];
+              final bool showSeeAll = isProductSection && products.length > 6;
+              final displayedProducts =
+                  showSeeAll ? products.take(6).toList() : products;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSectionTitle(section.title, showSeeAll: true),
+                  _buildSectionTitle(
+                    section.title,
+                    showSeeAll: showSeeAll,
+                    onSeeAll:
+                        showSeeAll
+                            ? () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => SectionProductsPage(
+                                        title: section.title,
+                                        products: products,
+                                        allProducts: _allProducts,
+                                      ),
+                                ),
+                              );
+                            }
+                            : null,
+                  ),
                   const SizedBox(height: 8),
                   if (section.displayType == 'produk')
-                    _buildSectionProducts(section.items)
+                    _buildSectionProducts(displayedProducts)
                   else if (section.displayType == 'kategori')
                     _buildSectionCategories(section.items)
                   else
@@ -522,14 +552,8 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
     );
   }
 
-  Widget _buildSectionProducts(List<SectionItemModel> items) {
-    if (items.isEmpty) return const SizedBox.shrink();
-
-    // Map SectionItemModel to Product for compatibility
-    // Note: SectionItemModel should contain Product data
-    final products =
-        items.where((i) => i.product != null).map((i) => i.product!).toList();
-
+  Widget _buildSectionProducts(List<Product> products) {
+    if (products.isEmpty) return const SizedBox.shrink();
     return SizedBox(
       height: 250, // Height for product cards
       child: ListView.separated(
@@ -1049,7 +1073,11 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title, {bool showSeeAll = true}) {
+  Widget _buildSectionTitle(
+    String title, {
+    bool showSeeAll = true,
+    VoidCallback? onSeeAll,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -1077,7 +1105,7 @@ class _InspireMartScreenState extends ConsumerState<InspireMartScreen> {
           ),
           if (showSeeAll)
             TextButton(
-              onPressed: () {},
+              onPressed: onSeeAll,
               child: Text(
                 'Lihat Semua',
                 style: GoogleFonts.lexendDeca(

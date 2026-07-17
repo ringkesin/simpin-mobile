@@ -7,6 +7,8 @@ import 'package:kkba_mobile/core/utils/formatters.dart';
 import 'package:kkba_mobile/core/widgets/kkba_loading_indicator.dart';
 import '../models/product.dart';
 import '../service/mart_api_service.dart';
+import '../service/cart_api_service.dart';
+import 'cart_confirm_page.dart';
 import 'product_detail_page.dart';
 import '../presentation/providers/belanja_providers.dart';
 
@@ -31,6 +33,7 @@ class MartSearchPage extends ConsumerStatefulWidget {
 class _MartSearchPageState extends ConsumerState<MartSearchPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final CartApiService _cartApiService = CartApiService();
   String _query = '';
   bool _loading = false;
   bool _loadingMore = false;
@@ -39,8 +42,20 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
   int _page = 1;
   int _lastPage = 1;
   int _totalFound = 0;
+  _SearchSortKey _sortKey = _SearchSortKey.name;
+  String _sortDirection = 'asc';
 
   bool get _isServerMode => widget.martApiService != null;
+  int get _cartCount =>
+      ref
+          .watch(cartProvider)
+          .cart
+          ?.items
+          .fold<int>(0, (sum, item) => sum + item.quantity) ??
+      0;
+  String get _cartTotal => formatRp(
+    ref.watch(cartProvider).cart?.summary.total ?? 0,
+  ).replaceAll('Rp', '');
 
   int _getQty(Product product) {
     final cartState = ref.watch(cartProvider);
@@ -53,38 +68,176 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
     return 0;
   }
 
-  void _addProduct(Product product) {
-    ref.read(cartProvider.notifier).addItem(productId: product.id, quantity: 1);
+  String get _currentSortField =>
+      _sortKey == _SearchSortKey.discount ? 'diskon_persen' : 'nama_produk';
+
+  List<Product> _sortedCopy(List<Product> items) {
+    final list = [...items];
+    list.sort((a, b) {
+      if (_sortKey == _SearchSortKey.discount) {
+        final cmp = b.discountPercent.compareTo(a.discountPercent);
+        if (cmp != 0) return cmp;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      }
+
+      final cmp = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      return _sortDirection == 'asc' ? cmp : -cmp;
+    });
+    return list;
   }
 
-  void _incrementProduct(Product product) {
-    ref.read(cartProvider.notifier).addItem(productId: product.id, quantity: 1);
+  Future<void> _addProduct(Product product) async {
+    await ref
+        .read(cartProvider.notifier)
+        .addItem(productId: product.id, quantity: 1);
   }
 
-  void _decrementProduct(Product product) {
+  Future<void> _incrementProduct(Product product) async {
+    final currentQty = _getQty(product);
+    if (currentQty <= 0) {
+      await _addProduct(product);
+      return;
+    }
+
+    await ref
+        .read(cartProvider.notifier)
+        .updateQuantity(productId: product.id, quantity: currentQty + 1);
+  }
+
+  Future<void> _decrementProduct(Product product) async {
     final currentQty = _getQty(product);
     if (currentQty <= 0) return;
 
     if (currentQty == 1) {
-      ref.read(cartProvider.notifier).removeItem(productId: product.id);
+      await ref.read(cartProvider.notifier).removeItem(productId: product.id);
     } else {
-      ref
+      await ref
           .read(cartProvider.notifier)
           .updateQuantity(productId: product.id, quantity: currentQty - 1);
     }
+  }
+
+  Future<void> _refreshCart() async {
+    await ref.read(cartProvider.notifier).fetchCart();
+  }
+
+  void _openCart() {
+    final cartState = ref.read(cartProvider);
+    final cartEntity = cartState.cart;
+    if (cartEntity == null || cartEntity.items.isEmpty) return;
+
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => CartConfirmPage(cartApiService: _cartApiService),
+          ),
+        )
+        .then((_) => _refreshCart());
+  }
+
+  Widget _buildCartBar([double? barHeight]) {
+    final double effectiveHeight = barHeight ?? 58.0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: SizedBox(
+        height: effectiveHeight,
+        child: Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: _openCart,
+                borderRadius: BorderRadius.circular(100),
+                child: Container(
+                  height: effectiveHeight - 8,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF22C55E),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$_cartCount item',
+                              style: GoogleFonts.lexendDeca(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Harga yang tertera merupakan esti...',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.lexendDeca(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withValues(alpha: 0.9),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        'Rp$_cartTotal',
+                        style: GoogleFonts.lexendDeca(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.arrow_forward,
+                          color: Color(0xFF22C55E),
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   List<Product> get _filtered {
     if (_query.trim().isEmpty) return [];
     if (_isServerMode) return _serverResults;
     final q = _query.toLowerCase();
-    return widget.products
-        .where((p) => p.name.toLowerCase().contains(q))
-        .toList();
+    final items =
+        widget.products.where((p) => p.name.toLowerCase().contains(q)).toList();
+    return _sortedCopy(items);
   }
 
   List<Product> get _displayedProducts =>
-      _query.trim().isEmpty ? widget.products : _filtered;
+      _query.trim().isEmpty ? const [] : _filtered;
 
   void _doSearch(String q) {
     setState(() => _query = q);
@@ -92,6 +245,39 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
     if (_isServerMode) {
       _searchServer(q);
     }
+  }
+
+  Future<void> _changeSortName(String direction) async {
+    final changed =
+        _sortKey != _SearchSortKey.name || _sortDirection != direction;
+    if (!changed) return;
+    setState(() {
+      _sortKey = _SearchSortKey.name;
+      _sortDirection = direction;
+    });
+
+    if (_isServerMode && _query.trim().isNotEmpty) {
+      await _searchServer(_query);
+      return;
+    }
+
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _changeSortDiscount() async {
+    final changed = _sortKey != _SearchSortKey.discount;
+    if (!changed) return;
+    setState(() {
+      _sortKey = _SearchSortKey.discount;
+      _sortDirection = 'desc';
+    });
+
+    if (_isServerMode && _query.trim().isNotEmpty) {
+      await _searchServer(_query);
+      return;
+    }
+
+    if (mounted) setState(() {});
   }
 
   Future<void> _searchServer(String q) async {
@@ -119,10 +305,12 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
       keywords: q.trim(),
       page: 1,
       perPage: 50,
+      sortField: _currentSortField,
+      sortDirection: _sortDirection,
     );
     if (!mounted) return;
     setState(() {
-      _serverResults = res.items;
+      _serverResults = _sortedCopy(res.items);
       _page = res.currentPage;
       _lastPage = res.lastPage;
       _totalFound = res.total;
@@ -142,10 +330,12 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
       keywords: _activeSearchQuery,
       page: nextPage,
       perPage: 50,
+      sortField: _currentSortField,
+      sortDirection: _sortDirection,
     );
     if (!mounted) return;
     setState(() {
-      _serverResults = [..._serverResults, ...res.items];
+      _serverResults = _sortedCopy([..._serverResults, ...res.items]);
       _page = res.currentPage;
       _lastPage = res.lastPage;
       _totalFound = res.total;
@@ -165,6 +355,7 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
+    Future.microtask(() => ref.read(cartProvider.notifier).fetchCart());
   }
 
   @override
@@ -178,6 +369,11 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final bool isSmallHeight = media.size.height < 700;
+    final double cartHeight = isSmallHeight ? 50.0 : 56.0;
+    final bool hasCartItems = _cartCount > 0;
+
     ref.listen<CartState>(cartProvider, (previous, next) {
       final err = next.error;
       if (err != null && err.isNotEmpty && err != previous?.error) {
@@ -384,12 +580,56 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
                           if (_query.trim().isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 12),
-                              child: Text(
-                                '${_isServerMode ? _totalFound : _displayedProducts.length} Produk ditemukan',
-                                style: GoogleFonts.lexendDeca(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primaryTextLight,
-                                ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${_isServerMode ? _totalFound : _displayedProducts.length} Produk ditemukan',
+                                      style: GoogleFonts.lexendDeca(
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.primaryTextLight,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _SortOptionChip(
+                                          label: 'A-Z',
+                                          selected:
+                                              _sortKey == _SearchSortKey.name &&
+                                              _sortDirection == 'asc',
+                                          onTap: () => _changeSortName('asc'),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        _SortOptionChip(
+                                          label: 'Z-A',
+                                          selected:
+                                              _sortKey == _SearchSortKey.name &&
+                                              _sortDirection == 'desc',
+                                          onTap: () => _changeSortName('desc'),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        _SortOptionChip(
+                                          label: 'Diskon',
+                                          selected:
+                                              _sortKey ==
+                                              _SearchSortKey.discount,
+                                          onTap: _changeSortDiscount,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           if (_displayedProducts.isEmpty)
@@ -477,12 +717,58 @@ class _MartSearchPageState extends ConsumerState<MartSearchPage> {
           ],
         ),
       ),
-      bottomNavigationBar: _BottomNav(
-        currentIndex: 1,
-        onTap: (i) {
-          if (i == 1) return; // stay on search
-          Navigator.of(context).pop(i);
-        },
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasCartItems) _buildCartBar(cartHeight),
+            _BottomNav(
+              currentIndex: 1,
+              onTap: (i) {
+                if (i == 1) return; // stay on search
+                Navigator.of(context).pop(i);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _SearchSortKey { name, discount }
+
+class _SortOptionChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SortOptionChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryLight : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.lexendDeca(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : AppColors.primaryTextLight,
+          ),
+        ),
       ),
     );
   }
@@ -704,55 +990,67 @@ class _BottomNav extends StatelessWidget {
       final double gap1 = isSmallHeight ? 4.0 : 6.0;
       final double gap2 = isSmallHeight ? 3.0 : 4.0;
 
-      return InkWell(
-        onTap: () => onTap(index),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 6.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                height: indicatorHeight,
-                width: indicatorWidth,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(2),
+      return Expanded(
+        child: InkWell(
+          onTap: () => onTap(index),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: indicatorHeight,
+                  width: indicatorWidth,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              SizedBox(height: gap1),
-              Icon(icon, size: iconSize, color: color),
-              SizedBox(height: gap2),
-              Text(
-                label,
-                style: GoogleFonts.lexendDeca(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w700,
-                  color: color,
+                SizedBox(height: gap1),
+                Icon(icon, size: iconSize, color: color),
+                SizedBox(height: gap2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: GoogleFonts.lexendDeca(
+                      fontSize: fontSize,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: color,
+                      height: 1.05,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
     }
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.grey.shade200)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
         ),
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: SizedBox(
+        height: isSmallHeight ? 54.0 : 62.0,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
@@ -760,6 +1058,7 @@ class _BottomNav extends StatelessWidget {
             item(LucideIcons.search, 'Pencarian', 1),
             item(Icons.grid_view, 'Kategori', 2),
             item(LucideIcons.shoppingBag, 'Belanjaan', 3),
+            item(LucideIcons.wallet, 'Tongji', 4),
           ],
         ),
       ),
