@@ -1132,6 +1132,59 @@ class ApiService {
     }
   }
 
+  /// POST /api/tabungan/pencairan/approval
+  Future<Map<String, dynamic>> approvePencairan({
+    required String id,
+    required int pJenisTabunganId,
+    required String statusPencairan,
+    required num jumlahDisetujui,
+    required String tglPencairan, // Format YYYY-MM-DD
+    String? catatanApprover,
+  }) async {
+    const String endpoint = '/api/tabungan/pencairan/approval';
+    final String? token = await _getAuthToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Token otentikasi diperlukan.');
+    }
+
+    final Map<String, dynamic> payload = {
+      'id': id,
+      'p_jenis_tabungan_id': pJenisTabunganId,
+      'status_pencairan': statusPencairan,
+      'jumlah_disetujui': jumlahDisetujui,
+      'tgl_pencairan': tglPencairan,
+      'catatan_approver':
+          (catatanApprover != null && catatanApprover.trim().isNotEmpty)
+              ? catatanApprover.trim()
+              : null,
+    };
+
+    try {
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+      return {
+        'success': response.statusCode == 200 || response.statusCode == 201,
+        'message': 'Approval pencairan berhasil dikirim.',
+      };
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? 'Gagal melakukan approval pencairan.';
+      throw Exception(message);
+    }
+  }
+
   Future<BaseResponse> cancelPengajuanPencairan(String pengambilanId) async {
     // Endpoint dinamis berdasarkan ID
     final String endpoint = '/api/tabungan/pencairan/pembatalan/$pengambilanId';

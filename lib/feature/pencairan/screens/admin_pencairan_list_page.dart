@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:kkba_mobile/feature/pencairan/screens/admin_pencairan_approval_page.dart';
 import 'package:kkba_mobile/model/list_pengajuan.dart';
 import 'package:kkba_mobile/service/api_service.dart';
 import 'package:kkba_mobile/theme.dart';
@@ -134,145 +135,16 @@ class _AdminPencairanListPageState extends State<AdminPencairanListPage> {
     return status;
   }
 
-  void _openDetail(PengajuanItem item) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.primaryBackgroundLight,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        final textTheme = AppTheme.textThemeLight;
-        final anggota = item.masterAnggota;
-        final jenis = item.jenisTabungan;
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.secondaryTextLight.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Detail Pencairan',
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryTextLight,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _statusColor(
-                            item.statusPengambilan,
-                          ).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          item.statusPengambilan,
-                          style: textTheme.labelSmall?.copyWith(
-                            color: _statusColor(item.statusPengambilan),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _detailRow('Anggota', anggota?.nama ?? '-'),
-                  _detailRow('No. Anggota', anggota?.nomorAnggota ?? '-'),
-                  _detailRow('NIK', anggota?.nik ?? '-'),
-                  _detailRow('Jenis Tabungan', jenis?.nama ?? '-'),
-                  _detailRow(
-                    'Jumlah Diajukan',
-                    _currencyFormat.format(item.jumlahDiambil),
-                  ),
-                  _detailRow(
-                    'Jumlah Disetujui',
-                    _currencyFormat.format(item.jumlahDisetujui ?? 0),
-                  ),
-                  _detailRow(
-                    'Rekening',
-                    '${item.rekeningBank} - ${item.rekeningNo}',
-                  ),
-                  _detailRow(
-                    'Tgl Pengajuan',
-                    item.tglPengajuan != null
-                        ? _dateFormat.format(item.tglPengajuan!.toLocal())
-                        : '-',
-                  ),
-                  _detailRow(
-                    'Tgl Pencairan',
-                    item.tglPencairan != null
-                        ? _dateFormat.format(item.tglPencairan!.toLocal())
-                        : '-',
-                  ),
-                  _detailRow('Catatan User', item.catatanUser ?? '-'),
-                  _detailRow('Catatan Approver', item.catatanApprover ?? '-'),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Menunggu API approval.',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: AppColors.secondaryTextLight,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _detailRow(String label, String value) {
-    final textTheme = AppTheme.textThemeLight;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 130,
-            child: Text(
-              label,
-              style: textTheme.bodySmall?.copyWith(
-                color: AppColors.secondaryTextLight,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: textTheme.bodyMedium?.copyWith(
-                color: AppColors.primaryTextLight,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
+  Future<void> _openDetail(PengajuanItem item) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminPencairanApprovalPage(item: item),
       ),
     );
+    if (changed == true && mounted) {
+      _fetchData(reset: true);
+    }
   }
 
   @override
