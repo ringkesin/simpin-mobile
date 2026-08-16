@@ -91,7 +91,7 @@ class _PenyertaanTabPageState extends State<PenyertaanTabPage>
           unselectedLabelColor: AppColors.secondaryTextLight,
           indicatorColor: AppColors.primaryLight,
           indicatorWeight: 3,
-          tabs: const [Tab(text: 'Penyertaan Awal'), Tab(text: 'Perubahan')],
+          tabs: const [Tab(text: 'Setoran Langsung'), Tab(text: 'Perubahan')],
         ),
       ),
       backgroundColor: AppColors.secondaryBackgroundLight,

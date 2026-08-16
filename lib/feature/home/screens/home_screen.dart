@@ -23,6 +23,8 @@ import 'package:kkba_mobile/feature/tabungan/screens/tabungan.dart'; // For "Mut
 import 'package:kkba_mobile/feature/pencairan/screens/pencairan.dart'; // For "Form Pencairan Tabungan"
 import 'package:barcode_widget/barcode_widget.dart';
 import 'package:kkba_mobile/feature/belanja/screens/inspire_mart.dart';
+import 'package:kkba_mobile/feature/anggota/screens/approval_pendaftaran_list_page.dart';
+import 'package:kkba_mobile/feature/pencairan/screens/admin_pencairan_list_page.dart';
 
 // --- BARU: Import halaman Penyertaan ---
 import 'package:kkba_mobile/feature/tabungan/screens/penyertaan_list_view.dart';
@@ -606,6 +608,21 @@ class _HomeScreenState extends State<HomeScreen> {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
+    final Gradient penyertaanGradient = const LinearGradient(
+      colors: [Color(0xFFF5F3FF), Color(0xFFEDE9FE)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+    final Gradient approvalAnggotaGradient = const LinearGradient(
+      colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+    final Gradient pencairanAdminGradient = const LinearGradient(
+      colors: [Color(0xFFFFF1F2), Color(0xFFFFE4E6)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
     const Color defaultIconColor = Colors.black;
 
     return Column(
@@ -614,7 +631,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Padding(
           padding: const EdgeInsets.only(left: 4.0),
           child: Text(
-            'Menu Admin', // Judul untuk menu admin
+            'Menu Admin',
             style: AppTheme.textThemeLight.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.primaryTextLight,
@@ -657,7 +674,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: LucideIcons.coins,
               label: "Approve Penyertaan",
               context: context,
-              iconBackgroundGradient: inboxGradient,
+              iconBackgroundGradient: penyertaanGradient,
               iconColor: defaultIconColor,
               onTap:
                   () => Navigator.push(
@@ -667,7 +684,44 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
             ),
-            // Sisa 2 kolom kita beri Expanded kosong agar alignment rapi
+            const SizedBox(width: 16),
+            _buildMenuItem(
+              icon: LucideIcons.user,
+              label: "Approval Pendaftaran",
+              context: context,
+              iconBackgroundGradient: approvalAnggotaGradient,
+              iconColor: defaultIconColor,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ApprovalPendaftaranListPage(),
+                    ),
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildMenuItem(
+              svgPath: 'assets/icons/banknote-arrow-down.svg',
+              label: "Pencairan",
+              context: context,
+              iconBackgroundGradient: pencairanAdminGradient,
+              iconColor: defaultIconColor,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AdminPencairanListPage(),
+                    ),
+                  ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(child: Container()),
+            Expanded(child: Container()),
             Expanded(child: Container()),
           ],
         ),
@@ -767,7 +821,7 @@ class _HomeScreenState extends State<HomeScreen> {
             // --- MENU BARU DITAMBAHKAN DI SINI ---
             _buildMenuItem(
               icon: LucideIcons.coins, // Gunakan SVG icon yang sesuai
-              label: "Penyertaan",
+              label: "Penyertaan Tabungan Sukarela",
               context: context,
               iconBackgroundGradient: penyertaanGradient,
               iconColor: defaultIconColor,

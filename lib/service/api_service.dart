@@ -15,6 +15,7 @@ import '../model/berita.dart';
 import '../model/jenis_tabungan.dart';
 import '../model/pengajuan_pencairan.dart';
 import '../model/list_pengajuan.dart';
+import '../model/grid_pencairan_response.dart';
 import '../model/base_response.dart';
 import '../model/mutasi_tabungan_response.dart';
 import '../model/pinjaman_list.dart';
@@ -25,6 +26,7 @@ import '../model/document_attribute.dart';
 import '../model/list_penyertaan_response.dart';
 import '../model/pengajuan_penyertaan_response.dart';
 import '../model/list_perubahan_penyertaan_response.dart';
+import '../model/anggota_registrasi_response.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
@@ -1063,6 +1065,70 @@ class ApiService {
     } catch (e) {
       print("[ApiService.getListPengajuan] Non-Dio Exception caught: $e");
       throw Exception("Terjadi kesalahan tidak diketahui: $e");
+    }
+  }
+
+  /// POST /api/tabungan/pencairan/pengajuan/grid
+  Future<GridPencairanResponse> getGridPengajuanPencairan({
+    int page = 1,
+    int perPage = 10,
+    String? search,
+    int? pAnggotaId,
+    int? pJenisTabunganId,
+    String? statusPengambilan,
+    String? tanggalPengajuanDari,
+    String? tanggalPengajuanSampai,
+  }) async {
+    const String endpoint = '/api/tabungan/pencairan/pengajuan/grid';
+    final String? token = await _getAuthToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Token otentikasi diperlukan.');
+    }
+
+    final Map<String, dynamic> filterData = {};
+    if (search != null && search.trim().isNotEmpty) {
+      filterData['search'] = search.trim();
+    }
+    if (pAnggotaId != null) filterData['p_anggota_id'] = pAnggotaId;
+    if (pJenisTabunganId != null) {
+      filterData['p_jenis_tabungan_id'] = pJenisTabunganId;
+    }
+    if (statusPengambilan != null && statusPengambilan.trim().isNotEmpty) {
+      filterData['status_pengambilan'] = statusPengambilan.trim();
+    }
+    if (tanggalPengajuanDari != null && tanggalPengajuanDari.isNotEmpty) {
+      filterData['tanggal_pengajuan_dari'] = tanggalPengajuanDari;
+    }
+    if (tanggalPengajuanSampai != null && tanggalPengajuanSampai.isNotEmpty) {
+      filterData['tanggal_pengajuan_sampai'] = tanggalPengajuanSampai;
+    }
+
+    final payload = {
+      'page': page,
+      'perpage': perPage,
+      'data': filterData,
+    };
+
+    try {
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        return GridPencairanResponse.fromJson(response.data);
+      }
+      throw Exception('Gagal memuat grid pengajuan pencairan.');
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? 'Terjadi kesalahan jaringan.';
+      throw Exception(message);
     }
   }
 
@@ -3218,6 +3284,8 @@ class ApiService {
     required int pJenisTabunganId,
     required int jumlah,
     required String tanggalPenyertaan, // Format "YYYY/MM/DD"
+    String? keterangan,
+    List<XFile>? buktiTransfer,
   }) async {
     const String endpoint = '/api/tabungan/penyertaan/pengajuan';
     final String? token = await _getAuthToken();
@@ -3226,18 +3294,39 @@ class ApiService {
       throw Exception("Token otentikasi diperlukan.");
     }
 
-    final Map<String, dynamic> payload = {
-      'p_anggota_id': pAnggotaId,
-      'p_jenis_tabungan_id': pJenisTabunganId,
-      'jumlah': jumlah,
+    final FormData formData = FormData.fromMap({
+      'p_anggota_id': pAnggotaId.toString(),
+      'p_jenis_tabungan_id': pJenisTabunganId.toString(),
+      'jumlah': jumlah.toString(),
       'tanggal_penyertaan': tanggalPenyertaan,
-    };
+      if (keterangan != null && keterangan.trim().isNotEmpty)
+        'keterangan': keterangan.trim(),
+    });
+
+    if (buktiTransfer != null) {
+      for (final file in buktiTransfer) {
+        final fileName = file.name.isNotEmpty
+            ? file.name
+            : file.path.split(RegExp(r'[/\\]')).last;
+        formData.files.add(
+          MapEntry(
+            'bukti_transfer[]',
+            await MultipartFile.fromFile(file.path, filename: fileName),
+          ),
+        );
+      }
+    }
 
     try {
       final response = await _dio.post(
         endpoint,
-        data: payload,
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
+        data: formData,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -3424,8 +3513,118 @@ class ApiService {
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       return response.data;
-    } on DioException catch (e) {
+    }     on DioException catch (e) {
       final message = e.response?.data?['message'] ?? "Gagal membatalkan.";
+      throw Exception(message);
+    }
+  }
+
+  /// POST /api/anggota/registrasi-baru
+  Future<AnggotaRegistrasiResponse> getAnggotaRegistrasiBaru({
+    int page = 1,
+    int perPage = 15,
+    String? search,
+  }) async {
+    const String endpoint = '/api/anggota/registrasi-baru';
+    final String? token = await _getAuthToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Token otentikasi diperlukan.');
+    }
+
+    final Map<String, dynamic> payload = {
+      'page': page,
+      'perpage': perPage,
+      'data': {
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      },
+    };
+
+    try {
+      final response = await _dio.post(
+        endpoint,
+        data: payload,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        return AnggotaRegistrasiResponse.fromJson(response.data);
+      }
+      throw Exception('Gagal memuat daftar pendaftaran anggota.');
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? 'Terjadi kesalahan jaringan.';
+      throw Exception(message);
+    }
+  }
+
+  /// PUT /api/anggota/{id}/setujui
+  Future<Map<String, dynamic>> setujuiAnggota(int pAnggotaId) async {
+    final String endpoint = '/api/anggota/$pAnggotaId/setujui';
+    final String? token = await _getAuthToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Token otentikasi diperlukan.');
+    }
+
+    try {
+      final response = await _dio.put(
+        endpoint,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+      return {
+        'success': response.statusCode == 200 || response.statusCode == 201,
+        'message': 'Anggota berhasil disetujui.',
+      };
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ?? 'Gagal menyetujui anggota.';
+      throw Exception(message);
+    }
+  }
+
+  /// POST /api/anggota/{id}/daftar-user
+  Future<Map<String, dynamic>> assignAnggotaToUser(int pAnggotaId) async {
+    final String endpoint = '/api/anggota/$pAnggotaId/daftar-user';
+    final String? token = await _getAuthToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Token otentikasi diperlukan.');
+    }
+
+    try {
+      final response = await _dio.post(
+        endpoint,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+      return {
+        'success': response.statusCode == 200 || response.statusCode == 201,
+        'message': 'Anggota berhasil di-assign sebagai user.',
+      };
+    } on DioException catch (e) {
+      final message =
+          e.response?.data?['message'] ??
+          'Gagal meng-assign anggota sebagai user.';
       throw Exception(message);
     }
   }

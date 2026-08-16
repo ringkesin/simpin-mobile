@@ -266,7 +266,7 @@ class _TabunganPageState extends State<TabunganPage> {
     return Column(
       children: [
         SizedBox(
-          height: 180, // Beri tinggi tetap untuk PageView
+          height: 150, // Beri tinggi tetap untuk PageView
           child: PageView.builder(
             controller: _pageController,
             itemCount: details.length,
@@ -366,14 +366,6 @@ class _TabunganPageState extends State<TabunganPage> {
                         ),
                   ),
                 ],
-              ),
-              // Spacer() dihapus untuk layout yang lebih pasti, kita atur dengan padding/sizedbox jika perlu
-              const SizedBox(height: 15),
-              Text(
-                'Perubahan Bulan Ini: ${_currencyFormatter.format(item.nilaiBulanIni ?? 0)}',
-                style: textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withOpacity(0.8),
-                ),
               ),
             ],
           ),
@@ -671,24 +663,12 @@ class _TabunganPageState extends State<TabunganPage> {
             ),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                "${isDebit ? '-' : '+'}${_currencyFormatter.format(item.nilai.abs())}",
-                style: textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: nilaiColor,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _currencyFormatter.format(item.nilaiSd),
-                style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.secondaryTextLight,
-                ), // AppColors
-              ),
-            ],
+          Text(
+            "${isDebit ? '-' : '+'}${_currencyFormatter.format(item.nilai.abs())}",
+            style: textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: nilaiColor,
+            ),
           ),
         ],
       ),

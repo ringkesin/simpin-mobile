@@ -628,9 +628,10 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             biayaAdmin: _simulasiBiayaAdmin!,
             jaminan: _jenisJaminanController.text,
             jaminanKeterangan: _keteranganJaminanController.text,
-            jaminanPerkiraanNilai: double.parse(
-              _getCleanNumber(_perkiraanNilaiController),
-            ),
+            jaminanPerkiraanNilai: double.tryParse(
+                  _getCleanNumber(_perkiraanNilaiController),
+                ) ??
+                0,
             noRekening: _noRekeningController.text,
             bank: _bankController.text,
             docSlipGaji: _docSlipGaji,
@@ -1049,23 +1050,19 @@ class _FormWizardScreenState extends State<FormWizardScreen> {
             const SizedBox(height: 16),
             _buildTextField(
               controller: _perkiraanNilaiController,
-              labelText: 'Perkiraan Nilai Jaminan (Rp)',
+              labelText: 'Perkiraan Nilai Jaminan (Rp, Opsional)',
               hintText: 'Masukkan perkiraan nilai',
               prefixText: 'Rp ',
               keyboardType: TextInputType.number,
               icon: Icons.monetization_on_outlined,
               validator: (value) {
-                if (value == null ||
-                    _getCleanNumber(_perkiraanNilaiController).isEmpty)
-                  return 'Masukkan perkiraan nilai';
-                if (double.tryParse(
-                      _getCleanNumber(_perkiraanNilaiController),
-                    ) ==
-                    null)
+                final clean =
+                    _getCleanNumber(_perkiraanNilaiController);
+                // Field opsional: kosong atau 0 diperbolehkan
+                if (clean.isEmpty) return null;
+                if (double.tryParse(clean) == null) {
                   return 'Masukkan angka yang valid';
-                if (double.parse(_getCleanNumber(_perkiraanNilaiController)) <=
-                    0)
-                  return 'Nilai harus lebih dari 0';
+                }
                 return null;
               },
             ),
